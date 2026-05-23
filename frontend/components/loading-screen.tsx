@@ -22,7 +22,7 @@ export function LoadingScreen({ onComplete }: LoadingScreenProps) {
       return new Promise((resolve) => {
         const img = new Image()
         const frameNum = String(index + 1).padStart(3, "0")
-        img.src = `/hero-sequence/ezgif-frame-${frameNum}.jpg`
+        img.src = `/frames/ezgif-frame-${frameNum}.jpg`
         img.onload = () => {
           frames[index] = img
           loadedCount++

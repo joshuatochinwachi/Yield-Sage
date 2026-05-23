@@ -1,27 +1,64 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useRef } from "react"
 import { LoadingScreen } from "@/components/loading-screen"
-import { HeroSection } from "@/components/hero-section"
 import { ScrollytellingSection } from "@/components/scrollytelling-section"
 import { FeaturesSection } from "@/components/features-section"
 import { Footer } from "@/components/footer"
 
 export default function Home() {
-  const [frames, setFrames] = useState<HTMLImageElement[]>([])
+  const [section1Frames, setSection1Frames] = useState<HTMLImageElement[]>([])
+  const [section2Frames, setSection2Frames] = useState<HTMLImageElement[]>([])
   const [isReady, setIsReady] = useState(false)
+  const isPreloadingSection2 = useRef(false)
 
   const handleLoadComplete = useCallback((loadedFrames: HTMLImageElement[]) => {
-    setFrames(loadedFrames)
+    setSection1Frames(loadedFrames)
     setIsReady(true)
   }, [])
 
+  const preloadSection2 = useCallback(async () => {
+    if (isPreloadingSection2.current || section2Frames.length > 0) return
+    isPreloadingSection2.current = true
+    console.log("Background preloading of Section 2 frames started...")
+    
+    const frames: HTMLImageElement[] = new Array(240)
+    const BATCH_SIZE = 20
+    
+    const loadFrame = (index: number): Promise<void> => {
+      return new Promise((resolve) => {
+        const img = new Image()
+        const frameNum = String(index + 1).padStart(3, "0")
+        img.src = `/hero-sequence/ezgif-frame-${frameNum}.jpg`
+        img.onload = () => {
+          frames[index] = img
+          resolve()
+        }
+        img.onerror = () => {
+          resolve()
+        }
+      })
+    }
+
+    // Load in batches of 20
+    for (let i = 0; i < 240; i += BATCH_SIZE) {
+      const batch = []
+      for (let j = i; j < Math.min(i + BATCH_SIZE, 240); j++) {
+        batch.push(loadFrame(j))
+      }
+      await Promise.all(batch)
+    }
+    
+    setSection2Frames(frames)
+    console.log("Section 2 frames loaded in background!")
+  }, [section2Frames.length])
+
   return (
     <>
-      {/* Frame preloader — shown until all 240 images are in memory */}
+      {/* Preloader — preloads the 240 Section 1 frames */}
       {!isReady && <LoadingScreen onComplete={handleLoadComplete} />}
 
-      {/* Main page — fades in after load */}
+      {/* Main page — visible after Section 1 preloads */}
       <main
         id="sequence"
         style={{
@@ -31,16 +68,17 @@ export default function Home() {
           minHeight: "100vh",
         }}
       >
-        {/* 1. Minimal cinematic hero intro */}
-        <HeroSection />
+        {/* Scrollytelling Section — starts immediately when the page opens */}
+        <ScrollytellingSection 
+          section1Frames={section1Frames} 
+          section2Frames={section2Frames} 
+          preloadSection2={preloadSection2}
+        />
 
-        {/* 2. Scroll-controlled image sequence — 300vh sticky */}
-        <ScrollytellingSection frames={frames} />
-
-        {/* 3. Feature cards */}
+        {/* Feature Grid cards */}
         <FeaturesSection />
 
-        {/* 4. CTA + footer */}
+        {/* Brand reveal footer */}
         <Footer />
       </main>
     </>

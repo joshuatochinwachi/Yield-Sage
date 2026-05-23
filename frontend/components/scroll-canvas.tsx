@@ -1,77 +1,95 @@
 "use client"
 
 import { useEffect, useRef, useCallback } from "react"
-import { useSpring, useTransform, type MotionValue } from "framer-motion"
+import { type MotionValue } from "framer-motion"
 
 const TOTAL_FRAMES = 240
+const SECTION_1_END = 600 / 1300
+const TRANSITION_END = 700 / 1300
 
 interface ScrollCanvasProps {
   scrollProgress: MotionValue<number>
-  isLoaded: boolean
-  frames: HTMLImageElement[]
+  section1Frames: HTMLImageElement[]
+  section2Frames: HTMLImageElement[]
 }
 
-export function ScrollCanvas({ scrollProgress, isLoaded, frames }: ScrollCanvasProps) {
+export function ScrollCanvas({ scrollProgress, section1Frames, section2Frames }: ScrollCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const rafRef = useRef<number | null>(null)
-  const lastFrameRef = useRef<number>(-1)
-
-  // Spring-smoothed scroll value for cinematic inertia feel
-  const smoothProgress = useSpring(scrollProgress, {
-    stiffness: 50,
-    damping: 20,
-    restDelta: 0.0005,
-  })
-
-  // Map 0→1 progress to frame index 0→(TOTAL_FRAMES-1)
-  const frameIndex = useTransform(smoothProgress, [0, 1], [0, TOTAL_FRAMES - 1])
+  
+  const lastFrameIndexRef = useRef<number>(-1)
+  const lastSectionRef = useRef<number>(-1)
 
   const drawFrame = useCallback(
-    (index: number) => {
+    (latestProgress: number) => {
       const canvas = canvasRef.current
-      if (!canvas || !isLoaded || frames.length === 0) return
+      if (!canvas) return
 
-      const clampedIndex = Math.round(Math.min(Math.max(index, 0), TOTAL_FRAMES - 1))
+      let activeFrames = section1Frames
+      let p = 0
+      let section = 1
 
-      // Skip draw if same frame
-      if (clampedIndex === lastFrameRef.current) return
-      lastFrameRef.current = clampedIndex
+      if (latestProgress < SECTION_1_END) {
+        p = latestProgress / SECTION_1_END
+        activeFrames = section1Frames
+        section = 1
+      } else if (latestProgress > TRANSITION_END) {
+        p = (latestProgress - TRANSITION_END) / (1 - TRANSITION_END)
+        activeFrames = section2Frames
+        section = 2
+      } else {
+        // Paint the canvas solid black during the transition gap to clear any lingering frames
+        const ctx = canvas.getContext("2d", { alpha: false })
+        if (ctx) {
+          ctx.fillStyle = "#050505"
+          ctx.fillRect(0, 0, canvas.width, canvas.height)
+        }
+        lastFrameIndexRef.current = -1
+        lastSectionRef.current = -1
+        return
+      }
+
+      if (activeFrames.length === 0) return
+
+      const clampedIndex = Math.round(Math.min(Math.max(p * (TOTAL_FRAMES - 1), 0), TOTAL_FRAMES - 1))
+
+      // Skip draw if same frame and section
+      if (clampedIndex === lastFrameIndexRef.current && section === lastSectionRef.current) return
+      lastFrameIndexRef.current = clampedIndex
+      lastSectionRef.current = section
 
       const ctx = canvas.getContext("2d", { alpha: false })
       if (!ctx) return
-      
+
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = "high"
 
-      const img = frames[clampedIndex]
+      const img = activeFrames[clampedIndex]
       if (!img || !img.complete || img.naturalWidth === 0) return
 
-      // High-DPI / Retina support
       const dpr = window.devicePixelRatio || 1
       const w = canvas.offsetWidth
       const h = canvas.offsetHeight
 
-      // Only resize canvas if dimensions changed
+      // Handle resize only when dimensions actually change
       if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
         canvas.width = w * dpr
         canvas.height = h * dpr
         ctx.scale(dpr, dpr)
       }
 
-      // Object-fit: cover math — maintains aspect ratio and fills canvas
+      // Aspect-ratio cover calculation
       const imgAspect = img.naturalWidth / img.naturalHeight
       const canvasAspect = w / h
 
       let drawW: number, drawH: number, drawX: number, drawY: number
 
       if (imgAspect > canvasAspect) {
-        // Image is wider than canvas: fit height, clip width
         drawH = h
         drawW = h * imgAspect
         drawX = (w - drawW) / 2
         drawY = 0
       } else {
-        // Image is taller than canvas: fit width, clip height
         drawW = w
         drawH = w / imgAspect
         drawX = 0
@@ -81,12 +99,12 @@ export function ScrollCanvas({ scrollProgress, isLoaded, frames }: ScrollCanvasP
       ctx.clearRect(0, 0, w, h)
       ctx.drawImage(img, drawX, drawY, drawW, drawH)
     },
-    [isLoaded, frames]
+    [section1Frames, section2Frames]
   )
 
-  // Subscribe to frameIndex motion value and schedule RAF draws
+  // Subscribe to pre-smoothed progress and schedule RAF drawings
   useEffect(() => {
-    const unsubscribe = frameIndex.on("change", (latest) => {
+    const unsubscribe = scrollProgress.on("change", (latest) => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = requestAnimationFrame(() => drawFrame(latest))
     })
@@ -95,28 +113,27 @@ export function ScrollCanvas({ scrollProgress, isLoaded, frames }: ScrollCanvasP
       unsubscribe()
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
     }
-  }, [frameIndex, drawFrame])
+  }, [scrollProgress, drawFrame])
 
-  // Handle window resize — redraw current frame at new dimensions
+  // Window resize handler
   useEffect(() => {
     const handleResize = () => {
       const canvas = canvasRef.current
       if (!canvas) return
-      // Reset cached dims so next draw recomputes
       canvas.width = 0
       canvas.height = 0
-      drawFrame(lastFrameRef.current)
+      drawFrame(scrollProgress.get())
     }
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
-  }, [drawFrame])
+  }, [drawFrame, scrollProgress])
 
-  // Draw first frame when loaded
+  // Draw first frame once loaded
   useEffect(() => {
-    if (isLoaded && frames.length > 0) {
+    if (section1Frames.length > 0) {
       drawFrame(0)
     }
-  }, [isLoaded, frames, drawFrame])
+  }, [section1Frames, drawFrame])
 
   return (
     <canvas

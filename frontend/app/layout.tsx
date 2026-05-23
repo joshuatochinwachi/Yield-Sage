@@ -1,10 +1,15 @@
 import type React from "react"
 import type { Metadata, Viewport } from "next"
-import { Inter } from "next/font/google"
+import { Inter, Cormorant_Garamond } from "next/font/google"
 import { LenisProvider } from "@/components/lenis-provider"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
+const cormorant = Cormorant_Garamond({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+  variable: "--font-serif",
+})
 
 export const metadata: Metadata = {
   title: "YieldSage | AI-Powered DeFi Yield Intelligence on Mantle",
@@ -34,7 +39,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${cormorant.variable}`} suppressHydrationWarning>
       <body
         className="font-sans antialiased"
         style={{ background: "#050505", color: "rgba(255,255,255,0.9)", overflowX: "hidden" }}
