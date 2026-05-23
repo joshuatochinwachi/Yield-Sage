@@ -57,18 +57,27 @@ export function ScrollCanvas({ scrollProgress, section1Frames, section2Frames }:
 
       if (activeFrames.length === 0) return
 
-      const clampedIndex = Math.round(Math.min(Math.max(p * (TOTAL_FRAMES - 1), 0), TOTAL_FRAMES - 1))
+      const targetIndex = Math.round(Math.min(Math.max(p * (TOTAL_FRAMES - 1), 0), TOTAL_FRAMES - 1))
 
-      // Skip draw if same frame and section
+      let clampedIndex = targetIndex
+      let img = activeFrames[clampedIndex]
+
+      // Fallback: if target frame isn't loaded yet, scan backwards for the nearest loaded frame
+      while ((!img || !img.complete || img.naturalWidth === 0) && clampedIndex > 0) {
+        clampedIndex--
+        img = activeFrames[clampedIndex]
+      }
+
+      if (!img || !img.complete || img.naturalWidth === 0) return
+
+      // Skip draw if we're going to draw the exact same image and section as last time
       if (clampedIndex === lastFrameIndexRef.current && section === lastSectionRef.current) return
+      
       lastFrameIndexRef.current = clampedIndex
       lastSectionRef.current = section
 
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = "high"
-
-      const img = activeFrames[clampedIndex]
-      if (!img || !img.complete || img.naturalWidth === 0) return
 
       const dpr = window.devicePixelRatio || 1
       const w = canvas.offsetWidth
@@ -125,18 +134,20 @@ export function ScrollCanvas({ scrollProgress, section1Frames, section2Frames }:
       if (!canvas) return
       canvas.width = 0
       canvas.height = 0
+      lastFrameIndexRef.current = -1
       drawFrame(scrollProgress.get())
     }
     window.addEventListener("resize", handleResize)
     return () => window.removeEventListener("resize", handleResize)
   }, [drawFrame, scrollProgress])
 
-  // Draw first frame once loaded
+  // Draw current frame once loaded, and re-draw when new background frames arrive
   useEffect(() => {
     if (section1Frames.length > 0) {
-      drawFrame(0)
+      lastFrameIndexRef.current = -1 // Force redraw check
+      drawFrame(scrollProgress.get())
     }
-  }, [section1Frames, drawFrame])
+  }, [section1Frames, section2Frames, drawFrame, scrollProgress])
 
   return (
     <canvas

@@ -7,7 +7,7 @@ interface LoadingScreenProps {
   onComplete: (frames: HTMLImageElement[]) => void
 }
 
-const TOTAL_FRAMES = 240
+const TOTAL_FRAMES = 120
 
 export function LoadingScreen({ onComplete }: LoadingScreenProps) {
   const [progress, setProgress] = useState(0)
