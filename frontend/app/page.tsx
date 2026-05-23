@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useRef } from "react"
+import { useState, useCallback, useRef, useEffect } from "react"
 import { LoadingScreen } from "@/components/loading-screen"
 import { MouseGradientBackground } from "@/components/mouse-gradient-background"
 import { ScrollytellingSection } from "@/components/scrollytelling-section"
@@ -53,6 +53,13 @@ export default function Home() {
     setSection2Frames(frames)
     console.log("Section 2 frames loaded in background!")
   }, [section2Frames.length])
+
+  // Start preloading Section 2 frames immediately after loading screen finishes
+  useEffect(() => {
+    if (isReady) {
+      preloadSection2()
+    }
+  }, [isReady, preloadSection2])
 
   return (
     <>

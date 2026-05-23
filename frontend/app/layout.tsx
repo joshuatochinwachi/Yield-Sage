@@ -39,7 +39,10 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${cormorant.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${cormorant.variable}`} suppressHydrationWarning style={{ background: "#050505" }}>
+      <head>
+        <style dangerouslySetInnerHTML={{ __html: 'html,body{background:#050505!important}' }} />
+      </head>
       <body
         className="font-sans antialiased"
         style={{ background: "#050505", color: "rgba(255,255,255,0.9)", overflowX: "hidden" }}
