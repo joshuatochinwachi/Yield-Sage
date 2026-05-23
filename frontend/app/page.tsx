@@ -42,8 +42,8 @@ export default function Home() {
       })
     }
 
-    // Load in batches starting from frame 180
-    for (let i = 180; i < 240; i += BATCH_SIZE) {
+    // Load in batches starting from frame 220
+    for (let i = 220; i < 240; i += BATCH_SIZE) {
       const batch = []
       for (let j = i; j < Math.min(i + BATCH_SIZE, 240); j++) {
         batch.push(loadFrame(j))
