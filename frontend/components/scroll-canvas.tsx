@@ -4,8 +4,10 @@ import { useEffect, useRef, useCallback } from "react"
 import { type MotionValue } from "framer-motion"
 
 const TOTAL_FRAMES = 240
-const SECTION_1_END = 600 / 1300
-const TRANSITION_END = 700 / 1300
+// Section 1 ends at 590vh (10vh earlier — gives canvasOpacity time to fade to 0 FIRST)
+const SECTION_1_CUTOFF = 590 / 1300
+// Section 2 begins at 710vh (10vh later — canvas is fully opaque again before drawing)
+const SECTION_2_START = 710 / 1300
 
 interface ScrollCanvasProps {
   scrollProgress: MotionValue<number>
@@ -25,25 +27,29 @@ export function ScrollCanvas({ scrollProgress, section1Frames, section2Frames }:
       const canvas = canvasRef.current
       if (!canvas) return
 
+      const ctx = canvas.getContext("2d", { alpha: false })
+      if (!ctx) return
+
       let activeFrames = section1Frames
       let p = 0
       let section = 1
 
-      if (latestProgress < SECTION_1_END) {
-        p = latestProgress / SECTION_1_END
+      if (latestProgress <= SECTION_1_CUTOFF) {
+        // Section 1 — frames 1..240 mapped from 0..SECTION_1_CUTOFF
+        p = latestProgress / SECTION_1_CUTOFF
         activeFrames = section1Frames
         section = 1
-      } else if (latestProgress > TRANSITION_END) {
-        p = (latestProgress - TRANSITION_END) / (1 - TRANSITION_END)
+      } else if (latestProgress >= SECTION_2_START) {
+        // Section 2 — frames 1..240 mapped from SECTION_2_START..1.0
+        p = (latestProgress - SECTION_2_START) / (1 - SECTION_2_START)
         activeFrames = section2Frames
         section = 2
       } else {
-        // Paint the canvas solid black during the transition gap to clear any lingering frames
-        const ctx = canvas.getContext("2d", { alpha: false })
-        if (ctx) {
-          ctx.fillStyle = "#050505"
-          ctx.fillRect(0, 0, canvas.width, canvas.height)
-        }
+        // Transition blackout zone — clear the canvas to the same background colour
+        // so absolutely no image data leaks through at any point during the canvas
+        // opacity animation in scrollytelling-section.tsx.
+        ctx.fillStyle = "#050505"
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
         lastFrameIndexRef.current = -1
         lastSectionRef.current = -1
         return
@@ -57,9 +63,6 @@ export function ScrollCanvas({ scrollProgress, section1Frames, section2Frames }:
       if (clampedIndex === lastFrameIndexRef.current && section === lastSectionRef.current) return
       lastFrameIndexRef.current = clampedIndex
       lastSectionRef.current = section
-
-      const ctx = canvas.getContext("2d", { alpha: false })
-      if (!ctx) return
 
       ctx.imageSmoothingEnabled = true
       ctx.imageSmoothingQuality = "high"

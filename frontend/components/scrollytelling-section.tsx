@@ -49,7 +49,7 @@ function CinematicOverlay({
   active: boolean
   scrollYProgress: MotionValue<number>
   range: [number, number]
-  position: "bottom-left" | "bottom-right" | "center-bottom" | "center"
+  position: "bottom-left" | "bottom-right" | "center-bottom" | "center" | "center-top" | "top-center-high"
   fadeInRange?: number
   fadeOutRange?: number
   children: React.ReactNode
@@ -88,6 +88,13 @@ function CinematicOverlay({
     case "center":
       positionClass = "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center items-center w-full max-w-4xl px-8"
       break
+    case "center-top":
+      positionClass = "top-[25%] left-1/2 -translate-x-1/2 text-center items-center w-full max-w-4xl px-8"
+      break
+    case "top-center-high":
+      // Sits at top-1/5 of the screen — clearly in the upper band, never buried
+      positionClass = "top-[18%] left-1/2 -translate-x-1/2 text-center items-center w-full max-w-4xl px-8"
+      break
   }
 
   return (
@@ -99,6 +106,25 @@ function CinematicOverlay({
     </motion.div>
   )
 }
+
+// Deterministic seeded PRNG — identical output on server and client to avoid hydration mismatches.
+// Uses a simple mulberry32 algorithm.
+function seededRandom(seed: number) {
+  let t = (seed + 0x6d2b79f5) | 0
+  t = Math.imul(t ^ (t >>> 15), t | 1)
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+}
+
+// Pre-compute particle data at module level so both SSR and client get the exact same values.
+const PARTICLE_DATA = [...Array(20)].map((_, i) => ({
+  width: (seededRandom(i * 6 + 1) * 1.5 + 0.8).toFixed(3),
+  height: (seededRandom(i * 6 + 2) * 1.5 + 0.8).toFixed(3),
+  left: (seededRandom(i * 6 + 3) * 100).toFixed(3),
+  top: (seededRandom(i * 6 + 4) * 100).toFixed(3),
+  duration: (seededRandom(i * 6 + 5) * 12 + 10).toFixed(3),
+  delay: (seededRandom(i * 6 + 6) * 10).toFixed(3),
+}))
 
 // Particle effect wrapper for floating ambient elements during peaks
 function AmbientParticles({ scrollYProgress }: { scrollYProgress: MotionValue<number> }) {
@@ -124,28 +150,20 @@ function AmbientParticles({ scrollYProgress }: { scrollYProgress: MotionValue<nu
 
   return (
     <motion.div style={{ y: yOffset, opacity }} className="absolute inset-0 pointer-events-none overflow-hidden z-20">
-      {[...Array(20)].map((_, i) => (
+      {PARTICLE_DATA.map((p, i) => (
         <div
           key={i}
           className="absolute rounded-full bg-white"
           style={{
-            width: Math.random() * 1.5 + 0.8 + "px",
-            height: Math.random() * 1.5 + 0.8 + "px",
-            left: Math.random() * 100 + "%",
-            top: Math.random() * 100 + "%",
-            animation: `float-particle ${Math.random() * 12 + 10}s linear infinite`,
-            animationDelay: `-${Math.random() * 10}s`,
+            width: p.width + "px",
+            height: p.height + "px",
+            left: p.left + "%",
+            top: p.top + "%",
+            animation: `float-particle ${p.duration}s linear infinite`,
+            animationDelay: `-${p.delay}s`,
           }}
         />
       ))}
-      <style>{`
-        @keyframes float-particle {
-          0% { transform: translateY(0); opacity: 0; }
-          20% { opacity: 0.8; }
-          80% { opacity: 0.8; }
-          100% { transform: translateY(-120px); opacity: 0; }
-        }
-      `}</style>
     </motion.div>
   )
 }
@@ -202,20 +220,19 @@ export function ScrollytellingSection({
     return () => unsubscribe()
   }, [smoothProgress, preloadSection2])
 
-  // Canvas Opacity Sync linked to the smooth spring:
-  // - Fully opaque inside Section 1 (0 to 600vh)
-  // - Fades to 0 inside Transition (600vh to 620vh)
-  // - Fully dark inside holding blackness (620vh to 680vh)
-  // - Fades in to 1 inside Section 2 entrance (680vh to 700vh)
-  // - Fully opaque inside Section 2 (700vh to 1300vh)
+  // Canvas Opacity Sync — must align exactly with scroll-canvas.tsx cutoff points:
+  // SECTION_1_CUTOFF = 590/1300, SECTION_2_START = 710/1300
+  // Fade-out starts at 570vh (gives 20vh to smoothly fade before canvas stops drawing)
+  // Fade-in ends at 730vh (gives 20vh to smoothly fade back in after canvas resumes)
+  // The total blackout zone (590–710) is held at 0 in between.
   const canvasOpacity = useTransform(
     smoothProgress,
     [
       0,
-      600 / 1300,
-      620 / 1300,
-      680 / 1300,
-      700 / 1300,
+      570 / 1300,  // start fading OUT
+      590 / 1300,  // canvas stops drawing (SECTION_1_CUTOFF) — must be fully 0 by here
+      710 / 1300,  // canvas resumes drawing (SECTION_2_START) — begin fading IN from 0
+      730 / 1300,  // fully opaque again
       1.0,
     ],
     [1, 1, 0, 0, 1, 1]
@@ -267,52 +284,78 @@ export function ScrollytellingSection({
       style={{ height: "1300vh" }} // Total scroll real-estate
     >
       {/* Floating premium fintech header (Navbar) */}
-      <header className="fixed top-0 left-0 w-full flex items-center justify-between px-6 md:px-12 py-6 z-40 bg-gradient-to-b from-[#050505]/50 to-transparent backdrop-blur-[2px] border-b border-white/[0.02]">
-        <div className="flex items-center gap-2.5">
-          <div
-            className="w-5 h-5 rounded-full"
-            style={{
-              background: "radial-gradient(circle, rgba(0,255,136,0.9) 0%, rgba(0,255,136,0.3) 100%)",
-              boxShadow: "0 0 12px rgba(0,255,136,0.5)",
-            }}
-          />
-          <span className="text-sm font-semibold tracking-tight text-white/90 font-sans">YieldSage</span>
-        </div>
-
-        <nav className="hidden md:flex items-center gap-8">
-          {["Protocol", "Intelligence", "Allocation", "Docs"].map((item) => (
-            <a
-              key={item}
-              href={`#${item.toLowerCase()}`}
-              className="text-xs text-white/40 hover:text-white/80 transition-colors tracking-wide font-sans font-medium"
-            >
-              {item}
-            </a>
-          ))}
-        </nav>
-
-        <a
-          href="#features"
-          className="text-[11px] font-sans font-semibold tracking-wider uppercase px-5 py-2.5 rounded-full border transition-all select-none"
+      <header className="fixed top-0 left-0 w-full z-40" style={{ isolation: "isolate" }}>
+        {/* Cinematic glow beam emanating from center of nav — inspired by hollow-scan-ui */}
+        <div
+          className="absolute inset-x-0 top-0 h-[120px] pointer-events-none"
           style={{
-            borderColor: "rgba(0,255,136,0.25)",
-            color: "rgba(0,255,136,0.9)",
+            background: "radial-gradient(ellipse 60% 80px at 50% 0%, rgba(0,255,136,0.10) 0%, transparent 100%)",
           }}
-          onMouseEnter={(e) => {
-            const el = e.currentTarget as HTMLAnchorElement
-            el.style.background = "rgba(0,255,136,0.08)"
-            el.style.borderColor = "rgba(0,255,136,0.6)"
-            el.style.boxShadow = "0 0 15px rgba(0,255,136,0.15)"
+        />
+        {/* Thin glowing border at bottom of nav */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-px pointer-events-none"
+          style={{
+            background: "linear-gradient(to right, transparent 0%, rgba(0,255,136,0.08) 20%, rgba(0,255,136,0.25) 50%, rgba(0,255,136,0.08) 80%, transparent 100%)",
           }}
-          onMouseLeave={(e) => {
-            const el = e.currentTarget as HTMLAnchorElement
-            el.style.background = "transparent"
-            el.style.borderColor = "rgba(0,255,136,0.25)"
-            el.style.boxShadow = "none"
+        />
+
+        <div
+          className="flex items-center justify-between px-6 md:px-12 py-6"
+          style={{
+            background: "linear-gradient(to bottom, rgba(5,5,5,0.75) 0%, rgba(5,5,5,0.2) 100%)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
           }}
         >
-          Request Access
-        </a>
+          <div className="flex items-center gap-2.5">
+            <div
+              className="w-5 h-5 rounded-full"
+              style={{
+                background: "radial-gradient(circle, rgba(0,255,136,0.9) 0%, rgba(0,255,136,0.3) 100%)",
+                boxShadow: "0 0 12px rgba(0,255,136,0.5), 0 0 24px rgba(0,255,136,0.2)",
+              }}
+            />
+            <span className="text-sm font-semibold tracking-tight text-white/90 font-sans">YieldSage</span>
+          </div>
+
+          <nav className="hidden md:flex items-center gap-8">
+            {["Protocol", "Intelligence", "Allocation", "Docs"].map((item) => (
+              <a
+                key={item}
+                href={`#${item.toLowerCase()}`}
+                className="text-xs text-white/40 hover:text-white/80 transition-colors tracking-wide font-sans font-medium relative group py-1 select-none"
+              >
+                {item}
+                {/* Expanding glowing underline on hover */}
+                <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[rgba(0,255,136,0.85)] shadow-[0_0_8px_rgba(0,255,136,0.6)] group-hover:w-full transition-all duration-300" />
+              </a>
+            ))}
+          </nav>
+
+          <a
+            href="#features"
+            className="text-[11px] font-sans font-semibold tracking-wider uppercase px-5 py-2.5 rounded-full border transition-all select-none"
+            style={{
+              borderColor: "rgba(0,255,136,0.25)",
+              color: "rgba(0,255,136,0.9)",
+            }}
+            onMouseEnter={(e) => {
+              const el = e.currentTarget as HTMLAnchorElement
+              el.style.background = "rgba(0,255,136,0.08)"
+              el.style.borderColor = "rgba(0,255,136,0.6)"
+              el.style.boxShadow = "0 0 20px rgba(0,255,136,0.2), 0 0 40px rgba(0,255,136,0.1)"
+            }}
+            onMouseLeave={(e) => {
+              const el = e.currentTarget as HTMLAnchorElement
+              el.style.background = "transparent"
+              el.style.borderColor = "rgba(0,255,136,0.25)"
+              el.style.boxShadow = "none"
+            }}
+          >
+            Request Access
+          </a>
+        </div>
       </header>
 
       {/* Sticky full-screen viewport */}
@@ -449,11 +492,11 @@ export function ScrollytellingSection({
 
         {/* -------------------- TRANSITION BLACKOUT -------------------- */}
 
-        {/* Transition Zone — Scroll 620–680vh (Guarantees display only inside pure black canvas void) */}
+        {/* Transition Zone — centred inside the canvas blackout gap (590–710vh) */}
         <CinematicOverlay
           active={activePhase === 7}
           scrollYProgress={smoothProgress}
-          range={[620 / 1300, 680 / 1300]}
+          range={[615 / 1300, 695 / 1300]}
           position="center"
           fadeInRange={0.2}
           fadeOutRange={0.2}
@@ -552,7 +595,7 @@ export function ScrollytellingSection({
           active={activePhase === 12}
           scrollYProgress={smoothProgress}
           range={[1100 / 1300, 1200 / 1300]}
-          position="center"
+          position="top-center-high"
         >
           <FlankingLabel text="Meet The Intelligence" slow />
         </CinematicOverlay>

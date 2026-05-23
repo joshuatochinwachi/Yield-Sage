@@ -46,8 +46,8 @@ export function MouseGradientBackground() {
       const h = canvas.height
       const t = timeRef.current
 
-      // Pitch-black background with a slight emerald tint
-      ctx.fillStyle = "#030a06"
+      // Pitch-black background matching the cinematic frames
+      ctx.fillStyle = "#050505"
       ctx.fillRect(0, 0, w, h)
 
       const pulse = 0.95 + Math.sin(t * 1.8) * 0.05
@@ -59,7 +59,7 @@ export function MouseGradientBackground() {
       gradient.addColorStop(0.2, `rgba(30, 150, 90, ${0.18 * pulse})`)
       gradient.addColorStop(0.5, `rgba(20, 100, 60, ${0.08 * pulse})`)
       gradient.addColorStop(0.8, `rgba(10, 50, 30, ${0.02 * pulse})`)
-      gradient.addColorStop(1, "rgba(3, 10, 6, 0)")
+      gradient.addColorStop(1, "rgba(5, 5, 5, 0)")
 
       ctx.fillStyle = gradient
       ctx.fillRect(0, 0, w, h)
@@ -76,7 +76,7 @@ export function MouseGradientBackground() {
       gradient2.addColorStop(0, `rgba(210, 160, 40, ${0.16 * pulse2})`)
       gradient2.addColorStop(0.3, `rgba(170, 120, 30, ${0.08 * pulse2})`)
       gradient2.addColorStop(0.7, `rgba(100, 70, 10, ${0.02 * pulse2})`)
-      gradient2.addColorStop(1, "rgba(3, 10, 6, 0)")
+      gradient2.addColorStop(1, "rgba(5, 5, 5, 0)")
 
       ctx.fillStyle = gradient2
       ctx.fillRect(0, 0, w, h)
@@ -92,7 +92,7 @@ export function MouseGradientBackground() {
       )
       gradient3.addColorStop(0, `rgba(40, 200, 140, ${0.06 * pulse})`)
       gradient3.addColorStop(0.5, `rgba(25, 120, 80, ${0.02 * pulse})`)
-      gradient3.addColorStop(1, "rgba(3, 10, 6, 0)")
+      gradient3.addColorStop(1, "rgba(5, 5, 5, 0)")
 
       ctx.fillStyle = gradient3
       ctx.fillRect(0, 0, w, h)
@@ -111,7 +111,7 @@ export function MouseGradientBackground() {
 
   return (
     <>
-      <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none" style={{ background: "#030a06" }} />
+      <canvas ref={canvasRef} className="fixed inset-0 z-0 pointer-events-none" style={{ background: "#050505" }} />
 
       <div className="fixed inset-0 z-[1] pointer-events-none overflow-hidden opacity-[0.08]">
         {/* Farm plot acreage grid overlay */}

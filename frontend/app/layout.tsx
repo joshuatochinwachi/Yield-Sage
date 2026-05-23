@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   title: "YieldSage | AI-Powered DeFi Yield Intelligence on Mantle",
   description:
     "Maximize your yield optimization with autonomous allocations, real-time risk-adjusted models, and secure on-chain intelligence. Built natively on Mantle Network.",
-  icons: { icon: "/favicon.ico" },
+  icons: { icon: "/logo.jpg" },
   openGraph: {
     title: "YieldSage | AI-Powered DeFi Yield Intelligence on Mantle",
     description:

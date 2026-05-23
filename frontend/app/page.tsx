@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react"
 import { LoadingScreen } from "@/components/loading-screen"
+import { MouseGradientBackground } from "@/components/mouse-gradient-background"
 import { ScrollytellingSection } from "@/components/scrollytelling-section"
 import { FeaturesSection } from "@/components/features-section"
 import { Footer } from "@/components/footer"
@@ -58,13 +59,16 @@ export default function Home() {
       {/* Preloader — preloads the 240 Section 1 frames */}
       {!isReady && <LoadingScreen onComplete={handleLoadComplete} />}
 
+      {/* Dynamic, interactive mouse-following glow background (visible in non-scrollytelling sections) */}
+      <MouseGradientBackground />
+
       {/* Main page — visible after Section 1 preloads */}
       <main
         id="sequence"
         style={{
           opacity: isReady ? 1 : 0,
           transition: "opacity 0.8s ease",
-          background: "#050505",
+          background: "transparent",
           minHeight: "100vh",
         }}
       >

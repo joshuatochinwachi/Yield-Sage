@@ -144,7 +144,7 @@ export function FeaturesSection() {
     <section
       id="features"
       className="relative py-28 md:py-40 px-6 md:px-12"
-      style={{ background: "#050505" }}
+      style={{ background: "transparent" }}
     >
       {/* Ambient glow background */}
       <div

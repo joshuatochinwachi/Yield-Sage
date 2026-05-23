@@ -11,7 +11,7 @@ export function Footer() {
     <footer
       id="access"
       className="relative px-6 md:px-12 pt-28 md:pt-40 pb-14"
-      style={{ background: "#050505" }}
+      style={{ background: "transparent" }}
     >
       {/* Top border line */}
       <div
@@ -89,7 +89,7 @@ export function Footer() {
               }}
             />
             <span className="text-xs font-medium text-white/50 tracking-tight">YieldSage</span>
-            <span className="text-xs text-white/20 ml-2 font-mono">© 2025</span>
+            <span className="text-xs text-white/20 ml-2 font-mono">© 2026</span>
           </div>
 
           {/* Links */}
