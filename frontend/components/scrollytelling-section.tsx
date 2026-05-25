@@ -168,6 +168,61 @@ function AmbientParticles({ scrollYProgress }: { scrollYProgress: MotionValue<nu
   )
 }
 
+function ScrollIndicator({ scrollYProgress }: { scrollYProgress: MotionValue<number> }) {
+  // Fade out quickly as user scrolls down (fades out completely by 50vh)
+  const opacity = useTransform(scrollYProgress, [0, 50 / 1300], [1, 0])
+  const y = useTransform(scrollYProgress, [0, 50 / 1300], [0, 20])
+  
+  return (
+    <motion.div 
+      style={{ opacity, y }}
+      className="absolute bottom-8 left-1/2 -translate-x-1/2 z-30 flex flex-col items-center gap-3 pointer-events-none select-none"
+    >
+      <div className="text-[9px] font-sans tracking-[0.4em] uppercase text-white/40 font-bold">
+        Scroll to Explore
+      </div>
+      
+      {/* Sleek Mouse Shape */}
+      <div 
+        className="w-[22px] h-[36px] rounded-full border border-white/20 flex justify-center pt-1.5 relative overflow-hidden"
+        style={{
+          background: "linear-gradient(to bottom, rgba(255,255,255,0.03) 0%, transparent 100%)",
+          backdropFilter: "blur(4px)",
+        }}
+      >
+        {/* Animated Glowing Wheel */}
+        <motion.div 
+          animate={{ 
+            y: [0, 14],
+            opacity: [1, 0] 
+          }}
+          transition={{ 
+            duration: 1.5, 
+            repeat: Infinity, 
+            ease: "easeOut" 
+          }}
+          className="w-[3px] h-[6px] rounded-full"
+          style={{
+            background: "rgba(0,255,136,0.9)",
+            boxShadow: "0 0 8px rgba(0,255,136,0.6), 0 0 16px rgba(0,255,136,0.3)",
+          }}
+        />
+      </div>
+      
+      {/* Bouncing Chevron */}
+      <motion.div
+        animate={{ y: [0, 6, 0] }}
+        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+        className="mt-1"
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(0,255,136,0.6)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 9l6 6 6-6"/>
+        </svg>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 export function ScrollytellingSection({
   section1Frames,
   section2Frames,
@@ -369,6 +424,9 @@ export function ScrollytellingSection({
 
         {/* Drifting ambient particles */}
         <AmbientParticles scrollYProgress={smoothProgress} />
+
+        {/* Global Scroll Indicator (visible only at the very top) */}
+        <ScrollIndicator scrollYProgress={smoothProgress} />
 
         {/* Fullscreen Canvas for sequence scrub */}
         <motion.div style={{ opacity: canvasOpacity }} className="absolute inset-0 z-10 w-full h-full">
