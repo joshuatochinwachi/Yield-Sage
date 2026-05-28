@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+apscheduler
+httpx
+gql[all]
+anthropic
+web3
+python-telegram-bot
+sqlalchemy
+pydantic
+supabase
+python-dotenv
