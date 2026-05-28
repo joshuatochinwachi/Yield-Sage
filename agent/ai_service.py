@@ -35,11 +35,11 @@ def clean_telegram_markdown(text: str) -> str:
     text = text.replace("/paper_trade", "/trade").replace("/paper\\_trade", "/trade").replace("/paper\\\\_trade", "/trade")
     
     # 0c. Remove conflicting parentheses inside markdown link bracket text (which breaks Telegram MarkdownV1 parser)
-    # and format it cleanly with the arrow style (e.g., [aave-v3 ➛ GHO])
+    # and format it cleanly with a standard ASCII arrow style (e.g., [aave-v3 -> GHO])
     def remove_parens_in_brackets(match):
         content = match.group(0)
         inner = content[1:-1]
-        inner_cleaned = inner.replace(" (", " ➛ ").replace("(", " ➛ ").replace(" - ", " ➛ ").replace(")", "")
+        inner_cleaned = inner.replace(" (", " -> ").replace("(", " -> ").replace(" - ", " -> ").replace(")", "")
         return f"[{inner_cleaned}]"
     
     text = re.compile(r'\[[^\]]+\]').sub(remove_parens_in_brackets, text)
