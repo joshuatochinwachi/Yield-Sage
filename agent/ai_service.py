@@ -28,6 +28,9 @@ def clean_telegram_markdown(text: str) -> str:
     if not text:
         return ""
     
+    # 0. Merge split markdown links: convert [Text]\n(URL) to [Text](URL)
+    text = re.sub(r'\]\s*\n\s*\(', '](', text)
+    
     # 1. Replace double asterisks with single asterisks for bold
     text = text.replace("**", "*")
     
@@ -57,11 +60,11 @@ def clean_telegram_markdown(text: str) -> str:
         
     text = "\n".join(cleaned_lines)
     
-    # 3. Escape underscores except when part of a URL.
-    url_pattern = re.compile(r'https?://[^\s\)]+')
+    # 3. Escape underscores except when part of a URL, telegram command, or already escaped.
+    pattern = re.compile(r'(https?://[^\s\)]+|/\w+|\\_)')
     parts = []
     last_idx = 0
-    for match in url_pattern.finditer(text):
+    for match in pattern.finditer(text):
         start, end = match.span()
         parts.append(text[last_idx:start].replace("_", "\\_"))
         parts.append(text[start:end])
@@ -242,7 +245,11 @@ class AIService:
             apy_val = y.get("apy")
             apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
             risk_tag = p.get('risk_tag') or 'unknown'
-            yield_context += f"- {p['name']} ({p['pool_name']}): {apy_str} APY (Risk: {risk_tag.upper()})\n"
+            pool_address = p.get('pool_address')
+            if pool_address:
+                yield_context += f"- [{p['name']} ({p['pool_name']})](https://mantlescan.xyz/address/{pool_address}): {apy_str} APY (Risk: {risk_tag.upper()}) | Address: {pool_address}\n"
+            else:
+                yield_context += f"- {p['name']} ({p['pool_name']}): {apy_str} APY (Risk: {risk_tag.upper()})\n"
             
         trade_context = "User's Active Paper Trades:\n"
         if paper_trades:
@@ -252,10 +259,11 @@ class AIService:
         else:
             trade_context += "- None active.\n"
             
-        system_prompt = f"""You are YieldSage, an intelligent DeFi advisor on the Mantle network.
+        system_prompt = f"""You are YieldSage, an premium, autonomous DeFi advisor on the Mantle network.
 Your goal is to help users find the best yields, simulate trades (paper trading), and adjust their positions based on market changes.
 Keep your answers concise, friendly, and analytical. Use formatting (bolding, lists) to make it readable.
-If the user wants to start a paper trade, instruct them to use the `/paper_trade` command.
+If the user wants to start a paper trade, instruct them to use the `/trade` command.
+Whenever you mention, recommend, list, or refer to any yield pool, you MUST wrap the pool name in its Markdown link to the Mantle Explorer using the exact address provided in the context (e.g. `[Protocol - Pool](https://mantlescan.xyz/address/THE_ADDRESS)`). Never output a bare pool name without its explorer link if the address is available in the context!
 
 CRITICAL FORMATTING RULES FOR TELEGRAM:
 1. NO HEADERS: Do not use #, ##, or ###. Instead, bold your section titles like this: **Section Title**
