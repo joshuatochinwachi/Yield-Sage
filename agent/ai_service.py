@@ -1,6 +1,8 @@
 import os
+import re
 import json
 import logging
+import httpx
 from datetime import datetime
 from supabase import create_client, Client
 from anthropic import AsyncAnthropic
@@ -24,15 +26,15 @@ else:
 
 class AIService:
     def __init__(self):
-        self.haiku_model = "claude-3-5-sonnet-20241022"  # Haiku not available on this API key tier
-        self.sonnet_model = "claude-3-5-sonnet-20241022"
+        self.haiku_model = "claude-haiku-4-5-20251001"
+        self.sonnet_model = "claude-sonnet-4-6"
 
     async def get_recent_yields(self):
         """Fetch the latest snapshot for each active protocol."""
         if not supabase: return []
         try:
             # First get active protocols
-            protocols_res = supabase.table("protocols").select("id, name, pool_name, risk_tag").eq("is_active", True).execute()
+            protocols_res = supabase.table("protocols").select("id, name, pool_name, pool_address, risk_tag").eq("is_active", True).execute()
             protocols = protocols_res.data
             
             latest_yields = []
@@ -128,6 +130,52 @@ class AIService:
         except Exception as e:
             logger.error(f"Error pushing to memory: {e}")
 
+    async def search_web(self, query: str) -> str:
+        """Performs a web search via DuckDuckGo HTML endpoint and returns structured snippet results."""
+        try:
+            url = "https://html.duckduckgo.com/html/"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Accept-Language": "en-US,en;q=0.9"
+            }
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(url, data={"q": query}, headers=headers)
+                if resp.status_code != 200:
+                    logger.warning(f"DDG Search HTTP error {resp.status_code}")
+                    return ""
+                
+                text = resp.text
+                # Use regex to find snippets and titles
+                snippets = re.findall(r'class="[^"]*snippet[^"]*"[^>]*>(.*?)</', text, re.DOTALL)
+                titles = re.findall(r'class="[^"]*result__link[^"]*"[^>]*>(.*?)</', text, re.DOTALL)
+                if not titles:
+                    titles = re.findall(r'class="[^"]*result-link[^"]*"[^>]*>(.*?)</', text, re.DOTALL)
+                    
+                results = []
+                import html
+                clean_tags = re.compile('<.*?>')
+                
+                for i in range(min(len(snippets), len(titles), 5)):
+                    title_clean = re.sub(clean_tags, '', titles[i]).strip()
+                    snippet_clean = re.sub(clean_tags, '', snippets[i]).strip()
+                    title_clean = html.unescape(title_clean)
+                    snippet_clean = html.unescape(snippet_clean)
+                    if title_clean and snippet_clean:
+                        results.append(f"• **{title_clean}**\n  {snippet_clean}")
+                        
+                if not results:
+                    # Generic fallback to any matching snippets if title pairing failed
+                    for s in snippets[:5]:
+                        snippet_clean = re.sub(clean_tags, '', s).strip()
+                        snippet_clean = html.unescape(snippet_clean)
+                        if snippet_clean:
+                            results.append(f"• {snippet_clean}")
+                
+                return "\n\n".join(results)
+        except Exception as e:
+            logger.error(f"Search Web Error: {e}")
+            return ""
+
     async def handle_conversational_query(self, user_message: str, user_id: str = None, telegram_chat_id: int = None):
         """Main entrypoint for Telegram bot chats. Uses Haiku for speed/cost."""
         if not anthropic:
@@ -191,15 +239,78 @@ CONTEXT INJECTION:
             compressed_history.pop(0)
         
         try:
+            tools = [
+                {
+                    "name": "search_web",
+                    "description": "Searches the web for real-time information, news, general facts, or DeFi topics outside our database.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "The search query to run."
+                            }
+                        },
+                        "required": ["query"]
+                    }
+                }
+            ]
+
             response = await anthropic.messages.create(
                 model=self.haiku_model,
-                max_tokens=1000,
+                max_tokens=1500,
                 system=system_prompt,
                 messages=compressed_history,
+                tools=tools,
                 temperature=0.3
             )
             
-            bot_reply = response.content[0].text
+            # Check if model wants to run a tool
+            if response.stop_reason == "tool_use":
+                tool_use = [block for block in response.content if block.type == "tool_use"][0]
+                tool_name = tool_use.name
+                tool_input = tool_use.input
+                tool_use_id = tool_use.id
+                
+                if tool_name == "search_web":
+                    query_val = tool_input.get("query")
+                    logger.info(f"Claude Haiku requested search_web for: '{query_val}'")
+                    
+                    # Execute search
+                    search_results = await self.search_web(query_val)
+                    if not search_results:
+                        search_results = "No search results found."
+                        
+                    # Build history update for Claude
+                    assistant_msg = {
+                        "role": "assistant",
+                        "content": response.content
+                    }
+                    tool_result_msg = {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": tool_use_id,
+                                "content": f"Web Search Results for '{query_val}':\n\n{search_results}"
+                            }
+                        ]
+                    }
+                    
+                    # Final response from Claude with the search results included
+                    final_response = await anthropic.messages.create(
+                        model=self.haiku_model,
+                        max_tokens=1500,
+                        system=system_prompt,
+                        messages=compressed_history + [assistant_msg, tool_result_msg],
+                        tools=tools,
+                        temperature=0.3
+                    )
+                    bot_reply = final_response.content[0].text
+                else:
+                    bot_reply = response.content[0].text
+            else:
+                bot_reply = response.content[0].text
             
             # 3. Save assistant message
             await self.push_to_memory("assistant", bot_reply, user_id, telegram_chat_id)
@@ -229,18 +340,20 @@ CONTEXT INJECTION:
             
         system_prompt = """You are YieldSage's backend scoring engine.
 Analyze the provided paper trades against the latest yield data. 
-Identify any trades that are significantly underperforming compared to better opportunities in the SAME risk tier.
-If a trade is underperforming by more than 2% APY compared to an alternative, generate an alert.
+Generate a brief hourly status update for each trade.
+If a trade is underperforming by more than 2% APY compared to a better opportunity in the SAME risk tier, highlight it as an ALERT and recommend the better pool.
+If the trade is performing well, just provide a reassuring status update (e.g., 'Your trade on X is currently earning Y%.').
 
-Return ONLY a strict JSON array of alerts (no markdown formatting, no preamble). Example:
+Return ONLY a strict JSON array of messages (no markdown formatting, no preamble). Example:
 [
   {
     "user_id": "uuid",
     "trade_id": "uuid",
-    "alert_message": "Your paper trade on Agni USDC/USDT has dropped to 8% APY. Consider moving to Merchant Moe USDC/USDT for 12.5% APY."
+    "alert_message": "Hourly Update: Your paper trade on Agni is earning 8% APY. Consider moving to Merchant Moe for 12.5% APY."
   }
 ]
-If no alerts are needed, return an empty array: []
+You MUST generate an update for EVERY active trade. Do not return an empty array if trades exist.
+Do not use underscores (_) in pool names to prevent Telegram formatting errors.
 """
 
         try:
@@ -265,3 +378,64 @@ If no alerts are needed, return an empty array: []
         except Exception as e:
             logger.error(f"Error in hourly analysis: {e}")
             return []
+
+    async def generate_personalized_hourly_update(self, risk_preference: str, user_trades: list, yields: list) -> str:
+        """Generates a personalized hourly Telegram message for a user, containing recommendations, yield info, position shifts, and insights."""
+        if not anthropic:
+            return "⚠️ YieldSage background services are temporarily offline. Please check back later."
+
+        # Compile latest yields context
+        yield_context = ""
+        for y in yields:
+            p = y.get("protocol", {})
+            apy_val = y.get("apy")
+            apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
+            risk_tag = p.get('risk_tag') or 'unknown'
+            tvl_val = y.get('tvl_usd') or 0
+            tvl_str = f"${tvl_val:,.0f}" if tvl_val else "N/A"
+            pool_address = p.get('pool_address')
+            pool_address_str = f"| Address: {pool_address}" if pool_address else ""
+            yield_context += f"- {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()} {pool_address_str}\n"
+
+        # Compile active trades context
+        if user_trades:
+            trade_context = "User's Active Paper Trades:\n"
+            for t in user_trades:
+                p = t.get("protocols", {})
+                trade_context += f"- Protocol: {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) | Entry APY: {t['entry_apy']}% | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
+        else:
+            trade_context = "User has NO active paper trades right now.\n"
+
+        system_prompt = f"""You are YieldSage's premium, autonomous DeFi research and advisory agent.
+Your goal is to construct a beautiful, engaging, data-dense, and professional hourly Telegram broadcast message for a user.
+
+User Settings:
+- Target Risk Profile: {risk_preference.upper()}
+
+The message MUST contain ALL of the following distinct sections, clearly formatted with headers and emojis:
+1. 📊 **Mantle Yield Snapshots & Recommendations**: Highlight the top-performing yield pools matching their risk tier. Provide 2-3 specific pool names with current APYs and TVLs. IMPORTANT: If a pool has an Address provided, you MUST wrap the pool name in a Markdown link to the Mantle Explorer (e.g. `[Pool Name](https://mantlescan.xyz/address/THE_ADDRESS)`).
+2. 💼 **Personalized Portfolio Analysis**:
+   - If the user has active simulated paper trades (listed below): Review EVERY single trade. Highlight its entry APY and current APY. If any trade is underperforming by >= 2% APY compared to another pool in the SAME risk tier, generate a specific, high-priority alert advising them exactly how to shift their position to make the most money. Include Mantle Explorer links for any pools mentioned if their address is available.
+   - If the user does not have active paper trades: Explain the benefits of simulating trades to track yields, and suggest a specific pool to simulate first.
+3. 💡 **Actionable DeFi Intelligence**: Provide a short, senior-engineer level market insight specific to Mantle DeFi (e.g. stablecoin yields, LST yields, gas costs, pool TVL inflows, etc.).
+
+Strict Formatting Rules:
+- NO RAW UNDERSCORES: Never output bare underscores (like USDT_USDC or sUSDe_USDe) as this breaks Telegram's Markdown parser. Always format them cleanly (e.g. USDT-USDC, sUSDe-USDe) or escape them.
+- Format with premium Telegram Markdown (use bold *word*, emojis, lists, and line breaks). Note: Telegram's default markdown parser uses single asterisks *word* for bold, or double **word**. Let's use double **word** as the bot converts it or handles standard markdown.
+- Keep it highly professional, structured, data-dense, and direct. Keep the word count around 200-250 words maximum. No preamble, no postamble. Only output the final formatted Telegram message text.
+"""
+
+        try:
+            response = await anthropic.messages.create(
+                model=self.sonnet_model,
+                max_tokens=1500,
+                system=system_prompt,
+                messages=[
+                    {"role": "user", "content": f"Yields:\n{yield_context}\n\nTrades:\n{trade_context}\n\nGenerate the hourly update message now:"}
+                ],
+                temperature=0.4
+            )
+            return response.content[0].text.strip()
+        except Exception as e:
+            logger.error(f"Error generating personalized hourly update: {e}")
+            return "⚠️ Sorry, I had trouble generating your hourly market update. I will try again next hour!"

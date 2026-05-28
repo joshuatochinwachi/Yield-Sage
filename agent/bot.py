@@ -2,7 +2,7 @@ import os
 import logging
 import asyncio
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, BotCommandScopeDefault
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from dotenv import load_dotenv, find_dotenv
@@ -45,11 +45,33 @@ async def ensure_user_exists(chat_id: int, username: str, first_name: str, last_
         logger.info(f"Auto-registering Telegram user {chat_id} ({full_name})...")
         insert_res = supabase.table("users").insert(payload).execute()
         if insert_res.data:
-            return insert_res.data[0]["id"]
+            uid = insert_res.data[0]["id"]
+            # Ensure alert preference row is created with is_active = True
+            try:
+                supabase.table("alert_preferences").insert({"user_id": uid, "is_active": True}).execute()
+            except Exception as ap_err:
+                logger.error(f"Error creating default alert preference for user {uid}: {ap_err}")
+            return uid
         return None
     except Exception as e:
         logger.error(f"Error ensuring user exists: {e}")
         return None
+
+async def get_user_alerts_status(user_uuid: str) -> bool:
+    """Returns whether alerts are active for a user, creating the row if missing."""
+    if not supabase:
+        return True
+    try:
+        res = supabase.table("alert_preferences").select("is_active").eq("user_id", user_uuid).limit(1).execute()
+        if res.data:
+            return res.data[0].get("is_active", True)
+        
+        # If missing, insert default row
+        supabase.table("alert_preferences").insert({"user_id": user_uuid, "is_active": True}).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error fetching/creating alert preferences: {e}")
+        return True
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Sends the greeting message and presents the main menu."""
@@ -83,6 +105,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("⚙️ Risk Preference", callback_data="view_risk")
         ],
         [
+            InlineKeyboardButton("🔔 Alert Settings", callback_data="view_alerts"),
             InlineKeyboardButton("❓ Help & Guide", callback_data="view_help")
         ]
     ]
@@ -102,6 +125,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/positions - View and close your active paper trades\n"
         "/trade - Guided setup to simulate a new position\n"
         "/risk - View or modify your risk preference\n"
+        "/alerts - Toggle hourly DeFi recommendations & alerts\n"
         "/help - Display this guide\n\n"
         "💬 **Ask me anything!** You can also chat with me like Claude or ChatGPT to get custom advice on DeFi, yields, or adjusting your portfolio."
     )
@@ -110,62 +134,118 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif update.callback_query:
         await update.callback_query.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
 
-async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Displays top yield pools categorized by risk preference (top 3 per tier to stay within Telegram limits)."""
-    query_or_update = update.callback_query or update.message
+async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Command to view and toggle alert settings."""
+    chat_id = update.effective_chat.id
+    user = update.effective_user
     
-    if update.callback_query:
-        await update.callback_query.answer()
-        
-    yields = await ai.get_recent_yields()
-    if not yields:
-        text = "⚠️ No active yield pools found at the moment."
-        if update.callback_query:
-            await update.callback_query.message.edit_text(text)
-        else:
+    # Reset any state
+    user_states.pop(chat_id, None)
+    
+    # Ensure user exists in database
+    user_uuid = await ensure_user_exists(chat_id, user.username, user.first_name, user.last_name)
+    if not user_uuid:
+        text = "❌ There was an issue retrieving your user profile. Please type /start and try again."
+        if update.message:
             await update.message.reply_text(text)
+        elif update.callback_query:
+            await update.callback_query.message.reply_text(text)
         return
         
-    # Group yields by risk
-    grouped = {"stable": [], "moderate": [], "aggressive": []}
-    for y in yields:
-        tag = (y.get("protocol", {}).get("risk_tag") or "moderate").lower()
-        if tag in grouped:
-            grouped[tag].append(y)
+    is_active = await get_user_alerts_status(user_uuid)
     
-    # Sort each group by APY descending and take top 3
-    for tag in grouped:
-        grouped[tag].sort(key=lambda x: float(x.get('apy') or 0), reverse=True)
-        grouped[tag] = grouped[tag][:3]
-            
-    risk_emoji = {"stable": "🟢", "moderate": "🟡", "aggressive": "🔴"}
-    text = "📊 *Top Yield Pools on Mantle*\n\n"
+    status_str = "🔔 **ENABLED**" if is_active else "🔕 **DISABLED**"
     
-    for r_tag in ["stable", "moderate", "aggressive"]:
-        pools = grouped[r_tag]
-        if pools:
-            emoji = risk_emoji.get(r_tag, "⚪")
-            text += f"{emoji} *{r_tag.upper()}*\n"
-            for i, y in enumerate(pools, 1):
-                p = y.get("protocol", {})
-                apy_val = y.get('apy')
-                apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
-                tvl = y.get('tvl_usd') or 0
-                name = p.get('name', '?')
-                pool = p.get('pool_name', '?')
-                text += f" {i}. {name} ({pool})\n    APY: *{apy_str}* | TVL: ${tvl:,.0f}\n"
-            text += "\n"
+    text = (
+        "🔔 **Notification & Alert Settings**\n\n"
+        f"Hourly status updates & recommendations: {status_str}\n\n"
+        "When enabled, YieldSage will run autonomous research and send you hourly updates "
+        "covering Mantle yield pools, general DeFi recommendations, and alerts or position "
+        "shifts for your simulated trades."
+    )
     
-    text += "_Use /trade to simulate an investment_"
-            
+    toggle_text = "🔕 Disable Hourly Updates" if is_active else "🔔 Enable Hourly Updates"
     keyboard = [
-        [InlineKeyboardButton("📈 Simulate Trade", callback_data="start_trade")],
+        [InlineKeyboardButton(toggle_text, callback_data="toggle_alerts")],
         [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    if update.callback_query:
+    if update.message:
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+    elif update.callback_query:
         await update.callback_query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+
+async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Displays top yield pools with dynamic pagination to prevent Telegram markup or length limits."""
+    query = update.callback_query
+    page = 1
+    if query:
+        await query.answer()
+        if query.data.startswith("yieldpage_"):
+            page = int(query.data.split("_")[1])
+            
+    yields = await ai.get_recent_yields()
+    if not yields:
+        text = "⚠️ No active yield pools found at the moment."
+        if query:
+            await query.message.edit_text(text)
+        else:
+            await update.message.reply_text(text)
+        return
+        
+    # Sort all yields by APY descending
+    yields.sort(key=lambda x: float(x.get('apy') or 0), reverse=True)
+    
+    page_size = 6
+    total_pools = len(yields)
+    total_pages = (total_pools + page_size - 1) // page_size
+    
+    # Slice the yields for the current page
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+    page_yields = yields[start_idx:end_idx]
+    
+    risk_emoji = {"stable": "🟢", "moderate": "🟡", "aggressive": "🔴"}
+    text = f"📊 **Yield Opportunities on Mantle** (Page {page}/{total_pages})\n"
+    text += f"Total active pools: **{total_pools}**\n\n"
+    
+    for i, y in enumerate(page_yields, start_idx + 1):
+        p = y.get("protocol", {})
+        apy_val = y.get('apy')
+        apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
+        tvl = y.get('tvl_usd') or 0
+        name = p.get('name', '?')
+        pool = p.get('pool_name', '?')
+        risk = (p.get('risk_tag') or 'moderate').lower()
+        emoji = risk_emoji.get(risk, "⚪")
+        
+        pool_address = p.get('pool_address')
+        if pool_address:
+            text += f"{i}. {emoji} **[{name}](https://mantlescan.xyz/address/{pool_address})** ({pool})\n"
+        else:
+            text += f"{i}. {emoji} **{name}** ({pool})\n"
+        text += f"   • APY: **{apy_str}** | TVL: **${tvl:,.0f}** | Risk: **{risk.upper()}**\n\n"
+        
+    text += "_Use /trade to simulate an investment_"
+    
+    # Keyboard with pagination controls
+    keyboard = []
+    nav_row = []
+    if page > 1:
+        nav_row.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"yieldpage_{page-1}"))
+    if page < total_pages:
+        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"yieldpage_{page+1}"))
+        
+    if nav_row:
+        keyboard.append(nav_row)
+        
+    keyboard.append([InlineKeyboardButton("📈 Simulate Trade", callback_data="start_trade")])
+    keyboard.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")])
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    
+    if query:
+        await query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
     else:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
@@ -220,8 +300,13 @@ async def view_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         days_held = max((datetime.now(created.tzinfo) - created).days, 0)
         est_return = inv * (current_apy / 100) * (days_held / 365)
         
+        pool_address = t["protocols"].get("pool_address")
+        if pool_address:
+            text += f"🔹 **[{p_name}](https://mantlescan.xyz/address/{pool_address}) ({p_pool})**\n"
+        else:
+            text += f"🔹 **{p_name} ({p_pool})**\n"
+            
         text += (
-            f"🔹 **{p_name} ({p_pool})**\n"
             f"  • Investment: **${inv:,.2f}**\n"
             f"  • Entry APY: **{entry_apy}%** | Current: **{current_apy:.2f}%**\n"
             f"  • Estimated Accrued: **${est_return:.2f}** ({days_held} days held)\n\n"
@@ -237,32 +322,42 @@ async def view_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
 async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Presents top 10 pools by APY for the user to simulate a paper trade (limited to prevent markup overflow)."""
-    query_or_update = update.callback_query or update.message
-    if update.callback_query:
-        await update.callback_query.answer()
-        
+    """Presents pools sorted by APY with dynamic pagination for the user to simulate a paper trade."""
+    query = update.callback_query
+    page = 1
+    if query:
+        await query.answer()
+        if query.data.startswith("tradepage_"):
+            page = int(query.data.split("_")[1])
+            
     yields = await ai.get_recent_yields()
     if not yields:
         text = "⚠️ No active yield pools available to trade right now."
-        if update.callback_query:
-            await update.callback_query.message.edit_text(text)
+        if query:
+            await query.message.edit_text(text)
         else:
             await update.message.reply_text(text)
         return
-    
-    # Sort by APY descending and take top 10 to stay within Telegram markup limits
-    yields.sort(key=lambda x: float(x.get('apy') or 0), reverse=True)
-    top_yields = yields[:10]
         
-    text = "📈 *Simulate Paper Trade*\n\nTop pools by APY — tap to invest:"
+    # Sort by APY descending
+    yields.sort(key=lambda x: float(x.get('apy') or 0), reverse=True)
+    
+    page_size = 6
+    total_pools = len(yields)
+    total_pages = (total_pools + page_size - 1) // page_size
+    
+    # Slice the yields for the current page
+    start_idx = (page - 1) * page_size
+    end_idx = start_idx + page_size
+    page_yields = yields[start_idx:end_idx]
+    
+    text = f"📈 **Simulate Paper Trade** (Page {page}/{total_pages})\n\nTap a pool to simulate an investment:"
     keyboard = []
     
-    for y in top_yields:
+    for y in page_yields:
         p = y.get("protocol", {})
         apy_val = y.get('apy')
         apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
-        # Truncate button label to stay within Telegram callback limits
         name = p.get('name', '?')
         pool = p.get('pool_name', '?')
         label = f"{name} ({pool}) — {apy_str}"
@@ -270,11 +365,21 @@ async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             label = label[:47] + "..."
         keyboard.append([InlineKeyboardButton(label, callback_data=f"tr_{p['id']}")] )
         
+    # Navigation row
+    nav_row = []
+    if page > 1:
+        nav_row.append(InlineKeyboardButton("⬅️ Previous", callback_data=f"tradepage_{page-1}"))
+    if page < total_pages:
+        nav_row.append(InlineKeyboardButton("Next ➡️", callback_data=f"tradepage_{page+1}"))
+        
+    if nav_row:
+        keyboard.append(nav_row)
+        
     keyboard.append([InlineKeyboardButton("🔙 Cancel", callback_data="main_menu")])
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    if update.callback_query:
-        await update.callback_query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+    if query:
+        await query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
     else:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
@@ -292,6 +397,10 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await view_positions(update, context)
     elif data == "start_trade":
         await start_trade_flow(update, context)
+    elif data.startswith("yieldpage_"):
+        await view_yields(update, context)
+    elif data.startswith("tradepage_"):
+        await start_trade_flow(update, context)
     elif data == "view_help":
         # Send help and menu back button
         help_text = (
@@ -302,6 +411,25 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
         await query.message.edit_text(help_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+    elif data == "view_alerts":
+        await query.answer()
+        await alerts_command(update, context)
+    elif data == "toggle_alerts":
+        try:
+            user_res = supabase.table("users").select("id").eq("telegram_chat_id", chat_id).limit(1).execute()
+            if not user_res.data:
+                await query.answer("User profile not found. Please run /start")
+                return
+            uid = user_res.data[0]["id"]
+            current_status = await get_user_alerts_status(uid)
+            new_status = not current_status
+            supabase.table("alert_preferences").update({"is_active": new_status}).eq("user_id", uid).execute()
+            status_word = "enabled" if new_status else "disabled"
+            await query.answer(f"✅ Hourly updates successfully {status_word}!")
+            await alerts_command(update, context)
+        except Exception as e:
+            logger.error(f"Error toggling alerts callback: {e}")
+            await query.answer("❌ Error updating alert settings.")
     elif data == "view_risk":
         # Fetch current preference
         pref = "moderate"
@@ -518,8 +646,9 @@ def main():
             BotCommand("yields", "View current live yields"),
             BotCommand("positions", "View your active paper trades"),
             BotCommand("trade", "Simulate a new paper trade"),
+            BotCommand("alerts", "Toggle hourly DeFi recommendations & alerts"),
             BotCommand("help", "Show help and guide")
-        ])
+        ], scope=BotCommandScopeDefault())
 
     while retry_count < max_retries:
         try:
@@ -531,6 +660,7 @@ def main():
             app.add_handler(CommandHandler("yields", view_yields))
             app.add_handler(CommandHandler("positions", view_positions))
             app.add_handler(CommandHandler("trade", start_trade_flow))
+            app.add_handler(CommandHandler("alerts", alerts_command))
             app.add_handler(CommandHandler("help", help_command))
             
             # Add Callback Router (Inline Keyboard clicks)
