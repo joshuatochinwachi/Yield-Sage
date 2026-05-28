@@ -29,7 +29,7 @@ def clean_telegram_markdown(text: str) -> str:
         return ""
     
     # 0. Merge split markdown links: convert [Text]\s*\\?\s*(URL) to [Text](URL)
-    text = re.sub(r'\]\s*\\?\s*\(', '](', text)
+    text = re.sub(r'\][\s\\/\r\n]*\(', '](', text)
     
     # 0b. Convert any /paper_trade commands to /trade
     text = text.replace("/paper_trade", "/trade").replace("/paper\\_trade", "/trade").replace("/paper\\\\_trade", "/trade")
@@ -486,7 +486,11 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
             trade_context = "User's Active Paper Trades:\n"
             for t in user_trades:
                 p = t.get("protocols", {})
-                trade_context += f"- Protocol: {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) | Entry APY: {t['entry_apy']}% | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
+                pool_address = p.get("pool_address")
+                if pool_address:
+                    trade_context += f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})](https://mantlescan.xyz/address/{pool_address}) | Entry APY: {t['entry_apy']}% | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
+                else:
+                    trade_context += f"- Protocol: {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) | Entry APY: {t['entry_apy']}% | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
         else:
             trade_context = "User has NO active paper trades right now.\n"
 
