@@ -28,8 +28,8 @@ def clean_telegram_markdown(text: str) -> str:
     if not text:
         return ""
     
-    # 0. Merge split markdown links: convert [Text]\s*\\?\s*(URL) to [Text](URL)
-    text = re.sub(r'\][\s\\/\r\n]*\(', '](', text)
+    # 0. Merge split markdown links: convert [Text]\s*(URL) to [Text](URL)
+    text = re.sub(r'\][\s\S]*?\(https?://', '](https://', text)
     
     # 0b. Convert any /paper_trade commands to /trade
     text = text.replace("/paper_trade", "/trade").replace("/paper\\_trade", "/trade").replace("/paper\\\\_trade", "/trade")
