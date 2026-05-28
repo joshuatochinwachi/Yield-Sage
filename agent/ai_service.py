@@ -24,7 +24,7 @@ else:
 
 class AIService:
     def __init__(self):
-        self.haiku_model = "claude-3-5-haiku-20241022"
+        self.haiku_model = "claude-3-5-sonnet-20241022"  # Haiku not available on this API key tier
         self.sonnet_model = "claude-3-5-sonnet-20241022"
 
     async def get_recent_yields(self):

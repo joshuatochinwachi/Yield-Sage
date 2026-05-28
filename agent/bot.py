@@ -111,7 +111,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.callback_query.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
 
 async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Displays top yield pools categorized by risk preference."""
+    """Displays top yield pools categorized by risk preference (top 3 per tier to stay within Telegram limits)."""
     query_or_update = update.callback_query or update.message
     
     if update.callback_query:
@@ -119,34 +119,49 @@ async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
     yields = await ai.get_recent_yields()
     if not yields:
-        await query_or_update.reply_text("⚠️ No active yield pools found at the moment.")
+        text = "⚠️ No active yield pools found at the moment."
+        if update.callback_query:
+            await update.callback_query.message.edit_text(text)
+        else:
+            await update.message.reply_text(text)
         return
         
     # Group yields by risk
     grouped = {"stable": [], "moderate": [], "aggressive": []}
     for y in yields:
-        tag = y["protocol"]["risk_tag"].lower()
+        tag = (y.get("protocol", {}).get("risk_tag") or "moderate").lower()
         if tag in grouped:
             grouped[tag].append(y)
+    
+    # Sort each group by APY descending and take top 3
+    for tag in grouped:
+        grouped[tag].sort(key=lambda x: float(x.get('apy') or 0), reverse=True)
+        grouped[tag] = grouped[tag][:3]
             
-    text = "📊 **Top Yield Opportunities on Mantle**\n\n"
-    keyboard = []
+    risk_emoji = {"stable": "🟢", "moderate": "🟡", "aggressive": "🔴"}
+    text = "📊 *Top Yield Pools on Mantle*\n\n"
     
     for r_tag in ["stable", "moderate", "aggressive"]:
         pools = grouped[r_tag]
         if pools:
-            text += f"🟢 **{r_tag.upper()} RISK POOLS**\n"
-            for y in pools:
-                p = y["protocol"]
+            emoji = risk_emoji.get(r_tag, "⚪")
+            text += f"{emoji} *{r_tag.upper()}*\n"
+            for i, y in enumerate(pools, 1):
+                p = y.get("protocol", {})
                 apy_val = y.get('apy')
                 apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
-                text += f"• *{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})*\n"
-                text += f"  ↳ APY: **{apy_str}** | TVL: ${y.get('tvl_usd', 0):,.0f}\n"
-                # Add inline button to trade this pool
-                keyboard.append([InlineKeyboardButton(f"📈 Trade {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})", callback_data=f"tr_{p['id']}")] )
+                tvl = y.get('tvl_usd') or 0
+                name = p.get('name', '?')
+                pool = p.get('pool_name', '?')
+                text += f" {i}. {name} ({pool})\n    APY: *{apy_str}* | TVL: ${tvl:,.0f}\n"
             text += "\n"
+    
+    text += "_Use /trade to simulate an investment_"
             
-    keyboard.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")])
+    keyboard = [
+        [InlineKeyboardButton("📈 Simulate Trade", callback_data="start_trade")],
+        [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+    ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
@@ -222,24 +237,38 @@ async def view_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
 async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Presents a list of protocols for the user to simulate a paper trade."""
+    """Presents top 10 pools by APY for the user to simulate a paper trade (limited to prevent markup overflow)."""
     query_or_update = update.callback_query or update.message
     if update.callback_query:
         await update.callback_query.answer()
         
     yields = await ai.get_recent_yields()
     if not yields:
-        await query_or_update.reply_text("⚠️ No active yield pools available to trade right now.")
+        text = "⚠️ No active yield pools available to trade right now."
+        if update.callback_query:
+            await update.callback_query.message.edit_text(text)
+        else:
+            await update.message.reply_text(text)
         return
+    
+    # Sort by APY descending and take top 10 to stay within Telegram markup limits
+    yields.sort(key=lambda x: float(x.get('apy') or 0), reverse=True)
+    top_yields = yields[:10]
         
-    text = "📈 **Simulate Paper Trade**\n\nChoose the pool you want to invest in:"
+    text = "📈 *Simulate Paper Trade*\n\nTop pools by APY — tap to invest:"
     keyboard = []
     
-    for y in yields:
-        p = y["protocol"]
+    for y in top_yields:
+        p = y.get("protocol", {})
         apy_val = y.get('apy')
         apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
-        keyboard.append([InlineKeyboardButton(f"{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) - {apy_str} APY", callback_data=f"tr_{p['id']}")] )
+        # Truncate button label to stay within Telegram callback limits
+        name = p.get('name', '?')
+        pool = p.get('pool_name', '?')
+        label = f"{name} ({pool}) — {apy_str}"
+        if len(label) > 50:
+            label = label[:47] + "..."
+        keyboard.append([InlineKeyboardButton(label, callback_data=f"tr_{p['id']}")] )
         
     keyboard.append([InlineKeyboardButton("🔙 Cancel", callback_data="main_menu")])
     reply_markup = InlineKeyboardMarkup(keyboard)
