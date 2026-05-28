@@ -28,18 +28,18 @@ def clean_telegram_markdown(text: str) -> str:
     if not text:
         return ""
     
-    # 0. Merge split markdown links: convert [Text]\s*(URL) to [Text](URL)
-    text = re.sub(r'\]\s*\(', '](', text)
+    # 0. Merge split markdown links: convert [Text]\s*\\?\s*(URL) to [Text](URL)
+    text = re.sub(r'\]\s*\\?\s*\(', '](', text)
     
     # 0b. Convert any /paper_trade commands to /trade
     text = text.replace("/paper_trade", "/trade").replace("/paper\\_trade", "/trade").replace("/paper\\\\_trade", "/trade")
     
     # 0c. Remove conflicting parentheses inside markdown link bracket text (which breaks Telegram MarkdownV1 parser)
-    # e.g., [aave-v3 (GHO)](url) -> [aave-v3 - GHO](url)
+    # and format it cleanly with the arrow style (e.g., [aave-v3 ➛ GHO])
     def remove_parens_in_brackets(match):
         content = match.group(0)
         inner = content[1:-1]
-        inner_cleaned = inner.replace(" (", " - ").replace("(", "-").replace(")", "")
+        inner_cleaned = inner.replace(" (", " ➛ ").replace("(", " ➛ ").replace(" - ", " ➛ ").replace(")", "")
         return f"[{inner_cleaned}]"
     
     text = re.compile(r'\[[^\]]+\]').sub(remove_parens_in_brackets, text)
@@ -476,8 +476,10 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
             tvl_val = y.get('tvl_usd') or 0
             tvl_str = f"${tvl_val:,.0f}" if tvl_val else "N/A"
             pool_address = p.get('pool_address')
-            pool_address_str = f"| Address: {pool_address}" if pool_address else ""
-            yield_context += f"- {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()} {pool_address_str}\n"
+            if pool_address:
+                yield_context += f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})](https://mantlescan.xyz/address/{pool_address}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
+            else:
+                yield_context += f"- {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
 
         # Compile active trades context
         if user_trades:
