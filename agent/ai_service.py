@@ -24,7 +24,7 @@ else:
 
 class AIService:
     def __init__(self):
-        self.haiku_model = "claude-3-haiku-20240307"
+        self.haiku_model = "claude-3-5-haiku-20241022"
         self.sonnet_model = "claude-3-5-sonnet-20241022"
 
     async def get_recent_yields(self):
@@ -217,7 +217,10 @@ CONTEXT INJECTION:
         yield_context = "Latest Yield Snapshots:\n"
         for y in yields:
             p = y.get("protocol", {})
-            yield_context += f"- {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}): {y.get('apy', 0):.2f}% APY (Risk: {p.get('risk_tag', 'Unknown').upper()})\n"
+            apy_val = y.get("apy")
+            apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
+            risk_tag = p.get('risk_tag') or 'unknown'
+            yield_context += f"- {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}): {apy_str} APY (Risk: {risk_tag.upper()})\n"
             
         trade_context = "Active Paper Trades to Evaluate:\n"
         for t in paper_trades:

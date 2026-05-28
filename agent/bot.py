@@ -138,10 +138,12 @@ async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text += f"🟢 **{r_tag.upper()} RISK POOLS**\n"
             for y in pools:
                 p = y["protocol"]
-                text += f"• `{p['slug']}`\n"
-                text += f"  ↳ *{p['name']} ({p['pool_name']})* APY: **{y['apy']:.2f}%** | TVL: ${y['tvl_usd']:,.0f}\n"
+                apy_val = y.get('apy')
+                apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
+                text += f"• *{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})*\n"
+                text += f"  ↳ APY: **{apy_str}** | TVL: ${y.get('tvl_usd', 0):,.0f}\n"
                 # Add inline button to trade this pool
-                keyboard.append([InlineKeyboardButton(f"📈 Trade {p['name']} ({p['pool_name']})", callback_data=f"tr_{p['id']}")] )
+                keyboard.append([InlineKeyboardButton(f"📈 Trade {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})", callback_data=f"tr_{p['id']}")] )
             text += "\n"
             
     keyboard.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")])
@@ -190,7 +192,12 @@ async def view_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         p_name = t["protocols"]["name"]
         p_pool = t["protocols"]["pool_name"]
         entry_apy = t["entry_apy"]
-        current_apy = yield_map.get(t["protocol_id"], entry_apy)
+        
+        # Safely get current_apy, fallback to entry_apy if missing or None
+        current_apy = yield_map.get(t["protocol_id"])
+        if current_apy is None:
+            current_apy = entry_apy
+            
         inv = t["simulated_investment_usd"]
         
         # Calculate yield accrued roughly
@@ -230,7 +237,9 @@ async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     for y in yields:
         p = y["protocol"]
-        keyboard.append([InlineKeyboardButton(f"{p['name']} ({p['pool_name']}) - {y['apy']:.2f}% APY", callback_data=f"tr_{p['id']}")] )
+        apy_val = y.get('apy')
+        apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
+        keyboard.append([InlineKeyboardButton(f"{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) - {apy_str} APY", callback_data=f"tr_{p['id']}")] )
         
     keyboard.append([InlineKeyboardButton("🔙 Cancel", callback_data="main_menu")])
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -364,7 +373,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             snap_res = supabase.table("yield_snapshots").select("apy").eq("protocol_id", protocol_id).order("fetched_at", desc=True).limit(1).execute()
             if snap_res.data:
-                entry_apy = float(snap_res.data[0].get("apy", 0.0))
+                raw_apy = snap_res.data[0].get("apy")
+                entry_apy = float(raw_apy) if raw_apy is not None else 0.0
         except Exception as e:
             logger.error(f"Error fetching snapshot for entry APY: {e}")
             
