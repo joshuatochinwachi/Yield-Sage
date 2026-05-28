@@ -36,12 +36,23 @@ class AIService:
             protocols = protocols_res.data
             
             latest_yields = []
+            
+            # Fetch the most recent batch of snapshots (100 is enough for ~32 active protocols)
+            snap_res = supabase.table("yield_snapshots").select("*").order("fetched_at", desc=True).limit(100).execute()
+            
+            latest_snaps = {}
+            if snap_res.data:
+                for row in snap_res.data:
+                    pid = row["protocol_id"]
+                    if pid not in latest_snaps:
+                        latest_snaps[pid] = row
+            
             for p in protocols:
-                snap_res = supabase.table("yield_snapshots").select("*").eq("protocol_id", p["id"]).order("fetched_at", desc=True).limit(1).execute()
-                if snap_res.data:
-                    yield_data = snap_res.data[0]
+                if p["id"] in latest_snaps:
+                    yield_data = latest_snaps[p["id"]]
                     yield_data["protocol"] = p
                     latest_yields.append(yield_data)
+                    
             return latest_yields
         except Exception as e:
             logger.error(f"Error fetching recent yields: {e}")
@@ -164,12 +175,27 @@ CONTEXT INJECTION:
         # Filter out 'system' roles from history if any snuck in, as Anthropic only accepts user/assistant in messages array
         valid_history = [msg for msg in history if msg["role"] in ["user", "assistant"]]
         
+        # Anthropic STRICTLY requires alternating roles (user, assistant, user). 
+        # If the user sent 2 messages in a row before the bot replied, it will crash.
+        compressed_history = []
+        for msg in valid_history:
+            if not compressed_history:
+                compressed_history.append(msg)
+            elif compressed_history[-1]["role"] == msg["role"]:
+                compressed_history[-1]["content"] += "\n" + msg["content"]
+            else:
+                compressed_history.append(msg)
+                
+        # Anthropic requires the first message to be 'user'. Drop if it's 'assistant'.
+        if compressed_history and compressed_history[0]["role"] == "assistant":
+            compressed_history.pop(0)
+        
         try:
             response = await anthropic.messages.create(
                 model=self.haiku_model,
                 max_tokens=1000,
                 system=system_prompt,
-                messages=valid_history,
+                messages=compressed_history,
                 temperature=0.3
             )
             
