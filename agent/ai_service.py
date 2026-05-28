@@ -57,7 +57,7 @@ def clean_telegram_markdown(text: str) -> str:
         
     text = "\n".join(cleaned_lines)
     
-    # 3. Escape underscores except when part of a URL
+    # 3. Escape underscores except when part of a URL.
     url_pattern = re.compile(r'https?://[^\s\)]+')
     parts = []
     last_idx = 0
