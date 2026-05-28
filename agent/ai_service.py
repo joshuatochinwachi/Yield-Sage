@@ -28,8 +28,11 @@ def clean_telegram_markdown(text: str) -> str:
     if not text:
         return ""
     
-    # 0. Merge split markdown links: convert [Text]\n(URL) to [Text](URL)
-    text = re.sub(r'\]\s*\n\s*\(', '](', text)
+    # 0. Merge split markdown links: convert [Text]\s*(URL) to [Text](URL)
+    text = re.sub(r'\]\s*\(', '](', text)
+    
+    # 0b. Convert any /paper_trade commands to /trade
+    text = text.replace("/paper_trade", "/trade").replace("/paper\\_trade", "/trade").replace("/paper\\\\_trade", "/trade")
     
     # 1. Replace double asterisks with single asterisks for bold
     text = text.replace("**", "*")
