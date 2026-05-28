@@ -6,7 +6,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotComm
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from dotenv import load_dotenv, find_dotenv
-from ai_service import AIService, supabase
+from ai_service import AIService, supabase, clean_telegram_markdown
 
 # Load environment variables
 load_dotenv(find_dotenv())
@@ -581,7 +581,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Get conversational reply
     reply = await ai.handle_conversational_query(user_msg, telegram_chat_id=chat_id)
-    await update.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
+    cleaned_reply = clean_telegram_markdown(reply)
+    await update.message.reply_text(cleaned_reply, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
 
 async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
     """Background repeating job that polls database for pending alerts and broadcasts them."""
@@ -601,9 +602,10 @@ async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
             
             try:
                 # Send text via Telegram Bot
+                cleaned_content = clean_telegram_markdown(content)
                 await context.bot.send_message(
                     chat_id=chat_id,
-                    text=content,
+                    text=cleaned_content,
                     parse_mode=ParseMode.MARKDOWN,
                     disable_web_page_preview=True
                 )

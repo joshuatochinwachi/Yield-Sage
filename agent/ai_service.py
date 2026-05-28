@@ -24,6 +24,52 @@ if ANTHROPIC_API_KEY:
 else:
     anthropic = None
 
+def clean_telegram_markdown(text: str) -> str:
+    if not text:
+        return ""
+    
+    # 1. Replace double asterisks with single asterisks for bold
+    text = text.replace("**", "*")
+    
+    # 2. Process line by line
+    lines = text.split("\n")
+    cleaned_lines = []
+    
+    for line in lines:
+        stripped = line.strip()
+        
+        # Convert Markdown headers to bold
+        if stripped.startswith("#"):
+            hashes = 0
+            for char in stripped:
+                if char == "#":
+                    hashes += 1
+                else:
+                    break
+            header_content = stripped[hashes:].strip()
+            line = f"*{header_content}*"
+            
+        # Convert horizontal rules to blank lines
+        elif stripped in ["---", "===", "___", "***"]:
+            line = ""
+            
+        cleaned_lines.append(line)
+        
+    text = "\n".join(cleaned_lines)
+    
+    # 3. Escape underscores except when part of a URL
+    url_pattern = re.compile(r'https?://[^\s\)]+')
+    parts = []
+    last_idx = 0
+    for match in url_pattern.finditer(text):
+        start, end = match.span()
+        parts.append(text[last_idx:start].replace("_", "\\_"))
+        parts.append(text[start:end])
+        last_idx = end
+    parts.append(text[last_idx:].replace("_", "\\_"))
+    
+    return "".join(parts)
+
 class AIService:
     def __init__(self):
         self.haiku_model = "claude-haiku-4-5-20251001"
@@ -212,10 +258,10 @@ Keep your answers concise, friendly, and analytical. Use formatting (bolding, li
 If the user wants to start a paper trade, instruct them to use the `/paper_trade` command.
 
 CRITICAL FORMATTING RULES FOR TELEGRAM:
-- NEVER use Markdown headers (like #, ##, ###). Instead, use bold text like **Header Name** for headers.
-- NEVER use Markdown tables (like | Column | Column |). Use bulleted lists instead.
-- NEVER use horizontal rules (---). Use a blank line instead.
-- ALWAYS use Telegram-compatible Markdown (bold **text**, italics _text_, lists -, inline links [text](url)).
+1. NO HEADERS: Do not use #, ##, or ###. Instead, bold your section titles like this: **Section Title**
+2. NO TABLES: Do not use Markdown tables (e.g. | column | column |). Instead, use bullet points.
+3. NO DIVIDERS: Do not use horizontal rules (---). Use blank lines to separate sections.
+4. LINKS: Use inline links [text](url). Use double asterisks for bold **text**.
 
 CONTEXT INJECTION:
 {yield_context}
@@ -273,50 +319,59 @@ CONTEXT INJECTION:
             
             # Check if model wants to run a tool
             if response.stop_reason == "tool_use":
-                tool_use = [block for block in response.content if block.type == "tool_use"][0]
-                tool_name = tool_use.name
-                tool_input = tool_use.input
-                tool_use_id = tool_use.id
+                tool_uses = [block for block in response.content if block.type == "tool_use"]
                 
-                if tool_name == "search_web":
-                    query_val = tool_input.get("query")
-                    logger.info(f"Claude Haiku requested search_web for: '{query_val}'")
+                tool_results = []
+                for tool_use in tool_uses:
+                    tool_name = tool_use.name
+                    tool_input = tool_use.input
+                    tool_use_id = tool_use.id
                     
-                    # Execute search
-                    search_results = await self.search_web(query_val)
-                    if not search_results:
-                        search_results = "No search results found."
+                    if tool_name == "search_web":
+                        query_val = tool_input.get("query")
+                        logger.info(f"Claude Haiku requested search_web for: '{query_val}'")
                         
-                    # Build history update for Claude
-                    assistant_msg = {
-                        "role": "assistant",
-                        "content": response.content
-                    }
-                    tool_result_msg = {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "tool_result",
-                                "tool_use_id": tool_use_id,
-                                "content": f"Web Search Results for '{query_val}':\n\n{search_results}"
-                            }
-                        ]
-                    }
-                    
-                    # Final response from Claude with the search results included
-                    final_response = await anthropic.messages.create(
-                        model=self.haiku_model,
-                        max_tokens=1500,
-                        system=system_prompt,
-                        messages=compressed_history + [assistant_msg, tool_result_msg],
-                        tools=tools,
-                        temperature=0.3
-                    )
-                    bot_reply = final_response.content[0].text
-                else:
-                    bot_reply = response.content[0].text
+                        # Execute search
+                        search_results = await self.search_web(query_val)
+                        if not search_results:
+                            search_results = "No search results found."
+                            
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use_id,
+                            "content": f"Web Search Results for '{query_val}':\n\n{search_results}"
+                        })
+                    else:
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use_id,
+                            "content": f"Error: unknown tool {tool_name}"
+                        })
+                        
+                # Build history update for Claude
+                assistant_msg = {
+                    "role": "assistant",
+                    "content": response.content
+                }
+                tool_result_msg = {
+                    "role": "user",
+                    "content": tool_results
+                }
+                
+                # Final response from Claude with the search results included
+                final_response = await anthropic.messages.create(
+                    model=self.haiku_model,
+                    max_tokens=1500,
+                    system=system_prompt,
+                    messages=compressed_history + [assistant_msg, tool_result_msg],
+                    tools=tools,
+                    temperature=0.3
+                )
+                bot_reply = final_response.content[0].text
             else:
                 bot_reply = response.content[0].text
+                
+            bot_reply = clean_telegram_markdown(bot_reply)
             
             # 3. Save assistant message
             await self.push_to_memory("assistant", bot_reply, user_id, telegram_chat_id)
@@ -426,9 +481,12 @@ The message MUST contain ALL of the following distinct sections, clearly formatt
 3. 💡 **Actionable DeFi Intelligence**: Provide a short, senior-engineer level market insight specific to Mantle DeFi (e.g. stablecoin yields, LST yields, gas costs, pool TVL inflows, etc.).
 
 Strict Formatting Rules:
-- NO RAW UNDERSCORES: Never output bare underscores (like USDT_USDC or sUSDe_USDe) as this breaks Telegram's Markdown parser. Always format them cleanly (e.g. USDT-USDC, sUSDe-USDe) or escape them.
-- Format with premium Telegram Markdown (use bold *word*, emojis, lists, and line breaks). Note: Telegram's default markdown parser uses single asterisks *word* for bold, or double **word**. Let's use double **word** as the bot converts it or handles standard markdown.
-- Keep it highly professional, structured, data-dense, and direct. Keep the word count around 200-250 words maximum. No preamble, no postamble. Only output the final formatted Telegram message text.
+1. NO RAW UNDERSCORES: Never output bare underscores (like USDT_USDC). Always format cleanly (e.g. USDT-USDC) or escape them to avoid breaking Telegram's parser.
+2. NO HEADERS: Do not use #, ##, or ###. Instead, bold your section titles like this: **Section Title**
+3. NO TABLES: Do not use Markdown tables (e.g. | column | column |). Instead, use bullet points.
+4. NO DIVIDERS: Do not use horizontal rules (---). Use blank lines to separate sections.
+5. FORMATTING: Use double asterisks for bolding: **bold text**.
+6. LENGTH: Keep it professional, data-dense, and direct (200-250 words). No preamble. Only output the final text.
 """
 
         try:
@@ -441,7 +499,7 @@ Strict Formatting Rules:
                 ],
                 temperature=0.4
             )
-            return response.content[0].text.strip()
+            return clean_telegram_markdown(response.content[0].text.strip())
         except Exception as e:
             logger.error(f"Error generating personalized hourly update: {e}")
             return "⚠️ Sorry, I had trouble generating your hourly market update. I will try again next hour!"
