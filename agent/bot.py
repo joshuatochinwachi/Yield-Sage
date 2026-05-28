@@ -245,9 +245,9 @@ async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if query:
-        await query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        await query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
     else:
-        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
 
 async def view_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Displays the user's active paper trades."""
@@ -317,9 +317,9 @@ async def view_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.callback_query:
-        await update.callback_query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        await update.callback_query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
     else:
-        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
 
 async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Presents pools sorted by APY with dynamic pagination for the user to simulate a paper trade."""
@@ -581,7 +581,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Get conversational reply
     reply = await ai.handle_conversational_query(user_msg, telegram_chat_id=chat_id)
-    await update.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN)
+    await update.message.reply_text(reply, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
 
 async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
     """Background repeating job that polls database for pending alerts and broadcasts them."""
@@ -604,7 +604,8 @@ async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
                 await context.bot.send_message(
                     chat_id=chat_id,
                     text=content,
-                    parse_mode=ParseMode.MARKDOWN
+                    parse_mode=ParseMode.MARKDOWN,
+                    disable_web_page_preview=True
                 )
                 
                 # Mark as sent
