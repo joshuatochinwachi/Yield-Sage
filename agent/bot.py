@@ -2,7 +2,7 @@ import os
 import logging
 import asyncio
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from dotenv import load_dotenv, find_dotenv
@@ -473,10 +473,19 @@ def main():
     max_retries = 5
     retry_delay = 10  # seconds
 
+    async def post_init(application):
+        await application.bot.set_my_commands([
+            BotCommand("start", "Start the bot and see main menu"),
+            BotCommand("yields", "View current live yields"),
+            BotCommand("positions", "View your active paper trades"),
+            BotCommand("trade", "Simulate a new paper trade"),
+            BotCommand("help", "Show help and guide")
+        ])
+
     while retry_count < max_retries:
         try:
             logger.info(f"Initializing YieldSage Telegram Bot (Attempt {retry_count + 1}/{max_retries})...")
-            app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
+            app = ApplicationBuilder().token(TELEGRAM_TOKEN).post_init(post_init).build()
             
             # Add Command Handlers
             app.add_handler(CommandHandler("start", start))

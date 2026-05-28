@@ -134,7 +134,10 @@ class AIService:
         yield_context = "Current Live Yields (Mantle Network):\n"
         for y in yields:
             p = y["protocol"]
-            yield_context += f"- {p['name']} ({p['pool_name']}): {y['apy']:.2f}% APY (Risk: {p['risk_tag'].upper()})\n"
+            apy_val = y.get("apy")
+            apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
+            risk_tag = p.get('risk_tag') or 'unknown'
+            yield_context += f"- {p['name']} ({p['pool_name']}): {apy_str} APY (Risk: {risk_tag.upper()})\n"
             
         trade_context = "User's Active Paper Trades:\n"
         if paper_trades:
