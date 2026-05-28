@@ -34,6 +34,16 @@ def clean_telegram_markdown(text: str) -> str:
     # 0b. Convert any /paper_trade commands to /trade
     text = text.replace("/paper_trade", "/trade").replace("/paper\\_trade", "/trade").replace("/paper\\\\_trade", "/trade")
     
+    # 0c. Remove conflicting parentheses inside markdown link bracket text (which breaks Telegram MarkdownV1 parser)
+    # e.g., [aave-v3 (GHO)](url) -> [aave-v3 - GHO](url)
+    def remove_parens_in_brackets(match):
+        content = match.group(0)
+        inner = content[1:-1]
+        inner_cleaned = inner.replace(" (", " - ").replace("(", "-").replace(")", "")
+        return f"[{inner_cleaned}]"
+    
+    text = re.compile(r'\[[^\]]+\]').sub(remove_parens_in_brackets, text)
+    
     # 1. Replace double asterisks with single asterisks for bold
     text = text.replace("**", "*")
     
