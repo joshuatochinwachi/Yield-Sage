@@ -28,21 +28,25 @@ def clean_telegram_markdown(text: str) -> str:
     if not text:
         return ""
     
-    # 0. Merge split markdown links: convert [Text]\s*(URL) to [Text](URL)
-    text = re.sub(r'\][\s\S]*?\(https?://', '](https://', text)
+    # 0. Merge split markdown links: collapse any whitespace/newlines between ] and (https://) → ](https://)
+    text = re.sub(r'\]\s*\(https?://', '](https://', text)
     
     # 0b. Convert any /paper_trade commands to /trade
     text = text.replace("/paper_trade", "/trade").replace("/paper\\_trade", "/trade").replace("/paper\\\\_trade", "/trade")
     
-    # 0c. Remove conflicting parentheses inside markdown link bracket text (which breaks Telegram MarkdownV1 parser)
-    # and format it cleanly with a standard ASCII arrow style (e.g., [aave-v3 -> GHO])
-    def remove_parens_in_brackets(match):
-        content = match.group(0)
-        inner = content[1:-1]
-        inner_cleaned = inner.replace(" (", " -> ").replace("(", " -> ").replace(" - ", " -> ").replace(")", "")
-        return f"[{inner_cleaned}]"
+    # 0c. PERMANENT FIX: Transform all [text](https://...) markdown links to:
+    #   "text ➛ [View onchain](https://...)"
+    # This guarantees correct rendering on ALL Telegram clients (desktop, web, mobile)
+    # because the link text "View onchain" is pure ASCII with no special characters.
+    def to_onchain_link(match):
+        link_text = match.group(1).strip()
+        url = match.group(2).strip()
+        # Don't re-transform links that are already in "View onchain" format
+        if link_text.lower() in ("view onchain", "view on-chain", "view on chain"):
+            return match.group(0)
+        return f"{link_text} ➛ [View onchain]({url})"
     
-    text = re.compile(r'\[[^\]]+\]').sub(remove_parens_in_brackets, text)
+    text = re.sub(r'\[([^\]]+)\]\((https://[^)]+)\)', to_onchain_link, text)
     
     # 1. Replace double asterisks with single asterisks for bold
     text = text.replace("**", "*")
