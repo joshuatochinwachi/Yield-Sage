@@ -70,17 +70,29 @@ _SEARCH_TOOL = {
 
 # ─────────────────────────────────────────────────────────────────────────────
 # clean_telegram_markdown
-# Unchanged from original — bot.py imports this symbol directly.
+# Exported symbol — bot.py imports this directly. Keep the function name stable.
 # ─────────────────────────────────────────────────────────────────────────────
 def clean_telegram_markdown(text: str) -> str:
     if not text:
         return ""
 
-    # 0. Strip spaces/newlines immediately inside link parenthesis, then merge split markdown links
-    text = re.sub(r'\(\s+(https?://)', r'(\1', text)
-    text = re.sub(r'\]\s*\(https?://', '](https://', text)
+    # ── Step 0: Normalise line endings ───────────────────────────────────────
+    text = text.replace("\r\n", "\n")
 
-    # 0b. Convert any /paper_trade commands to /trade
+    # ── Step 1: Repair split Markdown links ──────────────────────────────────
+    # The model sometimes emits the URL on a separate line:
+    #   [Aave V3]
+    #   (https://mantlescan.xyz/...)
+    # \s* matches spaces AND newlines, so both cases are collapsed here.
+    text = re.sub(r'\]\s*\n\s*\(https?://', '](https://', text)   # newline-split link
+    text = re.sub(r'\]\s*\(https?://', '](https://', text)         # space-padded link
+    text = re.sub(r'\(\s+(https?://)', r'(\1', text)               # leading space inside ()
+
+    # ── Step 2: Strip stray asterisks inside URLs ─────────────────────────────
+    # e.g. (https://mantlescan.xyz/address/0x**abc**) → (https://…/0xabc)
+    text = re.sub(r'\(https?://[^)]+\)', lambda m: m.group(0).replace("*", ""), text)
+
+    # ── Step 3: Normalise /paper_trade → /trade ───────────────────────────────
     text = (
         text
         .replace("/paper_trade", "/trade")
@@ -88,17 +100,18 @@ def clean_telegram_markdown(text: str) -> str:
         .replace("/paper\\\\_trade", "/trade")
     )
 
-    # 0c. Transform [Protocol (Pool)](url) → [Protocol](url) (Pool)
+    # ── Step 4: Transform [Protocol (Pool)](url) → [Protocol](url) (Pool) ────
+    #     Also strips surrounding * the model wraps around links.
     def to_yields_style_link(match):
-        full_text = match.group(1).strip()
+        full_text = match.group(1).strip().strip("*")
         url = match.group(2).strip()
         protocol = full_text
         pool = ""
         for sep in [" (", " -> ", " ➛ ", " - "]:
             if sep in full_text:
-                parts = full_text.split(sep, 1)
-                protocol = parts[0].strip()
-                pool = parts[1].strip()
+                pts = full_text.split(sep, 1)
+                protocol = pts[0].strip()
+                pool = pts[1].strip()
                 if pool.endswith(")"):
                     pool = pool[:-1].strip()
                 break
@@ -106,10 +119,11 @@ def clean_telegram_markdown(text: str) -> str:
 
     text = re.sub(r'\[([^\]]+)\]\((https://[^)]+)\)', to_yields_style_link, text)
 
-    # 1. Replace double asterisks with single asterisks for bold
+    # ── Step 5: Normalise bold markers ────────────────────────────────────────
+    # Telegram legacy Markdown uses single * for bold.
     text = text.replace("**", "*")
 
-    # 2. Process line by line
+    # ── Step 6: Line-by-line cleanup ──────────────────────────────────────────
     lines = text.split("\n")
     cleaned_lines = []
     for line in lines:
@@ -119,12 +133,32 @@ def clean_telegram_markdown(text: str) -> str:
             line = f"*{stripped[hashes:].strip()}*"
         elif stripped in ["---", "===", "___", "***"]:
             line = ""
-        cleaned_lines.append(line)
+        cleaned_lines.append(line.rstrip())   # strip trailing spaces
 
     text = "\n".join(cleaned_lines)
 
-    # 3. Escape underscores except inside URLs, commands, or already-escaped
-    pattern = re.compile(r'(https?://[^\s\)]+|/\w+|\\_)')
+    # ── Step 7: Fix jammed bullet points ──────────────────────────────────────
+    # When the model runs bullets together without newlines (e.g. "text • Pool
+    # — APY • Pool2") each bullet gets its own line with a blank line before it.
+    # Match • or · that are NOT already at the start of a line.
+    text = re.sub(r'(?<!\n)[ \t]*[•·]\s+', '\n\n• ', text)
+
+    # ── Step 8: Section emoji headers get a blank line before them ────────────
+    # 📊 💼 💡 ⚠️ section openers jammed against previous text get separated.
+    text = re.sub(
+        r'(?<!\n)\n?(📊|💼|💡|⚠️)\s+',
+        lambda m: f'\n\n{m.group(1)} ',
+        text,
+    )
+
+    # ── Step 9: Collapse runs of 3+ blank lines down to max 2 ─────────────────
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    # ── Step 10: Escape underscores — protecting full [text](url) units ───────
+    # Critical: protect the ENTIRE [text](url) token, not just the URL.
+    # Without this, [Agni_Finance](url) → [Agni\_Finance](url) which breaks
+    # Telegram's link parser and shows as raw text.
+    pattern = re.compile(r'(\[[^\]]*\]\(https?://[^)]+\)|https?://[^\s\)]+|/\w+|\\_)')
     parts = []
     last_idx = 0
     for match in pattern.finditer(text):
@@ -134,7 +168,28 @@ def clean_telegram_markdown(text: str) -> str:
         last_idx = end
     parts.append(text[last_idx:].replace("_", "\\_"))
 
-    return "".join(parts)
+    text = "".join(parts).strip()
+
+    # ── Step 11: Wrap any remaining bare URLs ─────────────────────────────────
+    # Nuclear fallback: if the model still outputs a raw https:// URL that is
+    # NOT already wrapped in [text](url), wrap it now so users never see a
+    # naked link. mantlescan addresses get labelled 'View on Explorer',
+    # everything else gets labelled 'Link'.
+    def wrap_bare_url(m):
+        raw = m.group(0)
+        if "mantlescan.xyz" in raw:
+            return f"[View on Explorer]({raw})"
+        return f"[Link]({raw})"
+
+    # Match bare URLs that are NOT already inside []() markdown links.
+    # Negative lookbehind: not preceded by '(' — that would mean it's already inside a link.
+    text = re.sub(
+        r'(?<!\()(?<![\[\(])https?://[^\s\)\]]+',
+        wrap_bare_url,
+        text,
+    )
+
+    return text
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -429,7 +484,7 @@ class AIService:
         yields      = await self.get_recent_yields()
         paper_trades = await self.get_user_paper_trades(user_id, telegram_chat_id)
 
-        # 3. Build context strings (unchanged from original)
+        # 3. Build context strings
         yield_context = "Current Live Yields (Mantle Network):\n"
         for y in yields:
             p        = y["protocol"]
@@ -441,95 +496,115 @@ class AIService:
                 url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
                 yield_context += (
                     f"- [{p['name']} ({p['pool_name']})]({url}): "
-                    f"{apy_str} APY (Risk: {risk_tag.upper()}) | Address: {pool_addr}\n"
+                    f"{apy_str} APY | Risk: {risk_tag.upper()}\n"
                 )
             else:
                 yield_context += (
                     f"- {p['name']} ({p['pool_name']}): "
-                    f"{apy_str} APY (Risk: {risk_tag.upper()})\n"
+                    f"{apy_str} APY | Risk: {risk_tag.upper()}\n"
                 )
 
         trade_context = "User's Active Paper Trades:\n"
         if paper_trades:
             for t in paper_trades:
                 p = t["protocols"]
-                trade_context += (
-                    f"- ${t['simulated_investment_usd']} in "
-                    f"{p['name']} ({p['pool_name']}) at {t['entry_apy']}% APY.\n"
-                )
+                pool_addr = p.get("pool_address")
+                if pool_addr:
+                    url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
+                    trade_context += (
+                        f"- [{p['name']} ({p['pool_name']})]({url}): "
+                        f"${t['simulated_investment_usd']:,.2f} invested at {t['entry_apy']}% APY\n"
+                    )
+                else:
+                    trade_context += (
+                        f"- {p['name']} ({p['pool_name']}): "
+                        f"${t['simulated_investment_usd']:,.2f} invested at {t['entry_apy']}% APY\n"
+                    )
         else:
             trade_context += "- None active.\n"
 
-        system_prompt = f"""You are YieldSage, a premium autonomous DeFi advisor on the Mantle network. Your goal is to help users find the best yields, simulate trades (paper trading), and adjust their positions based on market changes. Be concise, analytical, and data-driven.
+        system_prompt = f"""You are YieldSage — a sharp, professional DeFi yield advisor specialising in the Mantle network. You are direct, data-driven, and genuinely helpful. Respond like a knowledgeable senior DeFi analyst talking to a smart user: concise, confident, and always grounded in the live data below.
 
-If the user wants to start a paper trade, tell them to use the `/trade` command.
+If the user asks to open a position or start a trade, direct them to the `/trade` command.
 
 ════════════════════════════════════════
 ABSOLUTE FORMATTING LAWS — NO EXCEPTIONS
 ════════════════════════════════════════
 
 LAW 1 ── NO MARKDOWN HEADERS. EVER.
-You are FORBIDDEN from using #, ##, or ### for any heading.
-WRONG → ## Top Pools
-RIGHT → **Top Pools**
+FORBIDDEN → # Title, ## Title, ### Title
+REQUIRED → **Title** (double asterisks — no hash symbols)
 
 LAW 2 ── NO MARKDOWN TABLES. EVER.
-You are FORBIDDEN from using | column | column | table syntax.
-WRONG → | Protocol | APY | Risk |
-RIGHT → Bullet points using • or –
+FORBIDDEN → | Protocol | APY | Risk |
+REQUIRED → Bullet points using • or –
 
 LAW 3 ── NO HORIZONTAL DIVIDERS.
-You are FORBIDDEN from using ---, ***, or === as dividers.
-Use a blank line to separate sections instead.
+FORBIDDEN → ---, ***, ===
+REQUIRED → Blank line between sections only
 
-LAW 4 ── EVERY POOL NAME MUST BE A HYPERLINK.
-If a pool address exists in the context below, you MUST wrap that pool in a Markdown link. No exceptions.
-FORMAT → [Protocol Name](https://mantlescan.xyz/address/0xADDRESS)
-WRONG → The Agni Finance WMNT-mETH pool offers 121% APY.
-RIGHT → The [Agni Finance](https://mantlescan.xyz/address/0x1234abc) WMNT-mETH pool offers 121% APY.
-If no address is available, write the name plainly — do NOT invent a URL.
+LAW 4 ── EVERY POOL WITH AN ADDRESS = HYPERLINK.
+If a pool has an address in the context, it MUST be a Markdown link. No exceptions.
+FORMAT EXACTLY → [Protocol Name](https://mantlescan.xyz/address/0xADDRESS)
+WRONG → Agni Finance WMNT-mETH offers 121% APY
+RIGHT → [Agni Finance](https://mantlescan.xyz/address/0x1234abc) WMNT-mETH offers 121% APY
+If no address exists, write the name plainly — never invent a URL.
 
-LAW 5 ── BOLD USES DOUBLE ASTERISKS ONLY.
+LAW 5 ── BOLD = DOUBLE ASTERISKS ONLY.
 FORMAT → **bold text**
-WRONG → *bold text* (that is italic in Telegram, not bold)
+WRONG → *italic text* ← this is italic, not bold — never use single asterisks for bold
 
-LAW 6 ── NO RAW UNDERSCORES IN POOL NAMES.
-WRONG → USDT_USDC
-RIGHT → USDT-USDC
+LAW 6 ── NO RAW UNDERSCORES IN TOKEN NAMES.
+WRONG → USDT_USDC, WMNT_mETH
+RIGHT → USDT-USDC, WMNT-mETH
+
+LAW 7 ── SPACING. EVERY SECTION AND BULLET MUST BREATHE.
+Each bullet point MUST be on its own line with a blank line before it.
+Each new section MUST have a blank line before it.
+WRONG → "• Pool A — 10% APY • Pool B — 8% APY" (bullets jammed on one line)
+RIGHT →
+• Pool A — 10% APY
+  Description here.
+
+• Pool B — 8% APY
+  Description here.
+Never run two bullets together on the same line. Never run a section title into a paragraph.
 
 ════════════════════════════════════════
-FORMATTING EXAMPLE — COPY THIS STYLE
+FORMATTING EXAMPLE — MIRROR THIS EXACTLY
 ════════════════════════════════════════
 
 **Top Stable Pools Right Now**
 
-• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123) — 17.50% APY | TVL: $2.1M | Risk: STABLE
-  Institutional lending pool. Solid liquidity. Good entry point.
+• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123) — **17.50% APY** | TVL: $2.1M | STABLE
+  Institutional private-credit pool. Strong liquidity. Best stable-tier yield on Mantle right now.
 
-• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456) — 7.02% APY | TVL: $10B+ | Risk: STABLE
-  Most battle-tested protocol on Mantle. Lowest counterparty risk.
+• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456) — **7.02% APY** | TVL: $10B+ | STABLE
+  Most battle-tested DeFi protocol globally. Lowest counterparty risk available.
 
 **My Recommendation**
 
-For a conservative $1,000 position, split 70/30 between Clearpool USDT and Aave V3.
+For a conservative $1,000 entry, I'd split 70/30 between Clearpool USDT and Aave V3. The Clearpool yield is institutional-grade and the Aave allocation acts as a safety anchor.
 
 Use /trade to simulate this allocation.
 
 ════════════════════════════════════════
 MANDATORY SELF-CHECK BEFORE RESPONDING
 ════════════════════════════════════════
-Before you output anything, silently verify:
-1. Zero # headers — only **bold** section titles
-2. Zero | tables — only bullet lists
-3. Zero --- dividers — only blank lines
-4. Every pool with an address is a [Name](url) link
-5. Bold text uses **double asterisks**
-6. No raw underscores in token pair names
+Before outputting anything, silently verify:
+1. Zero # headers anywhere — only **bold** for section titles
+2. Zero | table | syntax — only bullet lists
+3. Zero --- / === / *** dividers — only blank lines
+4. Every pool that has an address is a [Name](url) clickable link
+5. Bold uses **double asterisks**, never single *asterisks*
+6. No raw underscores in any token pair names
+7. Every bullet point is on its own line with a blank line before it
+8. No two bullets appear on the same line — each starts fresh on a new line
 
-If any check fails, rewrite that part before responding.
+If any check fails, fix it before responding.
 
 ════════════════════════════════════════
-LIVE CONTEXT — USE THIS DATA IN RESPONSES
+LIVE DATA — ALWAYS USE THIS IN RESPONSES
 ════════════════════════════════════════
 {yield_context}
 {trade_context}
@@ -857,6 +932,16 @@ LAW 6 ── BOLD USES DOUBLE ASTERISKS ONLY.
 WRONG → *Section Title*
 RIGHT → **Section Title**
 
+LAW 7 ── EVERY BULLET ON ITS OWN LINE WITH A BLANK LINE BEFORE IT.
+WRONG → "• Pool A — 17% • Pool B — 10%" (bullets jammed together)
+RIGHT →
+• Pool A — **17% APY**
+  Reason here.
+
+• Pool B — **10% APY**
+  Reason here.
+Never put two bullets on the same line. Each bullet gets its own line and a blank line above it.
+
 ════════════════════════════════════════
 MANDATORY OUTPUT STRUCTURE — FOLLOW EXACTLY
 ════════════════════════════════════════
@@ -865,7 +950,7 @@ Your message MUST have these three sections in this exact order:
 
 📊 **Mantle Yield Snapshots & Recommendations**
 [2-3 bullet points of top pools matching risk tier: {risk_preference.upper()}]
-[Each bullet: pool link, APY, TVL, one-line reason]
+[Each bullet: pool link, APY, TVL, one-line reason — each on its OWN line with blank line before it]
 
 💼 **Personalized Portfolio Analysis**
 [If user has active trades: review each one. Entry APY vs current APY. Alert if underperforming by 2%+.]
@@ -915,6 +1000,7 @@ Before outputting, silently verify:
 5. Every pool with an address is a [Name](url) link
 6. No raw underscores in any token pair names
 7. Bold uses **double asterisks** not *single*
+8. Every bullet is on its own line with a blank line before it — none are jammed together
 
 If any check fails, fix it before responding.
 """
@@ -924,15 +1010,18 @@ If any check fails, fix it before responding.
                 messages=[{
                     "role": "user",
                     "content": (
-                        f"Yields:\n{yield_context}\n\n"
-                        f"Trades:\n{trade_context}\n\n"
-                        "Generate the hourly update message now. "
-                        "Start directly with 📊 **Mantle Yield Snapshots & Recommendations** — no preamble."
+                        f"Live yield data:\n{yield_context}\n\n"
+                        f"User trades:\n{trade_context}\n\n"
+                        "Generate the hourly Telegram update now. "
+                        "IMPORTANT: Start your response IMMEDIATELY with 📊 **Mantle Yield Snapshots & Recommendations** — "
+                        "no introduction, no preamble, no 'Here is your update'. "
+                        "All pool names with addresses MUST be [Name](url) Markdown links. "
+                        "Use **double asterisks** for bold. Never use # headers."
                     ),
                 }],
                 system_prompt=system_prompt,
-                temperature=0.4,
-                max_tokens=1500,
+                temperature=0.2,
+                max_tokens=1800,
             )
 
             result = clean_telegram_markdown(
