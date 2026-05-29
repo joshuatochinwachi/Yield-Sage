@@ -2,7 +2,7 @@ import os
 import logging
 import asyncio
 from datetime import datetime
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, BotCommandScopeDefault
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, BotCommandScopeDefault, ReplyKeyboardMarkup, KeyboardButton
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from dotenv import load_dotenv, find_dotenv
@@ -116,6 +116,40 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif update.callback_query:
         await update.callback_query.message.edit_text(greeting, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
+async def prompts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Displays an intelligent prompt keyboard for quick questions."""
+    prompts = [
+        "What are the safest yield pools on Mantle right now?",
+        "Which pools offer the highest APY, and why are they so high?",
+        "Explain the risks of providing liquidity to high-APY pools.",
+        "How do I balance my portfolio between stable and volatile assets?",
+        "What is impermanent loss and how can I avoid it?",
+        "Can you recommend a low-risk strategy for a $1,000 portfolio?",
+        "What happens if a protocol's TVL drops significantly?",
+        "Are there any promising stablecoin-only yield opportunities?",
+        "How often should I review and rebalance my active paper trades?",
+        "What factors do you consider when assigning a risk tier?",
+        "Explain the difference between lending pools and liquidity pools."
+    ]
+    
+    keyboard = [[KeyboardButton(prompt)] for prompt in prompts]
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard, 
+        resize_keyboard=True, 
+        one_time_keyboard=True,
+        input_field_placeholder="Select a question or type your own..."
+    )
+    
+    text = (
+        "💡 **Intelligent Prompts & FAQs**\n\n"
+        "Tap any question below to instantly ask YieldSage, or just type your own!"
+    )
+    
+    if update.message:
+        await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+    elif update.callback_query:
+        await update.callback_query.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Sends the help and command guide."""
     help_text = (
@@ -124,6 +158,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/yields - Show current yield opportunities on Mantle\n"
         "/positions - View and close your active paper trades\n"
         "/trade - Guided setup to simulate a new position\n"
+        "/prompts - View intelligent questions to ask the bot\n"
         "/risk - View or modify your risk preference\n"
         "/alerts - Toggle hourly DeFi recommendations & alerts\n"
         "/help - Display this guide\n\n"
@@ -176,6 +211,43 @@ async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif update.callback_query:
         await update.callback_query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
 
+def sort_diverse_yields(yields):
+    """
+    Sorts yields to maximize diversity on page 1.
+    Groups pools by protocol, sorts each group by TVL (descending) and APY (descending).
+    Then uses a round-robin approach to pick the top pool from each protocol, 
+    ensuring multiple protocols are represented on the first page, prioritized by high TVL.
+    """
+    from collections import defaultdict
+    grouped = defaultdict(list)
+    for y in yields:
+        p_name = y.get("protocol", {}).get("name", "Unknown")
+        grouped[p_name].append(y)
+        
+    for p_name in grouped:
+        grouped[p_name].sort(
+            key=lambda x: (float(x.get("tvl") or 0), float(x.get("apy") or 0)), 
+            reverse=True
+        )
+        
+    diverse_yields = []
+    max_pools = max((len(pools) for pools in grouped.values()), default=0)
+    
+    for i in range(max_pools):
+        round_pools = []
+        for pools in grouped.values():
+            if i < len(pools):
+                round_pools.append(pools[i])
+                
+        # Sort this round's pools by TVL (desc) and APY (desc) so largest protocols appear at the top
+        round_pools.sort(
+            key=lambda x: (float(x.get("tvl") or 0), float(x.get("apy") or 0)), 
+            reverse=True
+        )
+        diverse_yields.extend(round_pools)
+        
+    return diverse_yields
+
 async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Displays top yield pools with dynamic pagination to prevent Telegram markup or length limits."""
     query = update.callback_query
@@ -194,8 +266,8 @@ async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(text)
         return
         
-    # Sort all yields by APY descending
-    yields.sort(key=lambda x: float(x.get('apy') or 0), reverse=True)
+    # Sort yields by TVL and Protocol Diversity
+    yields = sort_diverse_yields(yields)
     
     page_size = 6
     total_pools = len(yields)
@@ -222,7 +294,8 @@ async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         pool_address = p.get('pool_address')
         if pool_address:
-            text += f"{i}. {emoji} **[{name}](https://mantlescan.xyz/address/{pool_address})** ({pool})\n"
+            url = pool_address if pool_address.startswith('http') else f"https://mantlescan.xyz/address/{pool_address}"
+            text += f"{i}. {emoji} **[{name}]({url})** ({pool})\n"
         else:
             text += f"{i}. {emoji} **{name}** ({pool})\n"
         text += f"   • APY: **{apy_str}** | TVL: **${tvl:,.0f}** | Risk: **{risk.upper()}**\n\n"
@@ -302,7 +375,8 @@ async def view_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         pool_address = t["protocols"].get("pool_address")
         if pool_address:
-            text += f"🔹 **[{p_name}](https://mantlescan.xyz/address/{pool_address}) ({p_pool})**\n"
+            url = pool_address if pool_address.startswith('http') else f"https://mantlescan.xyz/address/{pool_address}"
+            text += f"🔹 **[{p_name}]({url}) ({p_pool})**\n"
         else:
             text += f"🔹 **{p_name} ({p_pool})**\n"
             
@@ -339,8 +413,8 @@ async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(text)
         return
         
-    # Sort by APY descending
-    yields.sort(key=lambda x: float(x.get('apy') or 0), reverse=True)
+    # Sort yields by TVL and Protocol Diversity
+    yields = sort_diverse_yields(yields)
     
     page_size = 6
     total_pools = len(yields)
@@ -430,42 +504,51 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except Exception as e:
             logger.error(f"Error toggling alerts callback: {e}")
             await query.answer("❌ Error updating alert settings.")
-    elif data == "view_risk":
-        # Fetch current preference
-        pref = "moderate"
+    elif data == "view_risk" or data.startswith("setrisk_"):
         try:
             user_res = supabase.table("users").select("risk_preference").eq("telegram_chat_id", chat_id).limit(1).execute()
-            if user_res.data:
-                pref = user_res.data[0].get("risk_preference", "moderate")
-        except Exception as e:
-            logger.error(f"Error fetching user risk preference: {e}")
+            pref_str = user_res.data[0].get("risk_preference") if user_res.data else "moderate"
+            if not pref_str: pref_str = "moderate"
+            prefs = [p.strip().lower() for p in pref_str.split(",")]
             
-        text = (
-            f"⚙️ **Your Risk Preference**\n\n"
-            f"Current preference: **{pref.upper()}**\n\n"
-            "Adjusting your preference tells me what level of yield risk you are comfortable with. "
-            "Recommendations and alerts will be filtered based on your tier."
-        )
-        keyboard = [
-            [
-                InlineKeyboardButton("🟢 Stable", callback_data="setrisk_stable"),
-                InlineKeyboardButton("🟡 Moderate", callback_data="setrisk_moderate"),
-                InlineKeyboardButton("🔴 Aggressive", callback_data="setrisk_aggressive")
-            ],
-            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
-        ]
-        await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
-    elif data.startswith("setrisk_"):
-        new_risk = data.split("_")[1]
-        try:
-            # Update user profile
-            supabase.table("users").update({"risk_preference": new_risk}).eq("telegram_chat_id", chat_id).execute()
-            await query.answer(f"✅ Risk preference set to {new_risk.upper()}!")
-            # Refresh view
-            await start(update, context)
+            if data.startswith("setrisk_"):
+                clicked_risk = data.split("_")[1]
+                if clicked_risk in prefs:
+                    if len(prefs) > 1:
+                        prefs.remove(clicked_risk)
+                    else:
+                        await query.answer("⚠️ You must have at least one risk preference selected!")
+                else:
+                    prefs.append(clicked_risk)
+                
+                pref_str = ",".join(prefs)
+                supabase.table("users").update({"risk_preference": pref_str}).eq("telegram_chat_id", chat_id).execute()
+                await query.answer("✅ Risk preferences updated!")
+                
+            display_str = ", ".join([p.upper() for p in prefs])
+            text = (
+                f"⚙️ **Your Risk Preference**\n\n"
+                f"Current preferences: **{display_str}**\n\n"
+                "You can select multiple risk tiers. "
+                "Recommendations and alerts will be filtered based on your active tiers."
+            )
+            
+            btn_stable = "✅ Stable" if "stable" in prefs else "Stable"
+            btn_moderate = "✅ Moderate" if "moderate" in prefs else "Moderate"
+            btn_aggressive = "✅ Aggressive" if "aggressive" in prefs else "Aggressive"
+            
+            keyboard = [
+                [
+                    InlineKeyboardButton(btn_stable, callback_data="setrisk_stable"),
+                    InlineKeyboardButton(btn_moderate, callback_data="setrisk_moderate"),
+                    InlineKeyboardButton(btn_aggressive, callback_data="setrisk_aggressive")
+                ],
+                [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+            ]
+            await query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
         except Exception as e:
-            logger.error(f"Error setting risk: {e}")
-            await query.answer("❌ Error updating profile.")
+            logger.error(f"Error handling risk menu: {e}")
+            await query.answer("❌ Error updating risk preference.")
     elif data.startswith("tr_"):
         # Selected a protocol to trade
         protocol_id = data.split("_")[1]
@@ -649,6 +732,7 @@ def main():
             BotCommand("yields", "View current live yields"),
             BotCommand("positions", "View your active paper trades"),
             BotCommand("trade", "Simulate a new paper trade"),
+            BotCommand("prompts", "Intelligent FAQs to ask the AI"),
             BotCommand("alerts", "Toggle hourly DeFi recommendations & alerts"),
             BotCommand("help", "Show help and guide")
         ], scope=BotCommandScopeDefault())
@@ -663,6 +747,7 @@ def main():
             app.add_handler(CommandHandler("yields", view_yields))
             app.add_handler(CommandHandler("positions", view_positions))
             app.add_handler(CommandHandler("trade", start_trade_flow))
+            app.add_handler(CommandHandler("prompts", prompts_command))
             app.add_handler(CommandHandler("alerts", alerts_command))
             app.add_handler(CommandHandler("help", help_command))
             

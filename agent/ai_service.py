@@ -34,19 +34,32 @@ def clean_telegram_markdown(text: str) -> str:
     # 0b. Convert any /paper_trade commands to /trade
     text = text.replace("/paper_trade", "/trade").replace("/paper\\_trade", "/trade").replace("/paper\\\\_trade", "/trade")
     
-    # 0c. PERMANENT FIX: Transform all [text](https://...) markdown links to:
-    #   "text ➛ [View onchain](https://...)"
-    # This guarantees correct rendering on ALL Telegram clients (desktop, web, mobile)
-    # because the link text "View onchain" is pure ASCII with no special characters.
-    def to_onchain_link(match):
-        link_text = match.group(1).strip()
+    # 0c. PERMANENT FIX: Transform [Protocol (Pool)](url) → [Protocol](url) (Pool)
+    # This EXACTLY mirrors the /yields command format which renders perfectly on all clients.
+    # Link text is ONLY the protocol name (no special chars), pool name is plain text outside brackets.
+    def to_yields_style_link(match):
+        full_text = match.group(1).strip()
         url = match.group(2).strip()
-        # Don't re-transform links that are already in "View onchain" format
-        if link_text.lower() in ("view onchain", "view on-chain", "view on chain"):
-            return match.group(0)
-        return f"{link_text} ➛ [View onchain]({url})"
+        
+        protocol = full_text
+        pool = ""
+        
+        # Safely extract Protocol and Pool by checking common separators from the AI
+        for sep in [" (", " -> ", " ➛ ", " - "]:
+            if sep in full_text:
+                parts = full_text.split(sep, 1)
+                protocol = parts[0].strip()
+                pool = parts[1].strip()
+                if pool.endswith(")"):
+                    pool = pool[:-1].strip()
+                break
+                
+        if pool:
+            return f"[{protocol}]({url}) ({pool})"
+        else:
+            return f"[{protocol}]({url})"
     
-    text = re.sub(r'\[([^\]]+)\]\((https://[^)]+)\)', to_onchain_link, text)
+    text = re.sub(r'\[([^\]]+)\]\((https://[^)]+)\)', to_yields_style_link, text)
     
     # 1. Replace double asterisks with single asterisks for bold
     text = text.replace("**", "*")
@@ -130,7 +143,7 @@ class AIService:
         """Fetch active paper trades for a user, or all active trades if no user is specified."""
         if not supabase: return []
         try:
-            query = supabase.table("paper_trades").select("*, protocols(name, pool_name)").eq("status", "active")
+            query = supabase.table("paper_trades").select("*, protocols(name, pool_name, pool_address)").eq("status", "active")
             
             # If user filters are specified, resolve and filter by user
             if user_id or telegram_chat_id:
@@ -264,7 +277,8 @@ class AIService:
             risk_tag = p.get('risk_tag') or 'unknown'
             pool_address = p.get('pool_address')
             if pool_address:
-                yield_context += f"- [{p['name']} ({p['pool_name']})](https://mantlescan.xyz/address/{pool_address}): {apy_str} APY (Risk: {risk_tag.upper()}) | Address: {pool_address}\n"
+                url = pool_address if pool_address.startswith('http') else f"https://mantlescan.xyz/address/{pool_address}"
+                yield_context += f"- [{p['name']} ({p['pool_name']})]({url}): {apy_str} APY (Risk: {risk_tag.upper()}) | Address: {pool_address}\n"
             else:
                 yield_context += f"- {p['name']} ({p['pool_name']}): {apy_str} APY (Risk: {risk_tag.upper()})\n"
             
@@ -481,7 +495,8 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
             tvl_str = f"${tvl_val:,.0f}" if tvl_val else "N/A"
             pool_address = p.get('pool_address')
             if pool_address:
-                yield_context += f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})](https://mantlescan.xyz/address/{pool_address}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
+                url = pool_address if pool_address.startswith('http') else f"https://mantlescan.xyz/address/{pool_address}"
+                yield_context += f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
             else:
                 yield_context += f"- {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
 
@@ -492,7 +507,8 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
                 p = t.get("protocols", {})
                 pool_address = p.get("pool_address")
                 if pool_address:
-                    trade_context += f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})](https://mantlescan.xyz/address/{pool_address}) | Entry APY: {t['entry_apy']}% | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
+                    url = pool_address if pool_address.startswith('http') else f"https://mantlescan.xyz/address/{pool_address}"
+                    trade_context += f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}) | Entry APY: {t['entry_apy']}% | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
                 else:
                     trade_context += f"- Protocol: {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) | Entry APY: {t['entry_apy']}% | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
         else:
