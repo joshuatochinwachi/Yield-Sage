@@ -40,7 +40,7 @@ async def ensure_user_exists(chat_id: int, username: str, first_name: str, last_
             "email": email,
             "full_name": full_name,
             "telegram_chat_id": chat_id,
-            "risk_preference": "moderate"
+            "risk_preference": "stable,moderate,aggressive"
         }
         logger.info(f"Auto-registering Telegram user {chat_id} ({full_name})...")
         insert_res = supabase.table("users").insert(payload).execute()
@@ -213,6 +213,55 @@ async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
     elif update.callback_query:
         await update.callback_query.message.edit_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+
+async def risk_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Command to view and toggle risk preferences."""
+    chat_id = update.effective_chat.id
+    user = update.effective_user
+    
+    # Reset any state
+    user_states.pop(chat_id, None)
+    
+    # Ensure user exists in database
+    await ensure_user_exists(chat_id, user.username, user.first_name, user.last_name)
+    
+    try:
+        user_res = supabase.table("users").select("risk_preference").eq("telegram_chat_id", chat_id).limit(1).execute()
+        pref_str = user_res.data[0].get("risk_preference") if user_res.data else "stable,moderate,aggressive"
+        if not pref_str: pref_str = "stable,moderate,aggressive"
+        prefs = [p.strip().lower() for p in pref_str.split(",")]
+        
+        display_str = ", ".join([p.upper() for p in prefs])
+        text = (
+            f"⚙️ **Your Risk Preference**\n\n"
+            f"Current preferences: **{display_str}**\n\n"
+            "You can select multiple risk tiers. "
+            "Recommendations and alerts will be filtered based on your active tiers."
+        )
+        
+        btn_stable = "✅ Stable" if "stable" in prefs else "Stable"
+        btn_moderate = "✅ Moderate" if "moderate" in prefs else "Moderate"
+        btn_aggressive = "✅ Aggressive" if "aggressive" in prefs else "Aggressive"
+        
+        keyboard = [
+            [
+                InlineKeyboardButton(btn_stable, callback_data="setrisk_stable"),
+                InlineKeyboardButton(btn_moderate, callback_data="setrisk_moderate"),
+                InlineKeyboardButton(btn_aggressive, callback_data="setrisk_aggressive")
+            ],
+            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+        ]
+        
+        if update.message:
+            await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+        elif update.callback_query:
+            await update.callback_query.message.edit_text(text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+    except Exception as e:
+        logger.error(f"Error handling risk command: {e}")
+        error_msg = "❌ Error retrieving risk preference settings."
+        if update.message:
+            await update.message.reply_text(error_msg)
+
 
 def sort_diverse_yields(yields):
     """
@@ -513,8 +562,8 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == "view_risk" or data.startswith("setrisk_"):
         try:
             user_res = supabase.table("users").select("risk_preference").eq("telegram_chat_id", chat_id).limit(1).execute()
-            pref_str = user_res.data[0].get("risk_preference") if user_res.data else "moderate"
-            if not pref_str: pref_str = "moderate"
+            pref_str = user_res.data[0].get("risk_preference") if user_res.data else "stable,moderate,aggressive"
+            if not pref_str: pref_str = "stable,moderate,aggressive"
             prefs = [p.strip().lower() for p in pref_str.split(",")]
             
             if data.startswith("setrisk_"):
@@ -743,6 +792,7 @@ def main():
             BotCommand("positions", "View your active paper trades"),
             BotCommand("trade", "Simulate a new paper trade"),
             BotCommand("prompts", "Intelligent FAQs to ask the AI"),
+            BotCommand("risk", "Manage your risk preferences"),
             BotCommand("alerts", "Toggle hourly DeFi recommendations & alerts"),
             BotCommand("help", "Show help and guide")
         ], scope=BotCommandScopeDefault())
@@ -758,6 +808,7 @@ def main():
             app.add_handler(CommandHandler("positions", view_positions))
             app.add_handler(CommandHandler("trade", start_trade_flow))
             app.add_handler(CommandHandler("prompts", prompts_command))
+            app.add_handler(CommandHandler("risk", risk_command))
             app.add_handler(CommandHandler("alerts", alerts_command))
             app.add_handler(CommandHandler("help", help_command))
             

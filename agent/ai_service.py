@@ -28,7 +28,8 @@ def clean_telegram_markdown(text: str) -> str:
     if not text:
         return ""
     
-    # 0. Merge split markdown links: collapse any whitespace/newlines between ] and (https://) → ](https://)
+    # 0. Strip spaces/newlines immediately inside link parenthesis, then merge split markdown links
+    text = re.sub(r'\(\s+(https?://)', r'(\1', text)
     text = re.sub(r'\]\s*\(https?://', '](https://', text)
     
     # 0b. Convert any /paper_trade commands to /trade

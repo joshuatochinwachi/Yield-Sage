@@ -7,7 +7,7 @@ CREATE TABLE public.users (
     email TEXT NOT NULL UNIQUE,
     full_name TEXT,
     telegram_chat_id BIGINT UNIQUE,
-    risk_preference TEXT DEFAULT 'moderate' CHECK (risk_preference IN ('stable', 'moderate', 'aggressive')),
+    risk_preference TEXT DEFAULT 'stable,moderate,aggressive',
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );

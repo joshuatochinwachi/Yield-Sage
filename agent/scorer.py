@@ -65,7 +65,7 @@ class HourlyScorer:
         for user in users:
             user_id = user["id"]
             chat_id = user["telegram_chat_id"]
-            risk_preference = user.get("risk_preference") or "moderate"
+            risk_preference = user.get("risk_preference") or "stable,moderate,aggressive"
 
             if not chat_id:
                 continue
