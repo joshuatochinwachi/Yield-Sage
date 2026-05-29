@@ -524,11 +524,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         prefs.remove(clicked_risk)
                     else:
                         await query.answer("⚠️ You must have at least one risk preference selected!")
+                        return
                 else:
                     prefs.append(clicked_risk)
-                
+
                 pref_str = ",".join(prefs)
-                supabase.table("users").update({"risk_preference": pref_str}).eq("telegram_chat_id", chat_id).execute()
+                update_res = supabase.table("users").update({"risk_preference": pref_str}).eq("telegram_chat_id", chat_id).execute()
+                if not update_res.data:
+                    await query.answer("❌ Failed to update risk preference. Please try again.")
+                    return
                 await query.answer("✅ Risk preferences updated!")
                 
             display_str = ", ".join([p.upper() for p in prefs])
