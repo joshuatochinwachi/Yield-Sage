@@ -106,6 +106,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ],
         [
             InlineKeyboardButton("🔔 Alert Settings", callback_data="view_alerts"),
+            InlineKeyboardButton("💡 Prompts", callback_data="view_prompts")
+        ],
+        [
             InlineKeyboardButton("❓ Help & Guide", callback_data="view_help")
         ]
     ]
@@ -134,17 +137,17 @@ async def prompts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     keyboard = [[KeyboardButton(prompt)] for prompt in prompts]
     reply_markup = ReplyKeyboardMarkup(
-        keyboard, 
-        resize_keyboard=True, 
+        keyboard,
+        resize_keyboard=True,
         one_time_keyboard=True,
         input_field_placeholder="Select a question or type your own..."
     )
-    
+
     text = (
         "💡 **Intelligent Prompts & FAQs**\n\n"
         "Tap any question below to instantly ask YieldSage, or just type your own!"
     )
-    
+
     if update.message:
         await update.message.reply_text(text, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
     elif update.callback_query:
@@ -485,6 +488,9 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
         await query.message.edit_text(help_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+    elif data == "view_prompts":
+        await query.answer()
+        await prompts_command(update, context)
     elif data == "view_alerts":
         await query.answer()
         await alerts_command(update, context)
