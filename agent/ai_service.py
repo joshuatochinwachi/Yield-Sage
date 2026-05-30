@@ -19,25 +19,63 @@ if SUPABASE_URL and SUPABASE_KEY:
 else:
     supabase = None
 
-# ─── NVIDIA NIM — OpenAI-compatible endpoint ────────────────────────────────
-NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY")
 
-# Two models = two independent rate-limit pools.
-# PRIMARY is tried first. On 429, FALLBACK is used automatically.
-PRIMARY_MODEL  = "meta/llama-3.3-70b-instruct"
-FALLBACK_MODEL = "meta/llama-3.1-70b-instruct"
+# ─────────────────────────────────────────────────────────────────────────────
+# Multi-Provider LLM Cascade
+# Priority: Groq (fastest) → Gemini (best quality) → NVIDIA (last resort)
+# Each provider has a primary model and a fallback model.
+# On any 429 or error, the next slot is tried automatically.
+# A provider is skipped entirely if its API key is not set.
+# ─────────────────────────────────────────────────────────────────────────────
 
-_nvidia_client: AsyncOpenAI | None = (
-    AsyncOpenAI(
-        base_url="https://integrate.api.nvidia.com/v1",
-        api_key=NVIDIA_API_KEY,
-    )
-    if NVIDIA_API_KEY else None
-)
+_PROVIDER_CONFIGS = [
+    {
+        "name":     "Groq",
+        "env_key":  "GROQ_API_KEY",
+        "base_url": "https://api.groq.com/openai/v1",
+        "primary":  "llama-3.3-70b-versatile",
+        "fallback": "llama-3.1-8b-instant",
+    },
+    {
+        "name":     "Gemini",
+        "env_key":  "GEMINI_API_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "primary":  "gemini-2.5-flash",
+        "fallback": "gemini-2.5-flash-lite", 
+    },
+    {
+        "name":     "NVIDIA",
+        "env_key":  "NVIDIA_API_KEY",
+        "base_url": "https://integrate.api.nvidia.com/v1",
+        "primary":  "meta/llama-3.3-70b-instruct",
+        "fallback": "meta/llama-3.1-70b-instruct",
+    },
+]
+
+
+def _init_providers() -> list:
+    """
+    Initialises only the providers whose API keys are present in env.
+    Logs which providers are active so Railway logs make it obvious.
+    """
+    active = []
+    for cfg in _PROVIDER_CONFIGS:
+        key = os.getenv(cfg["env_key"])
+        if key:
+            client = AsyncOpenAI(base_url=cfg["base_url"], api_key=key)
+            active.append({**cfg, "client": client})
+            logger.info(f"[LLM] ✅ Provider ready: {cfg['name']} ({cfg['primary']})")
+        else:
+            logger.warning(f"[LLM] ⚠️  Provider skipped — no {cfg['env_key']} found: {cfg['name']}")
+    if not active:
+        logger.error("[LLM] ❌ No LLM providers configured. Check environment variables.")
+    return active
+
+
+_PROVIDERS: list = _init_providers()
 
 # ─── Last-known-good response cache ─────────────────────────────────────────
-# If both models are unavailable (rate-limited or erroring), we serve the most
-# recent successful response so judges never hit a dead wall.
+# Served when ALL providers are unavailable so judges never see a dead wall.
 _response_cache: dict = {
     "conversational": None,   # str  — last bot reply
     "hourly_analysis": None,  # list — last JSON analysis array
@@ -45,7 +83,6 @@ _response_cache: dict = {
 }
 
 # ─── Tool definition — OpenAI function-call format ──────────────────────────
-# (Anthropic used `input_schema`; OpenAI/NVIDIA NIM uses `parameters`)
 _SEARCH_TOOL = {
     "type": "function",
     "function": {
@@ -76,23 +113,17 @@ def clean_telegram_markdown(text: str) -> str:
     if not text:
         return ""
 
-    # ── Step 0: Normalise line endings ───────────────────────────────────────
     text = text.replace("\r\n", "\n")
 
-    # ── Step 1: Repair split Markdown links ──────────────────────────────────
-    # The model sometimes emits the URL on a separate line:
-    #   [Aave V3]
-    #   (https://mantlescan.xyz/...)
-    # \s* matches spaces AND newlines, so both cases are collapsed here.
-    text = re.sub(r'\]\s*\n\s*\(https?://', '](https://', text)   # newline-split link
-    text = re.sub(r'\]\s*\(https?://', '](https://', text)         # space-padded link
-    text = re.sub(r'\(\s+(https?://)', r'(\1', text)               # leading space inside ()
+    # Repair split Markdown links
+    text = re.sub(r'\]\s*\n\s*\(https?://', '](https://', text)
+    text = re.sub(r'\]\s*\(https?://', '](https://', text)
+    text = re.sub(r'\(\s+(https?://)', r'(\1', text)
 
-    # ── Step 2: Strip stray asterisks inside URLs ─────────────────────────────
-    # e.g. (https://mantlescan.xyz/address/0x**abc**) → (https://…/0xabc)
+    # Strip stray asterisks inside URLs
     text = re.sub(r'\(https?://[^)]+\)', lambda m: m.group(0).replace("*", ""), text)
 
-    # ── Step 3: Normalise /paper_trade → /trade ───────────────────────────────
+    # Normalise /paper_trade → /trade
     text = (
         text
         .replace("/paper_trade", "/trade")
@@ -100,8 +131,7 @@ def clean_telegram_markdown(text: str) -> str:
         .replace("/paper\\\\_trade", "/trade")
     )
 
-    # ── Step 4: Transform [Protocol (Pool)](url) → [Protocol](url) (Pool) ────
-    #     Also strips surrounding * the model wraps around links.
+    # Transform [Protocol (Pool)](url) → [Protocol](url) (Pool)
     def to_yields_style_link(match):
         full_text = match.group(1).strip().strip("*")
         url = match.group(2).strip()
@@ -119,11 +149,10 @@ def clean_telegram_markdown(text: str) -> str:
 
     text = re.sub(r'\[([^\]]+)\]\((https://[^)]+)\)', to_yields_style_link, text)
 
-    # ── Step 5: Normalise bold markers ────────────────────────────────────────
-    # Telegram legacy Markdown uses single * for bold.
+    # Normalise bold markers (Telegram legacy: single * = bold)
     text = text.replace("**", "*")
 
-    # ── Step 6: Line-by-line cleanup ──────────────────────────────────────────
+    # Line-by-line cleanup
     lines = text.split("\n")
     cleaned_lines = []
     for line in lines:
@@ -133,31 +162,24 @@ def clean_telegram_markdown(text: str) -> str:
             line = f"*{stripped[hashes:].strip()}*"
         elif stripped in ["---", "===", "___", "***"]:
             line = ""
-        cleaned_lines.append(line.rstrip())   # strip trailing spaces
+        cleaned_lines.append(line.rstrip())
 
     text = "\n".join(cleaned_lines)
 
-    # ── Step 7: Fix jammed bullet points ──────────────────────────────────────
-    # When the model runs bullets together without newlines (e.g. "text • Pool
-    # — APY • Pool2") each bullet gets its own line with a blank line before it.
-    # Match • or · that are NOT already at the start of a line.
+    # Fix jammed bullet points
     text = re.sub(r'(?<!\n)[ \t]*[•·]\s+', '\n\n• ', text)
 
-    # ── Step 8: Section emoji headers get a blank line before them ────────────
-    # 📊 💼 💡 ⚠️ section openers jammed against previous text get separated.
+    # Section emoji headers get a blank line before them
     text = re.sub(
         r'(?<!\n)\n?(📊|💼|💡|⚠️)\s+',
         lambda m: f'\n\n{m.group(1)} ',
         text,
     )
 
-    # ── Step 9: Collapse runs of 3+ blank lines down to max 2 ─────────────────
+    # Collapse runs of 3+ blank lines to max 2
     text = re.sub(r'\n{3,}', '\n\n', text)
 
-    # ── Step 10: Escape underscores — protecting full [text](url) units ───────
-    # Critical: protect the ENTIRE [text](url) token, not just the URL.
-    # Without this, [Agni_Finance](url) → [Agni\_Finance](url) which breaks
-    # Telegram's link parser and shows as raw text.
+    # Escape underscores — protect full [text](url) tokens
     pattern = re.compile(r'(\[[^\]]*\]\(https?://[^)]+\)|https?://[^\s\)]+|/\w+|\\_)')
     parts = []
     last_idx = 0
@@ -167,22 +189,15 @@ def clean_telegram_markdown(text: str) -> str:
         parts.append(text[start:end])
         last_idx = end
     parts.append(text[last_idx:].replace("_", "\\_"))
-
     text = "".join(parts).strip()
 
-    # ── Step 11: Wrap any remaining bare URLs ─────────────────────────────────
-    # Nuclear fallback: if the model still outputs a raw https:// URL that is
-    # NOT already wrapped in [text](url), wrap it now so users never see a
-    # naked link. mantlescan addresses get labelled 'View on Explorer',
-    # everything else gets labelled 'Link'.
+    # Wrap remaining bare URLs
     def wrap_bare_url(m):
         raw = m.group(0)
         if "mantlescan.xyz" in raw:
             return f"[View on Explorer]({raw})"
         return f"[Link]({raw})"
 
-    # Match bare URLs that are NOT already inside []() markdown links.
-    # Negative lookbehind: not preceded by '(' — that would mean it's already inside a link.
     text = re.sub(
         r'(?<!\()(?<![\[\(])https?://[^\s\)\]]+',
         wrap_bare_url,
@@ -193,9 +208,9 @@ def clean_telegram_markdown(text: str) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# _nvidia_call — core helper with automatic model fallback
+# _llm_call — core helper with full three-provider cascade
 # ─────────────────────────────────────────────────────────────────────────────
-async def _nvidia_call(
+async def _llm_call(
     messages: list,
     system_prompt: str,
     tools: list = None,
@@ -203,66 +218,87 @@ async def _nvidia_call(
     max_tokens: int = 1500,
 ):
     """
-    Sends a chat completion request to NVIDIA NIM.
+    Cascades through all configured providers until one succeeds.
 
-    Fallback chain:
-      1. PRIMARY_MODEL  (meta/llama-3.3-70b-instruct)
-      2. FALLBACK_MODEL (meta/llama-3.1-70b-instruct)
+    Attempt order (per provider):
+      1. Primary model
+      2. Fallback model
+    Then moves to the next provider on any 429 or error.
 
-    Raises the original exception only after both models are exhausted.
+    Full sequence (all keys set):
+      Groq/llama-3.3-70b → Groq/llama-3.1-8b →
+      Gemini/gemini-2.5-flash → Gemini/gemini-2.5-flash-lite →
+      NVIDIA/llama-3.3-70b → NVIDIA/llama-3.1-70b
+
+    Raises RuntimeError only after all 6 slots are exhausted.
     """
-    if not _nvidia_client:
-        raise RuntimeError("NVIDIA_API_KEY is not set. AI service is unavailable.")
+    if not _PROVIDERS:
+        raise RuntimeError("No LLM providers configured. Check API keys.")
 
     full_messages = [{"role": "system", "content": system_prompt}] + messages
-
     last_exc = None
-    for attempt, model in enumerate([PRIMARY_MODEL, FALLBACK_MODEL]):
-        try:
-            kwargs = dict(
-                model=model,
-                messages=full_messages,
-                max_tokens=max_tokens,
-                temperature=temperature,
-            )
-            if tools:
-                kwargs["tools"] = tools
-                kwargs["tool_choice"] = "auto"
 
-            response = await _nvidia_client.chat.completions.create(**kwargs)
-
-            if attempt > 0:
-                logger.info(f"[NVIDIA] Fallback model {model} succeeded.")
-            return response
-
-        except RateLimitError as e:
-            last_exc = e
-            if attempt == 0:
-                logger.warning(
-                    f"[NVIDIA] Rate limit on {PRIMARY_MODEL}. "
-                    f"Switching to {FALLBACK_MODEL}..."
+    for provider in _PROVIDERS:
+        for model in [provider["primary"], provider["fallback"]]:
+            try:
+                kwargs = dict(
+                    model=model,
+                    messages=full_messages,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
                 )
-                await asyncio.sleep(1)
-            else:
-                logger.error("[NVIDIA] Rate limit on both models.")
+                if tools:
+                    kwargs["tools"] = tools
+                    kwargs["tool_choice"] = "auto"
 
-        except Exception as e:
-            # Catch raw 429s that arrive as non-RateLimitError (provider quirks)
-            is_429 = (
-                hasattr(e, "status_code") and e.status_code == 429
-            ) or "429" in str(e)
+                response = await provider["client"].chat.completions.create(**kwargs)
+                logger.info(f"[LLM] ✅ Success — {provider['name']} / {model}")
+                return response
 
-            if is_429 and attempt == 0:
+            except RateLimitError as e:
                 last_exc = e
-                logger.warning(
-                    f"[NVIDIA] 429 on {PRIMARY_MODEL}. "
-                    f"Switching to {FALLBACK_MODEL}..."
-                )
-                await asyncio.sleep(1)
-            else:
-                raise  # Non-rate-limit errors raised immediately
+                logger.warning(f"[LLM] 429 — {provider['name']} / {model}. Trying next slot...")
+                await asyncio.sleep(0.5)
 
-    raise last_exc  # Both models exhausted
+            except Exception as e:
+                last_exc = e
+                is_429 = (
+                    hasattr(e, "status_code") and e.status_code == 429
+                ) or "429" in str(e)
+                level = "429 (raw)" if is_429 else "error"
+                logger.warning(f"[LLM] {level} — {provider['name']} / {model}: {e}. Trying next slot...")
+                await asyncio.sleep(0.3)
+
+    logger.error("[LLM] ❌ All providers and models exhausted.")
+    raise last_exc or RuntimeError("All LLM providers exhausted.")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared anti-hallucination prompt block
+# Injected into every system prompt. Prevents the model from inventing
+# numerical data (TVL, APY, addresses) not present in the live context.
+# ─────────────────────────────────────────────────────────────────────────────
+_DATA_INTEGRITY_BLOCK = """
+════════════════════════════════════════
+DATA INTEGRITY LAW — ZERO HALLUCINATION
+════════════════════════════════════════
+
+You are STRICTLY FORBIDDEN from inventing, estimating, or inferring ANY numerical data.
+This applies to: APY values, TVL values, wallet addresses, protocol statistics, and any financial figures.
+
+LAW ── ONLY USE NUMBERS EXPLICITLY PROVIDED IN THE LIVE DATA SECTION.
+If a value is not listed in the context below: write "N/A" or omit the field entirely.
+NEVER fill gaps with your training knowledge.
+
+WRONG → "Aave V3 has $10B+ TVL" — unless that exact figure is in the context below.
+WRONG → "The pool typically yields around 8%" — never estimate.
+WRONG → [Agni Finance](https://mantlescan.xyz/address/0xSOMETHINGINVENTED) — invented address
+RIGHT → Agni Finance — no link (address not in live data)
+RIGHT → Only quote the exact TVL and APY values shown in the live data.
+
+If the live data shows "TVL: N/A" — display "TVL: N/A". Do not replace it with an estimate.
+If APY is missing for a pool — say "APY: data unavailable". Do not guess.
+"""
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -270,16 +306,15 @@ async def _nvidia_call(
 # ─────────────────────────────────────────────────────────────────────────────
 class AIService:
     """
-    Replaces the Anthropic-backed AIService with NVIDIA NIM (OpenAI-compatible).
+    Multi-provider AI service. Cascades through Groq → Gemini → NVIDIA NIM.
     All public method signatures are identical to the original.
     All DB helpers are untouched.
     """
 
     def __init__(self):
-        self.primary_model  = PRIMARY_MODEL
-        self.fallback_model = FALLBACK_MODEL
+        self.providers = _PROVIDERS
 
-    # ── DB helpers (logic unchanged from original) ────────────────────────────
+    # ── DB helpers ────────────────────────────────────────────────────────────
 
     async def get_recent_yields(self):
         """Fetch the latest snapshot for each active protocol."""
@@ -340,7 +375,6 @@ class AIService:
     async def _resolve_user(
         self, user_id: str = None, telegram_chat_id: int = None
     ):
-        """Resolve a telegram_chat_id to a Supabase user_id if needed."""
         if user_id:
             return user_id
         if not telegram_chat_id or not supabase:
@@ -362,7 +396,6 @@ class AIService:
         telegram_chat_id: int = None,
         limit: int = 15,
     ):
-        """Load recent conversation history."""
         if not supabase:
             return []
         try:
@@ -394,7 +427,6 @@ class AIService:
         user_id: str = None,
         telegram_chat_id: int = None,
     ):
-        """Save a message to conversation history."""
         if not supabase:
             return
         try:
@@ -408,10 +440,9 @@ class AIService:
         except Exception as e:
             logger.error(f"Error pushing to memory: {e}")
 
-    # ── Web search (unchanged from original) ──────────────────────────────────
+    # ── Web search ────────────────────────────────────────────────────────────
 
     async def search_web(self, query: str) -> str:
-        """Performs a web search via DuckDuckGo HTML endpoint."""
         try:
             url = "https://html.duckduckgo.com/html/"
             headers = {
@@ -460,7 +491,7 @@ class AIService:
             logger.error(f"Search Web Error: {e}")
             return ""
 
-    # ── Conversational query (replaces Haiku) ─────────────────────────────────
+    # ── Conversational query ──────────────────────────────────────────────────
 
     async def handle_conversational_query(
         self,
@@ -473,37 +504,42 @@ class AIService:
         Called by bot.py → handle_message().
         Returns a clean Telegram-formatted string.
         """
-        if not _nvidia_client:
+        if not _PROVIDERS:
             return "AI service is currently unconfigured. Please check API keys."
 
         # 1. Persist user message
         await self.push_to_memory("user", user_message, user_id, telegram_chat_id)
 
-        # 2. Gather context
-        history     = await self.load_chat_memory(user_id, telegram_chat_id, limit=10)
-        yields      = await self.get_recent_yields()
-        paper_trades = await self.get_user_paper_trades(user_id, telegram_chat_id)
+        # 2. Gather context — DB reads run in parallel for speed
+        history, yields, paper_trades = await asyncio.gather(
+            self.load_chat_memory(user_id, telegram_chat_id, limit=10),
+            self.get_recent_yields(),
+            self.get_user_paper_trades(user_id, telegram_chat_id),
+        )
 
-        # 3. Build context strings
+        # 3. Build yield context — TVL included to prevent hallucination
         yield_context = "Current Live Yields (Mantle Network):\n"
         for y in yields:
-            p        = y["protocol"]
-            apy_val  = y.get("apy")
-            apy_str  = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
-            risk_tag = p.get("risk_tag") or "unknown"
+            p         = y["protocol"]
+            apy_val   = y.get("apy")
+            tvl_val   = y.get("tvl_usd")
+            apy_str   = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
+            tvl_str   = f"${tvl_val:,.0f}" if tvl_val else "N/A"
+            risk_tag  = p.get("risk_tag") or "unknown"
             pool_addr = p.get("pool_address")
             if pool_addr:
                 url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
                 yield_context += (
                     f"- [{p['name']} ({p['pool_name']})]({url}): "
-                    f"{apy_str} APY | Risk: {risk_tag.upper()}\n"
+                    f"APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
                 )
             else:
                 yield_context += (
                     f"- {p['name']} ({p['pool_name']}): "
-                    f"{apy_str} APY | Risk: {risk_tag.upper()}\n"
+                    f"APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
                 )
 
+        # 4. Build trade context
         trade_context = "User's Active Paper Trades:\n"
         if paper_trades:
             for t in paper_trades:
@@ -526,7 +562,7 @@ class AIService:
         system_prompt = f"""You are YieldSage — a sharp, professional DeFi yield advisor specialising in the Mantle network. You are direct, data-driven, and genuinely helpful. Respond like a knowledgeable senior DeFi analyst talking to a smart user: concise, confident, and always grounded in the live data below.
 
 If the user asks to open a position or start a trade, direct them to the `/trade` command.
-
+{_DATA_INTEGRITY_BLOCK}
 ════════════════════════════════════════
 ABSOLUTE FORMATTING LAWS — NO EXCEPTIONS
 ════════════════════════════════════════
@@ -570,16 +606,22 @@ RIGHT →
   Description here.
 Never run two bullets together on the same line. Never run a section title into a paragraph.
 
+LAW 8 ── NEVER INVENT BLOCKCHAIN EXPLORER LINKS.
+You are FORBIDDEN from constructing a mantlescan.xyz URL unless the EXACT address is provided in the LIVE DATA section.
+If a protocol or pool has no address in the live data, write its name plainly — no link.
+WRONG → [Agni Finance](https://mantlescan.xyz/address/0xabc123) ← if 0xabc123 is not in the live data
+RIGHT → Agni Finance ← plain text when address is not in live data
+
 ════════════════════════════════════════
 FORMATTING EXAMPLE — MIRROR THIS EXACTLY
 ════════════════════════════════════════
 
 **Top Stable Pools Right Now**
 
-• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123) — **17.50% APY** | TVL: $2.1M | STABLE
-  Institutional private-credit pool. Strong liquidity. Best stable-tier yield on Mantle right now.
+• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123) — **17.50% APY** | TVL: $2,100,000 | STABLE
+  Institutional private-credit pool. Best stable-tier yield on Mantle right now.
 
-• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456) — **7.02% APY** | TVL: $10B+ | STABLE
+• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456) — **7.02% APY** | TVL: $3,682,789 | STABLE
   Most battle-tested DeFi protocol globally. Lowest counterparty risk available.
 
 **My Recommendation**
@@ -600,21 +642,20 @@ Before outputting anything, silently verify:
 6. No raw underscores in any token pair names
 7. Every bullet point is on its own line with a blank line before it
 8. No two bullets appear on the same line — each starts fresh on a new line
+9. ALL numerical values (APY, TVL) copied exactly from LIVE DATA — never invented
+10. If no address exists for a pool, write the name plainly — never invent a URL.
 
 If any check fails, fix it before responding.
 
 ════════════════════════════════════════
-LIVE DATA — ALWAYS USE THIS IN RESPONSES
+LIVE DATA — USE ONLY THESE VALUES
 ════════════════════════════════════════
 {yield_context}
 {trade_context}
 """
 
-        # 4. Prepare conversation history
-        # Filter to only user/assistant roles (same logic as original)
+        # 5. Prepare conversation history
         valid_history = [m for m in history if m["role"] in ("user", "assistant")]
-
-        # Compress consecutive same-role messages (Llama chat template requires alternation)
         compressed_history = []
         for msg in valid_history:
             if not compressed_history:
@@ -623,14 +664,12 @@ LIVE DATA — ALWAYS USE THIS IN RESPONSES
                 compressed_history[-1]["content"] += "\n" + msg["content"]
             else:
                 compressed_history.append(dict(msg))
-
-        # First message must be from user
         if compressed_history and compressed_history[0]["role"] == "assistant":
             compressed_history.pop(0)
 
-        # 5. First NVIDIA NIM call (tool calling enabled)
+        # 6. LLM call with tool use
         try:
-            response = await _nvidia_call(
+            response = await _llm_call(
                 messages=compressed_history,
                 system_prompt=system_prompt,
                 tools=[_SEARCH_TOOL],
@@ -638,13 +677,12 @@ LIVE DATA — ALWAYS USE THIS IN RESPONSES
                 max_tokens=1500,
             )
 
-            message      = response.choices[0].message
+            message       = response.choices[0].message
             finish_reason = response.choices[0].finish_reason
 
-            # 6. Handle tool call if model decided to search the web
+            # Handle tool call if model decided to search the web
             if finish_reason == "tool_calls" and message.tool_calls:
 
-                # ── Build the assistant message with tool_calls (OpenAI format) ──
                 assistant_tool_msg = {
                     "role": "assistant",
                     "content": message.content or "",
@@ -661,7 +699,6 @@ LIVE DATA — ALWAYS USE THIS IN RESPONSES
                     ],
                 }
 
-                # ── Execute each tool and collect results ──
                 tool_result_msgs = []
                 for tc in message.tool_calls:
                     try:
@@ -671,7 +708,7 @@ LIVE DATA — ALWAYS USE THIS IN RESPONSES
 
                     if tc.function.name == "search_web":
                         query_val      = tool_input.get("query", "")
-                        logger.info(f"[NVIDIA] Llama requested search_web: '{query_val}'")
+                        logger.info(f"[LLM] Tool call — search_web: '{query_val}'")
                         search_results = await self.search_web(query_val)
                         if not search_results:
                             search_results = "No search results found."
@@ -679,16 +716,14 @@ LIVE DATA — ALWAYS USE THIS IN RESPONSES
                     else:
                         result_content = f"Error: unknown tool {tc.function.name}"
 
-                    # ── Tool result message (OpenAI format) ──
                     tool_result_msgs.append({
                         "role": "tool",
                         "tool_call_id": tc.id,
                         "content": result_content,
                     })
 
-                # 7. Second call — model sees its tool use + the results
                 follow_up = compressed_history + [assistant_tool_msg] + tool_result_msgs
-                final_response = await _nvidia_call(
+                final_response = await _llm_call(
                     messages=follow_up,
                     system_prompt=system_prompt,
                     tools=[_SEARCH_TOOL],
@@ -700,44 +735,43 @@ LIVE DATA — ALWAYS USE THIS IN RESPONSES
                 bot_reply = message.content or ""
 
             bot_reply = clean_telegram_markdown(bot_reply)
-
-            # 8. Persist and cache
             await self.push_to_memory("assistant", bot_reply, user_id, telegram_chat_id)
             _response_cache["conversational"] = bot_reply
-
             return bot_reply
 
         except Exception as e:
-            logger.error(f"[NVIDIA] Conversational query error: {e}")
+            logger.error(f"[LLM] All providers failed for conversational query: {e}")
             if _response_cache["conversational"]:
                 return (
                     _response_cache["conversational"]
                     + "\n\n_⚠️ Cached response — AI is temporarily busy. Try again in a moment._"
                 )
             return (
-                "Sorry, I'm having trouble analyzing the market right now. "
+                "Sorry, I'm having trouble analysing the market right now. "
                 "Please try again in a moment."
             )
 
-    # ── Hourly analysis (replaces Sonnet for trade scoring) ──────────────────
+    # ── Hourly analysis ───────────────────────────────────────────────────────
 
     async def generate_hourly_analysis(self, yields, paper_trades):
         """
         Used by the Scorer to evaluate positions and generate alerts.
         Returns a list of dicts with user_id, trade_id, alert_message.
         """
-        if not _nvidia_client:
+        if not _PROVIDERS:
             return []
 
         yield_context = "Latest Yield Snapshots:\n"
         for y in yields:
             p        = y.get("protocol", {})
             apy_val  = y.get("apy")
+            tvl_val  = y.get("tvl_usd")
             apy_str  = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
+            tvl_str  = f"${tvl_val:,.0f}" if tvl_val else "N/A"
             risk_tag = p.get("risk_tag") or "unknown"
             yield_context += (
                 f"- {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}): "
-                f"{apy_str} APY (Risk: {risk_tag.upper()})\n"
+                f"APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
             )
 
         trade_context = "Active Paper Trades to Evaluate:\n"
@@ -750,8 +784,8 @@ LIVE DATA — ALWAYS USE THIS IN RESPONSES
                 f"Current Investment: ${t['simulated_investment_usd']}\n"
             )
 
-        system_prompt = """You are YieldSage's backend scoring engine. Your only job is to analyze paper trades and return a JSON array.
-
+        system_prompt = f"""You are YieldSage's backend scoring engine. Your only job is to analyze paper trades and return a JSON array.
+{_DATA_INTEGRITY_BLOCK}
 ════════════════════════════════════════
 OUTPUT RULES — ZERO TOLERANCE
 ════════════════════════════════════════
@@ -770,11 +804,11 @@ Here is the analysis:
 
 CORRECT OUTPUT (ALWAYS DO THIS):
 [
-  {
+  {{
     "user_id": "uuid-here",
     "trade_id": "uuid-here",
     "alert_message": "Your message here."
-  }
+  }}
 ]
 
 RULE 2 ── ONE OBJECT PER ACTIVE TRADE. NO SKIPPING.
@@ -790,26 +824,28 @@ RIGHT → USDT-USDC
 
 RULE 5 ── alert_message must be plain text only. No markdown, no links, no bold.
 
+RULE 6 ── Use ONLY APY and TVL values from the yield snapshots above. Never invent numbers.
+
 ════════════════════════════════════════
 REQUIRED JSON SCHEMA
 ════════════════════════════════════════
 [
-  {
+  {{
     "user_id": "string — the user UUID",
     "trade_id": "string — the trade UUID",
     "alert_message": "string — plain text status or alert"
-  }
+  }}
 ]
 """
 
         try:
-            response = await _nvidia_call(
+            response = await _llm_call(
                 messages=[{
                     "role": "user",
                     "content": (
                         f"Yields:\n{yield_context}\n\n"
                         f"Trades:\n{trade_context}\n\n"
-                        "Analyze and return JSON."
+                        "Analyze and return JSON array only."
                     ),
                 }],
                 system_prompt=system_prompt,
@@ -818,8 +854,6 @@ REQUIRED JSON SCHEMA
             )
 
             content = (response.choices[0].message.content or "").strip()
-
-            # Strip markdown code fences if present
             if content.startswith("```json"):
                 content = content[7:]
             if content.startswith("```"):
@@ -832,13 +866,13 @@ REQUIRED JSON SCHEMA
             return result
 
         except Exception as e:
-            logger.error(f"[NVIDIA] Error in hourly analysis: {e}")
+            logger.error(f"[LLM] All providers failed for hourly analysis: {e}")
             if _response_cache["hourly_analysis"] is not None:
-                logger.info("[NVIDIA] Serving cached hourly analysis.")
+                logger.info("[LLM] Serving cached hourly analysis.")
                 return _response_cache["hourly_analysis"]
             return []
 
-    # ── Personalised hourly update (replaces Sonnet for scorer.py) ───────────
+    # ── Personalised hourly update ────────────────────────────────────────────
 
     async def generate_personalized_hourly_update(
         self,
@@ -850,21 +884,17 @@ REQUIRED JSON SCHEMA
         Generates a personalised hourly Telegram message for a user.
         Called directly by scorer.py → HourlyScorer.run().
         """
-        if not _nvidia_client:
-            return (
-                "⚠️ YieldSage background services are temporarily offline. "
-                "Please check back later."
-            )
+        if not _PROVIDERS:
+            return "⚠️ YieldSage background services are temporarily offline. Please check back later."
 
-        # Compile yield context (unchanged from original)
         yield_context = ""
         for y in yields:
-            p        = y.get("protocol", {})
-            apy_val  = y.get("apy")
-            apy_str  = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
-            risk_tag = p.get("risk_tag") or "unknown"
-            tvl_val  = y.get("tvl_usd") or 0
-            tvl_str  = f"${tvl_val:,.0f}" if tvl_val else "N/A"
+            p         = y.get("protocol", {})
+            apy_val   = y.get("apy")
+            tvl_val   = y.get("tvl_usd")
+            apy_str   = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
+            tvl_str   = f"${tvl_val:,.0f}" if tvl_val else "N/A"
+            risk_tag  = p.get("risk_tag") or "unknown"
             pool_addr = p.get("pool_address")
             if pool_addr:
                 url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
@@ -878,7 +908,6 @@ REQUIRED JSON SCHEMA
                     f"APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
                 )
 
-        # Compile trades context (unchanged from original)
         if user_trades:
             trade_context = "User's Active Paper Trades:\n"
             for t in user_trades:
@@ -901,7 +930,7 @@ REQUIRED JSON SCHEMA
             trade_context = "User has NO active paper trades right now.\n"
 
         system_prompt = f"""You are YieldSage's autonomous DeFi research and advisory agent. You write professional hourly Telegram broadcast messages for DeFi users on Mantle network.
-
+{_DATA_INTEGRITY_BLOCK}
 ════════════════════════════════════════
 ABSOLUTE FORMATTING LAWS — ZERO EXCEPTIONS
 ════════════════════════════════════════
@@ -946,18 +975,16 @@ Never put two bullets on the same line. Each bullet gets its own line and a blan
 MANDATORY OUTPUT STRUCTURE — FOLLOW EXACTLY
 ════════════════════════════════════════
 
-Your message MUST have these three sections in this exact order:
-
 📊 **Mantle Yield Snapshots & Recommendations**
-[2-3 bullet points of top pools matching risk tier: {risk_preference.upper()}]
-[Each bullet: pool link, APY, TVL, one-line reason — each on its OWN line with blank line before it]
+[2-3 bullets of top pools for risk tier: {risk_preference.upper()} — each on its OWN line]
+[Each bullet: pool link, APY from context, TVL from context, one-line reason]
 
 💼 **Personalized Portfolio Analysis**
-[If user has active trades: review each one. Entry APY vs current APY. Alert if underperforming by 2%+.]
-[If no active trades: explain paper trading benefits and suggest one specific pool to start with]
+[Active trades: review every one — Entry APY → Current APY — alert if underperforming by 2%+]
+[No trades: suggest paper trading benefits + one specific pool to start with]
 
 💡 **Actionable DeFi Intelligence**
-[One short senior-engineer-level Mantle DeFi insight. TVL movements, rate shifts, liquidity risks, etc.]
+[One senior-engineer-level Mantle DeFi insight from the live data]
 
 ════════════════════════════════════════
 FORMAT EXAMPLE — COPY THIS STRUCTURE EXACTLY
@@ -965,10 +992,10 @@ FORMAT EXAMPLE — COPY THIS STRUCTURE EXACTLY
 
 📊 **Mantle Yield Snapshots & Recommendations**
 
-• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123): **17.50% APY** | TVL: $2.1M | STABLE
+• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123): **17.50% APY** | TVL: $2,100,000 | STABLE
   Institutional private credit pool. Highest stable-tier yield right now.
 
-• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456): **7.02% APY** | TVL: $10B+ | STABLE
+• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456): **7.03% APY** | TVL: $3,682,789 | STABLE
   Battle-tested. Lowest counterparty risk on Mantle.
 
 💼 **Personalized Portfolio Analysis**
@@ -976,47 +1003,47 @@ FORMAT EXAMPLE — COPY THIS STRUCTURE EXACTLY
 • [Fluxion USDT0-BSB](https://mantlescan.xyz/address/0x999): Entry 23.51% → Current 26.45% ✅ Outperforming — hold position.
 
 ⚠️ **HIGH PRIORITY ALERT** — $15,000 Position:
-[Agni Finance WMNT-mETH](https://mantlescan.xyz/address/0x777): Entry 121.84% → Current 121.87% — marginal hold, but TVL is only $1,280. Extreme liquidity risk. Consider rotating 50% into [Clearpool USDT](https://mantlescan.xyz/address/0xabc123) at 17.50% to de-risk.
+[Agni Finance WMNT-mETH](https://mantlescan.xyz/address/0x777): Entry 121.84% → Current 121.87% — marginal hold, but TVL is only $1,282. Extreme liquidity risk. Consider rotating 50% into [Clearpool USDT](https://mantlescan.xyz/address/0xabc123) at 17.50% to de-risk.
 
 💡 **Actionable DeFi Intelligence**
 
-Clearpool's private credit pools on Mantle are currently outpacing Aave by 10-12%. Pools showing 0% APY alongside low TVL signal borrower repayment or wind-down — avoid redeployment there until activity resumes.
+Clearpool's private credit pools are outpacing Aave by 10-12%. Pools showing 0% APY with low TVL signal borrower repayment or wind-down — avoid redeployment until activity resumes.
 
 ════════════════════════════════════════
 OUTPUT CONSTRAINTS
 ════════════════════════════════════════
 - Length: 200-250 words. No preamble. No sign-off. Start directly with 📊.
-- User risk profile: {risk_preference.upper()} — only recommend pools matching this tier.
-- Every pool name that has an address = a clickable link. No exceptions.
+- Risk profile: {risk_preference.upper()} — only recommend matching pools.
+- ALL numerical values (APY, TVL, investment amounts) must come from LIVE DATA. Never invent.
 
 ════════════════════════════════════════
 MANDATORY SELF-CHECK BEFORE RESPONDING
 ════════════════════════════════════════
-Before outputting, silently verify:
-1. Message starts with 📊 **Mantle Yield Snapshots & Recommendations**
+1. Starts with 📊 **Mantle Yield Snapshots & Recommendations**
 2. All three sections present
 3. Zero # headers — only **bold** titles
-4. Zero | tables — only bullet points
-5. Every pool with an address is a [Name](url) link
-6. No raw underscores in any token pair names
-7. Bold uses **double asterisks** not *single*
-8. Every bullet is on its own line with a blank line before it — none are jammed together
+4. Zero | tables — only bullets
+5. Every pool with address = [Name](url) link
+6. No raw underscores
+7. Bold = **double asterisks**
+8. Every bullet on its own line with blank line before it
+9. Every APY and TVL value matches the live data exactly — not invented
 
-If any check fails, fix it before responding.
+Fix any failure before responding.
 """
 
         try:
-            response = await _nvidia_call(
+            response = await _llm_call(
                 messages=[{
                     "role": "user",
                     "content": (
                         f"Live yield data:\n{yield_context}\n\n"
                         f"User trades:\n{trade_context}\n\n"
                         "Generate the hourly Telegram update now. "
-                        "IMPORTANT: Start your response IMMEDIATELY with 📊 **Mantle Yield Snapshots & Recommendations** — "
-                        "no introduction, no preamble, no 'Here is your update'. "
-                        "All pool names with addresses MUST be [Name](url) Markdown links. "
-                        "Use **double asterisks** for bold. Never use # headers."
+                        "Start IMMEDIATELY with 📊 **Mantle Yield Snapshots & Recommendations** — "
+                        "no introduction, no preamble. "
+                        "Use ONLY APY and TVL values from the live data above. "
+                        "All pool links as [Name](url). Bold = **double asterisks**. No # headers."
                     ),
                 }],
                 system_prompt=system_prompt,
@@ -1027,11 +1054,21 @@ If any check fails, fix it before responding.
             result = clean_telegram_markdown(
                 (response.choices[0].message.content or "").strip()
             )
+
+            # ── Append UTC timestamp ──────────────────────────────────────────
+            # Shows the exact moment this data was generated and queued.
+            utc_now = datetime.utcnow()
+            timestamp_line = (
+                f"\n\n🕐 _Data snapshot: "
+                f"{utc_now.strftime('%d %b %Y · %H:%M UTC')}_"
+            )
+            result = result + timestamp_line
+
             _response_cache["hourly_update"] = result
             return result
 
         except Exception as e:
-            logger.error(f"[NVIDIA] Error generating personalised hourly update: {e}")
+            logger.error(f"[LLM] All providers failed for hourly update: {e}")
             if _response_cache["hourly_update"]:
                 return (
                     _response_cache["hourly_update"]
