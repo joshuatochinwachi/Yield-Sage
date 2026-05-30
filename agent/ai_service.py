@@ -1059,8 +1059,8 @@ Fix any failure before responding.
             # Shows the exact moment this data was generated and queued.
             utc_now = datetime.utcnow()
             timestamp_line = (
-                f"\n\n🕐 _Data snapshot: "
-                f"{utc_now.strftime('%d %b %Y · %H:%M UTC')}_"
+                f"\n\n🕐 Data snapshot: "
+                f"{utc_now.strftime('%d %b %Y · %H:%M UTC')}"
             )
             result = result + timestamp_line
 
