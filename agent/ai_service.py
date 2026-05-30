@@ -1063,7 +1063,7 @@ Fix any failure before responding.
                 f"{utc_now.strftime('%d %b %Y · %H:%M UTC')}"
             )
             cta_line = "\n\n📋 View all live yield opportunities on Mantle → /yields"
-            result = result + timestamp_line
+            result = result + timestamp_line + cta_line
 
             _response_cache["hourly_update"] = result
             return result
