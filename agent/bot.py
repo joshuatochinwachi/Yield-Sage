@@ -725,7 +725,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     async def _send_thinking():
         await context.bot.send_message(
             chat_id=chat_id,
-            text="🤔 YieldSage Agent is analysing the market data... one moment.",
+            text="🤔 YieldSage Agent is thinking... one moment please.",
         )
 
     # Get conversational reply

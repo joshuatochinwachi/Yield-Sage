@@ -19,18 +19,18 @@ else:
 
 _PROVIDER_CONFIGS = [
     {
-        "name":     "NVIDIA",
-        "env_key":  "NVIDIA_API_KEY",
-        "base_url": "https://integrate.api.nvidia.com/v1",
-        "primary":  "meta/llama-3.1-70b-instruct",
-        "fallback": "meta/llama-3.3-70b-instruct",
-    },
-    {
         "name":     "Groq",
         "env_key":  "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
         "primary":  "llama-3.3-70b-versatile",
         "fallback": "llama-3.3-70b-versatile",
+    },
+    {
+        "name":     "NVIDIA",
+        "env_key":  "NVIDIA_API_KEY",
+        "base_url": "https://integrate.api.nvidia.com/v1",
+        "primary":  "meta/llama-3.3-70b-instruct",
+        "fallback": "meta/llama-3.1-70b-instruct",
     },
     {
         "name":     "Gemini",
