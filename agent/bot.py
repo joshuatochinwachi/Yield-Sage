@@ -721,8 +721,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Ensure user exists in database to load history
     await ensure_user_exists(chat_id, update.effective_user.username, update.effective_user.first_name, update.effective_user.last_name)
     
+    # Thinking callback — fires if LLM takes more than 3 seconds
+    async def _send_thinking():
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="🤔 YieldSage Agent is analysing the market data... one moment.",
+        )
+
     # Get conversational reply
-    reply = await ai.handle_conversational_query(user_msg, telegram_chat_id=chat_id)
+    reply = await ai.handle_conversational_query(
+        user_msg,
+        telegram_chat_id=chat_id,
+        thinking_callback=_send_thinking,
+    )
     cleaned_reply = clean_telegram_markdown(reply)
     await update.message.reply_text(cleaned_reply, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
 

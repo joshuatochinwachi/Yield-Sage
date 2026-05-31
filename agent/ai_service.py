@@ -10,8 +10,6 @@ from openai import AsyncOpenAI, RateLimitError
 
 logger = logging.getLogger(__name__)
 
-# ─── Supabase (bot.py imports `supabase` and `clean_telegram_markdown` directly
-#     — these module-level names MUST stay identical) ──────────────────────────
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 if SUPABASE_URL and SUPABASE_KEY:
@@ -19,39 +17,29 @@ if SUPABASE_URL and SUPABASE_KEY:
 else:
     supabase = None
 
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Multi-Provider LLM Cascade
-# Priority: Groq (fastest) → Gemini (best quality) → NVIDIA (last resort)
-# Each provider has a primary model and a fallback model.
-# On any 429 or error, the next slot is tried automatically.
-# A provider is skipped entirely if its API key is not set.
-# ─────────────────────────────────────────────────────────────────────────────
-
 _PROVIDER_CONFIGS = [
+    {
+        "name":     "NVIDIA",
+        "env_key":  "NVIDIA_API_KEY",
+        "base_url": "https://integrate.api.nvidia.com/v1",
+        "primary":  "meta/llama-3.1-70b-instruct",
+        "fallback": "meta/llama-3.3-70b-instruct",
+    },
     {
         "name":     "Groq",
         "env_key":  "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
         "primary":  "llama-3.3-70b-versatile",
-        "fallback": "llama-3.1-8b-instant",
+        "fallback": "llama-3.3-70b-versatile",
     },
     {
         "name":     "Gemini",
         "env_key":  "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "primary":  "gemini-2.5-flash",
-        "fallback": "gemini-2.5-flash-lite", 
-    },
-    {
-        "name":     "NVIDIA",
-        "env_key":  "NVIDIA_API_KEY",
-        "base_url": "https://integrate.api.nvidia.com/v1",
-        "primary":  "meta/llama-3.3-70b-instruct",
-        "fallback": "meta/llama-3.1-70b-instruct",
+        "fallback": "gemini-2.5-flash-lite",
     },
 ]
-
 
 def _init_providers() -> list:
     """
@@ -498,6 +486,7 @@ class AIService:
         user_message: str,
         user_id: str = None,
         telegram_chat_id: int = None,
+        thinking_callback=None,
     ):
         """
         Main entrypoint for Telegram bot chats.
@@ -668,7 +657,22 @@ LIVE DATA — USE ONLY THESE VALUES
             compressed_history.pop(0)
 
         # 6. LLM call with tool use
+        # If response takes more than 3 seconds, send a "thinking" message first.
+        # If it responds faster, the timer is cancelled and nothing extra is sent.
+        _thinking_sent = False
+
+        async def _thinking_guard():
+            nonlocal _thinking_sent
+            await asyncio.sleep(3)
+            if thinking_callback and not _thinking_sent:
+                _thinking_sent = True
+                try:
+                    await thinking_callback()
+                except Exception:
+                    pass  # never let a notification failure break the main flow
+
         try:
+            guard_task = asyncio.create_task(_thinking_guard())
             response = await _llm_call(
                 messages=compressed_history,
                 system_prompt=system_prompt,
@@ -676,6 +680,7 @@ LIVE DATA — USE ONLY THESE VALUES
                 temperature=0.3,
                 max_tokens=1500,
             )
+            guard_task.cancel()  # response arrived — kill the thinking timer
 
             message       = response.choices[0].message
             finish_reason = response.choices[0].finish_reason
