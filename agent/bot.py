@@ -132,7 +132,14 @@ async def prompts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Are there any promising stablecoin-only yield opportunities?",
         "How often should I review and rebalance my active paper trades?",
         "What factors do you consider when assigning a risk tier?",
-        "Explain the difference between lending pools and liquidity pools."
+        "Explain the difference between lending pools and liquidity pools.",
+        "Explain to me what paper trading, and how it works on YieldSage.",
+        "Based on the live data, what is your advice on my current portfolio?",
+        "Give me a position adjustment analysis based on the live data.",
+        "What is my worse position now and how can I make it better?",
+        "What if a protocol's TVL drops significantly? How does it affect my position?",
+        "Give me the top 10 pools with the highest APY",
+        "Give me a thorough yield comparison analysis based on the live data."
     ]
     
     keyboard = [[KeyboardButton(prompt)] for prompt in prompts]

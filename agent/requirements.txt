@@ -4,6 +4,7 @@ apscheduler
 httpx
 gql[all]
 anthropic
+cerebras-cloud-sdk
 openai>=1.0.0
 web3
 python-telegram-bot
