@@ -4,13 +4,7 @@ YieldSage — Model Speed & Reliability Benchmark
 Tests all models in the cascade with a realistic prompt
 (same size as the actual YieldSage prompts: ~8,000-9,000 tokens).
 
-Model roster (v2 — updated after first benchmark run):
-  - llama-3.1-70b-versatile REMOVED — decommissioned by Groq (400 error)
-  - llama-4-scout:free REMOVED — 404 on OpenRouter free tier
-  - mistral-small-3.1-24b:free REMOVED — 404 on OpenRouter free tier
-  - llama-3.3-70b-instruct:free ADDED — confirmed free on OpenRouter
-  - step-3.5-flash:free ADDED — confirmed free on OpenRouter
-  - glm-5.1:free ADDED — confirmed free on OpenRouter
+Output: ranked table by speed + reliability.
 """
 
 import asyncio
@@ -25,7 +19,7 @@ load_dotenv()
 MODELS = [
     # ── Groq ──────────────────────────────────────────────────────────────────
     {
-        # Fastest provider when available — 394 t/s on LPU hardware
+        # Fastest provider when it lands — 394 t/s on LPU hardware
         # Rate limited after 1st call per hour on free tier
         "label":    "Groq — llama-3.3-70b-versatile",
         "provider": "Groq",
@@ -35,24 +29,25 @@ MODELS = [
     },
     # ── NVIDIA ────────────────────────────────────────────────────────────────
     {
-        # Proven workhorse — 100% reliability in last benchmark, 85-90% in Railway logs
-        "label":    "NVIDIA — llama-3.3-70b-instruct",
-        "provider": "NVIDIA",
-        "model":    "meta/llama-3.3-70b-instruct",
-        "env_key":  "NVIDIA_API_KEY",
-        "base_url": "https://integrate.api.nvidia.com/v1",
-    },
-    {
-        # NVIDIA fallback — 100% reliability but slower (avg 11s TTFT in last benchmark)
+        # Proven workhorse — 100% reliability across both benchmark runs
         "label":    "NVIDIA — llama-3.1-70b-instruct",
         "provider": "NVIDIA",
         "model":    "meta/llama-3.1-70b-instruct",
         "env_key":  "NVIDIA_API_KEY",
         "base_url": "https://integrate.api.nvidia.com/v1",
     },
+    {
+        # NVIDIA secondary — also 100% reliable, slightly slower TTFT
+        "label":    "NVIDIA — llama-3.3-70b-instruct",
+        "provider": "NVIDIA",
+        "model":    "meta/llama-3.3-70b-instruct",
+        "env_key":  "NVIDIA_API_KEY",
+        "base_url": "https://integrate.api.nvidia.com/v1",
+    },
     # ── Gemini ────────────────────────────────────────────────────────────────
     {
-        # Best instruction following — 67% reliability, fastest TTFT at 3.8s
+        # Best instruction following — timing-dependent but real
+        # Railway logs prove it works across hours when not hammered back-to-back
         "label":    "Gemini — gemini-2.5-flash",
         "provider": "Gemini",
         "model":    "gemini-2.5-flash",
@@ -60,19 +55,39 @@ MODELS = [
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
     },
     {
-        # Gemini fallback — 33% reliability in last benchmark
+        # Gemini fallback
         "label":    "Gemini — gemini-2.5-flash-lite",
         "provider": "Gemini",
         "model":    "gemini-2.5-flash-lite",
         "env_key":  "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
     },
-    # ── OpenRouter (free tier) ────────────────────────────────────────────────
-    # Previous models (llama-4-scout:free, mistral-small-3.1-24b:free) returned
-    # 404 — endpoints no longer exist on free tier. Replaced with confirmed models.
+    # ── Cerebras (NEW) ────────────────────────────────────────────────────────
+    # Runs on Cerebras Wafer-Scale Engine (WSE) chips — not GPUs.
+    # Fully OpenAI-compatible. Free tier: 1M tokens/day, 30 RPM, 60K TPM.
+    # Both models have 128K context — comfortably above your 8-9K prompt size.
     {
-        # Same Llama 3.3 70B you already use on NVIDIA/Groq — via OpenRouter free pool
-        # Slower than direct providers but confirmed available on free tier
+        # 120B parameter model — production tier on Cerebras
+        # WSE chips designed for high-throughput inference
+        "label":    "Cerebras — gpt-oss-120b",
+        "provider": "Cerebras",
+        "model":    "gpt-oss-120b",
+        "env_key":  "CEREBRAS_API_KEY",
+        "base_url": "https://api.cerebras.ai/v1",
+    },
+    {
+        # GLM 4.7 — preview tier on Cerebras, same WSE hardware
+        # Preview = may have lower stability, worth testing
+        "label":    "Cerebras — zai-glm-4.7",
+        "provider": "Cerebras",
+        "model":    "zai-glm-4.7",
+        "env_key":  "CEREBRAS_API_KEY",
+        "base_url": "https://api.cerebras.ai/v1",
+    },
+    # ── OpenRouter (free tier) ────────────────────────────────────────────────
+    {
+        # Llama 3.3 70B via OpenRouter free pool
+        # Previously 429'd — congested but not dead, worth retesting
         "label":    "OpenRouter — llama-3.3-70b-instruct:free",
         "provider": "OpenRouter",
         "model":    "meta-llama/llama-3.3-70b-instruct:free",
@@ -80,20 +95,12 @@ MODELS = [
         "base_url": "https://openrouter.ai/api/v1",
     },
     {
-        # StepFun Step-3.5-Flash — confirmed free tier, MoE architecture
-        # 11B active params, designed for low latency
-        "label":    "OpenRouter — step-3.5-flash:free",
+        # DeepSeek R1 — free on OpenRouter, from friend's setup
+        # WARNING: reasoning model — thinks before responding, adds latency
+        # Good quality but expect slower TTFT than non-reasoning models
+        "label":    "OpenRouter — deepseek-r1:free",
         "provider": "OpenRouter",
-        "model":    "stepfun/step-3.5-flash:free",
-        "env_key":  "OPENROUTER_API_KEY",
-        "base_url": "https://openrouter.ai/api/v1",
-    },
-    {
-        # Z.ai GLM-5.1 — confirmed on OpenRouter free tier as of May 2026
-        # MoE model, 309B total / 15B active params
-        "label":    "OpenRouter — glm-5.1:free",
-        "provider": "OpenRouter",
-        "model":    "z-ai/glm-5.1:free",
+        "model":    "deepseek/deepseek-r1:free",
         "env_key":  "OPENROUTER_API_KEY",
         "base_url": "https://openrouter.ai/api/v1",
     },

@@ -61,20 +61,19 @@ class HourlyScorer:
                 user_trades_map[uid] = []
             user_trades_map[uid].append(t)
 
-        # 5. Process each user
-        for user in users:
+        # 5. Process all users concurrently — no more serial waiting
+        async def process_user(user):
             user_id = user["id"]
             chat_id = user["telegram_chat_id"]
             risk_preference = user.get("risk_preference") or "stable,moderate,aggressive"
 
             if not chat_id:
-                continue
+                return
 
             # Resolve alerts opt-in status (default to True if not in database)
             is_active = pref_map.get(user_id)
             if is_active is None:
                 is_active = True
-                # Dynamically provision missing preference row for existing users
                 try:
                     supabase.table("alert_preferences").insert({"user_id": user_id, "is_active": True}).execute()
                 except Exception as ap_err:
@@ -82,20 +81,18 @@ class HourlyScorer:
 
             if not is_active:
                 logger.info(f"User {user_id} has disabled alerts. Skipping.")
-                continue
+                return
 
             user_trades = user_trades_map.get(user_id, [])
             logger.info(f"Generating personalized hourly update for user {user_id} ({len(user_trades)} active trades, risk: {risk_preference})...")
 
             try:
-                # Generate highly intelligent personalized update ( Sonnet 4.6 )
                 update_msg = await self.ai.generate_personalized_hourly_update(
                     risk_preference=risk_preference,
                     user_trades=user_trades,
                     yields=yields
                 )
 
-                # Queue the Telegram message
                 payload = {
                     "user_id": user_id,
                     "chat_id": chat_id,
@@ -107,6 +104,9 @@ class HourlyScorer:
                 logger.info(f"Successfully queued hourly DeFi update for user {user_id}")
             except Exception as e:
                 logger.error(f"Failed to generate/queue update for user {user_id}: {e}")
+
+        # Fire all users simultaneously — pipeline time = time for ONE user, not N users
+        await asyncio.gather(*[process_user(user) for user in users])
 
 if __name__ == "__main__":
     scorer = HourlyScorer()

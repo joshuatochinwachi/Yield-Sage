@@ -19,6 +19,13 @@ else:
 
 _PROVIDER_CONFIGS = [
     {
+        "name":     "Cerebras",
+        "env_key":  "CEREBRAS_API_KEY",
+        "base_url": "https://api.cerebras.ai/v1",
+        "primary":  "gpt-oss-120b",
+        "fallback": "zai-glm-4.7",
+    },
+    {
         "name":     "Groq",
         "env_key":  "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
@@ -36,8 +43,8 @@ _PROVIDER_CONFIGS = [
         "name":     "Gemini",
         "env_key":  "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "primary":  "gemini-2.5-flash",
-        "fallback": "gemini-2.5-flash-lite",
+        "primary":  "gemini-2.5-flash-lite",
+        "fallback": "gemini-2.5-flash",
     },
 ]
 
@@ -204,6 +211,7 @@ async def _llm_call(
     tools: list = None,
     temperature: float = 0.3,
     max_tokens: int = 1500,
+    priority: str = "realtime",
 ):
     """
     Cascades through all configured providers until one succeeds.
@@ -213,10 +221,13 @@ async def _llm_call(
       2. Fallback model
     Then moves to the next provider on any 429 or error.
 
-    Full sequence (all keys set):
-      Groq/llama-3.3-70b → Groq/llama-3.1-8b →
-      Gemini/gemini-2.5-flash → Gemini/gemini-2.5-flash-lite →
-      NVIDIA/llama-3.3-70b → NVIDIA/llama-3.1-70b
+    Full sequence — realtime (all keys set):
+      Cerebras/gpt-oss-120b → Cerebras/zai-glm-4.7 →
+      Groq/llama-3.3-70b-versatile →
+      NVIDIA/llama-3.3-70b → NVIDIA/llama-3.1-70b →
+      Gemini/gemini-2.5-flash-lite → Gemini/gemini-2.5-flash
+
+    Background priority skips Cerebras, falls back to it only if all else fails.
 
     Raises RuntimeError only after all 6 slots are exhausted.
     """
@@ -226,7 +237,16 @@ async def _llm_call(
     full_messages = [{"role": "system", "content": system_prompt}] + messages
     last_exc = None
 
-    for provider in _PROVIDERS:
+    # Background jobs (hourly broadcast, scoring) skip Cerebras entirely.
+    # Cerebras free tier is 30 RPM — reserve it for real users waiting on replies.
+    # NVIDIA is slow but handles background workloads fine with no RPM pressure.
+    if priority == "background":
+        provider_order = [p for p in _PROVIDERS if p["name"] != "Cerebras"] + \
+                         [p for p in _PROVIDERS if p["name"] == "Cerebras"]
+    else:
+        provider_order = _PROVIDERS  # realtime: use configured order as-is
+
+    for provider in provider_order:
         for model in [provider["primary"], provider["fallback"]]:
             try:
                 kwargs = dict(
@@ -856,6 +876,7 @@ REQUIRED JSON SCHEMA
                 system_prompt=system_prompt,
                 temperature=0.1,
                 max_tokens=1500,
+                priority="background",
             )
 
             content = (response.choices[0].message.content or "").strip()
@@ -1054,6 +1075,7 @@ Fix any failure before responding.
                 system_prompt=system_prompt,
                 temperature=0.2,
                 max_tokens=1800,
+                priority="background",
             )
 
             result = clean_telegram_markdown(
