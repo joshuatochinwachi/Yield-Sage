@@ -104,6 +104,63 @@ MODELS = [
         "env_key":  "OPENROUTER_API_KEY",
         "base_url": "https://openrouter.ai/api/v1",
     },
+# ── SambaNova ─────────────────────────────────────────────────────────────
+    {
+        "label":    "SambaNova — DeepSeek-V3.1",
+        "provider": "SambaNova",
+        "model":    "DeepSeek-V3.1",
+        "env_key":  "SAMBANOVA_API_KEY",
+        "base_url": "https://api.sambanova.ai/v1",
+    },
+    {
+        "label":    "SambaNova — DeepSeek-V3.2",
+        "provider": "SambaNova",
+        "model":    "DeepSeek-V3.2",
+        "env_key":  "SAMBANOVA_API_KEY",
+        "base_url": "https://api.sambanova.ai/v1",
+    },
+    {
+        "label":    "SambaNova — Llama-4-Maverick-17B",
+        "provider": "SambaNova",
+        "model":    "Llama-4-Maverick-17B-128E-Instruct",
+        "env_key":  "SAMBANOVA_API_KEY",
+        "base_url": "https://api.sambanova.ai/v1",
+    },
+    {
+        "label":    "SambaNova — Meta-Llama-3.3-70B",
+        "provider": "SambaNova",
+        "model":    "Meta-Llama-3.3-70B-Instruct",
+        "env_key":  "SAMBANOVA_API_KEY",
+        "base_url": "https://api.sambanova.ai/v1",
+    },
+    {
+        "label":    "SambaNova — gemma-3-12b",
+        "provider": "SambaNova",
+        "model":    "gemma-3-12b-it",
+        "env_key":  "SAMBANOVA_API_KEY",
+        "base_url": "https://api.sambanova.ai/v1",
+    },
+    {
+        "label":    "SambaNova — gemma-4-31B",
+        "provider": "SambaNova",
+        "model":    "gemma-4-31B-it",
+        "env_key":  "SAMBANOVA_API_KEY",
+        "base_url": "https://api.sambanova.ai/v1",
+    },
+    {
+        "label":    "SambaNova — MiniMax-M2.7",
+        "provider": "SambaNova",
+        "model":    "MiniMax-M2.7",
+        "env_key":  "SAMBANOVA_API_KEY",
+        "base_url": "https://api.sambanova.ai/v1",
+    },
+    {
+        "label":    "SambaNova — gpt-oss-120b",
+        "provider": "SambaNova",
+        "model":    "gpt-oss-120b",
+        "env_key":  "SAMBANOVA_API_KEY",
+        "base_url": "https://api.sambanova.ai/v1",
+    },
 ]
 
 # ── Realistic prompt — same size class as your actual YieldSage prompts ───────

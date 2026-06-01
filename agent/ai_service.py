@@ -26,6 +26,13 @@ _PROVIDER_CONFIGS = [
         "fallback": "zai-glm-4.7",
     },
     {
+        "name":     "SambaNova",
+        "env_key":  "SAMBANOVA_API_KEY",
+        "base_url": "https://api.sambanova.ai/v1",
+        "primary":  "Meta-Llama-3.3-70B-Instruct",
+        "fallback": "gemma-3-12b-it",
+    },
+    {
         "name":     "Groq",
         "env_key":  "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
@@ -223,11 +230,12 @@ async def _llm_call(
 
     Full sequence — realtime (all keys set):
       Cerebras/gpt-oss-120b → Cerebras/zai-glm-4.7 →
+      SambaNova/Meta-Llama-3.3-70B → SambaNova/gemma-3-12b →
       Groq/llama-3.3-70b-versatile →
       NVIDIA/llama-3.3-70b → NVIDIA/llama-3.1-70b →
       Gemini/gemini-2.5-flash-lite → Gemini/gemini-2.5-flash
 
-    Background priority skips Cerebras, falls back to it only if all else fails.
+    Background priority skips Cerebras and SambaNova, falls back to them only if all else fails.
 
     Raises RuntimeError only after all 6 slots are exhausted.
     """
@@ -237,14 +245,13 @@ async def _llm_call(
     full_messages = [{"role": "system", "content": system_prompt}] + messages
     last_exc = None
 
-    # Background jobs (hourly broadcast, scoring) skip Cerebras entirely.
-    # Cerebras free tier is 30 RPM — reserve it for real users waiting on replies.
-    # NVIDIA is slow but handles background workloads fine with no RPM pressure.
     if priority == "background":
-        provider_order = [p for p in _PROVIDERS if p["name"] != "Cerebras"] + \
-                         [p for p in _PROVIDERS if p["name"] == "Cerebras"]
+        # Reserve Cerebras and SambaNova RPM for real users
+        # NVIDIA handles background jobs — reliable, no RPM pressure
+        provider_order = [p for p in _PROVIDERS if p["name"] not in ("Cerebras", "SambaNova")] + \
+                         [p for p in _PROVIDERS if p["name"] in ("Cerebras", "SambaNova")]
     else:
-        provider_order = _PROVIDERS  # realtime: use configured order as-is
+        provider_order = _PROVIDERS
 
     for provider in provider_order:
         for model in [provider["primary"], provider["fallback"]]:
@@ -330,7 +337,7 @@ If APY is missing for a pool — say "APY: data unavailable". Do not guess.
 # ─────────────────────────────────────────────────────────────────────────────
 class AIService:
     """
-    Multi-provider AI service. Cascades through Groq → Gemini → NVIDIA NIM.
+    Multi-provider AI service.
     All public method signatures are identical to the original.
     All DB helpers are untouched.
     """
