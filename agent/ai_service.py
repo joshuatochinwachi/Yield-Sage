@@ -261,6 +261,22 @@ async def _llm_call(
 
                 response = await provider["client"].chat.completions.create(**kwargs)
                 logger.info(f"[LLM] ✅ Success — {provider['name']} / {model}")
+
+                # Tool call response: content is legitimately None — valid, return immediately
+                finish = response.choices[0].finish_reason
+                content = response.choices[0].message.content
+                tool_calls = response.choices[0].message.tool_calls
+
+                if finish == "tool_calls" and tool_calls:
+                    return response
+
+                # Text response: empty content is a real failure — try next slot
+                if not content or not content.strip():
+                    logger.warning(f"[LLM] Empty response from {provider['name']} / {model} — trying next slot...")
+                    last_exc = ValueError(f"Empty response from {model}")
+                    await asyncio.sleep(0.3)
+                    continue
+
                 return response
 
             except RateLimitError as e:
@@ -707,9 +723,9 @@ LIVE DATA — USE ONLY THESE VALUES
 
             # Guard against empty response — LLMs occasionally returns 200 OK
             # with empty content. Force fallback rather than crashing.
-            if not message.content or not message.content.strip():
-                logger.warning(f"[LLM] Empty response from {response.model} — retrying cascade")
-                raise ValueError("Empty response content from LLM")
+            # if not message.content or not message.content.strip():
+            #     logger.warning(f"[LLM] Empty response from {response.model} — retrying cascade")
+            #     raise ValueError("Empty response content from LLM")
 
             # Handle tool call if model decided to search the web
             if finish_reason == "tool_calls" and message.tool_calls:
@@ -761,9 +777,13 @@ LIVE DATA — USE ONLY THESE VALUES
                     temperature=0.3,
                     max_tokens=1500,
                 )
-                bot_reply = final_response.choices[0].message.content or ""
+                bot_reply = (final_response.choices[0].message.content or "").strip()
+                if not bot_reply:
+                    bot_reply = "⚠️ I didn't quite catch that — could you rephrase or try again?"
             else:
-                bot_reply = message.content or ""
+                bot_reply = (message.content or "").strip()
+                if not bot_reply:
+                    bot_reply = "⚠️ I didn't quite catch that — could you rephrase or try again?"
 
             bot_reply = clean_telegram_markdown(bot_reply)
             await self.push_to_memory("assistant", bot_reply, user_id, telegram_chat_id)
