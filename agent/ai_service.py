@@ -705,6 +705,12 @@ LIVE DATA — USE ONLY THESE VALUES
             message       = response.choices[0].message
             finish_reason = response.choices[0].finish_reason
 
+            # Guard against empty response — LLMs occasionally returns 200 OK
+            # with empty content. Force fallback rather than crashing.
+            if not message.content or not message.content.strip():
+                logger.warning(f"[LLM] Empty response from {response.model} — retrying cascade")
+                raise ValueError("Empty response content from LLM")
+
             # Handle tool call if model decided to search the web
             if finish_reason == "tool_calls" and message.tool_calls:
 
@@ -766,15 +772,7 @@ LIVE DATA — USE ONLY THESE VALUES
 
         except Exception as e:
             logger.error(f"[LLM] All providers failed for conversational query: {e}")
-            if _response_cache["conversational"]:
-                return (
-                    _response_cache["conversational"]
-                    + "\n\n_⚠️ Cached response — AI is temporarily busy. Try again in a moment._"
-                )
-            return (
-                "Sorry, I'm having trouble analysing the market right now. "
-                "Please try again in a moment."
-            )
+            return "⚠️ I didn't quite catch that — could you rephrase or try again?"
 
     # ── Hourly analysis ───────────────────────────────────────────────────────
 
