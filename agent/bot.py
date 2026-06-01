@@ -742,35 +742,43 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         thinking_callback=_send_thinking,
     )
     cleaned_reply = clean_telegram_markdown(reply)
-    await update.message.reply_text(cleaned_reply, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
+    try:
+        await update.message.reply_text(cleaned_reply, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
+    except Exception:
+        await update.message.reply_text(cleaned_reply, parse_mode=None, disable_web_page_preview=True)
 
 async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
     """Background repeating job that polls database for pending alerts and broadcasts them."""
     if not supabase:
         return
     try:
-        # Fetch pending messages from database queue
         res = supabase.table("telegram_messages").select("*").eq("status", "pending").execute()
         if not res.data:
             return
-            
+
         logger.info(f"Found {len(res.data)} pending Telegram messages to send.")
         for msg in res.data:
             msg_id = msg["id"]
             chat_id = msg["chat_id"]
             content = msg["content"]
-            
+
+            cleaned_content = clean_telegram_markdown(content)
             try:
-                # Send text via Telegram Bot
-                cleaned_content = clean_telegram_markdown(content)
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=cleaned_content,
-                    parse_mode=ParseMode.MARKDOWN,
-                    disable_web_page_preview=True
-                )
-                
-                # Mark as sent
+                try:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=cleaned_content,
+                        parse_mode=ParseMode.MARKDOWN,
+                        disable_web_page_preview=True
+                    )
+                except Exception:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=cleaned_content,
+                        parse_mode=None,
+                        disable_web_page_preview=True
+                    )
+
                 supabase.table("telegram_messages").update({
                     "status": "sent",
                     "sent_at": datetime.utcnow().isoformat()
