@@ -5,6 +5,7 @@ import { LoadingScreen } from "@/components/loading-screen"
 import { MouseGradientBackground } from "@/components/mouse-gradient-background"
 import { ScrollytellingSection } from "@/components/scrollytelling-section"
 import { FeaturesSection } from "@/components/features-section"
+import { AgentSection } from "@/components/agent-section"
 import { Footer } from "@/components/footer"
 
 export default function Home() {
@@ -132,6 +133,9 @@ export default function Home() {
 
         {/* Feature Grid cards */}
         <FeaturesSection />
+
+        {/* AI Agent on-page section */}
+        <AgentSection />
 
         {/* Brand reveal footer */}
         <Footer />

@@ -94,13 +94,20 @@ export function Footer() {
 
           {/* Links */}
           <div className="flex items-center gap-6">
-            {["Twitter", "Discord", "Telegram", "Docs", "Privacy"].map((link) => (
+            {([
+              { label: "Twitter", href: "https://x.com/yieldsageai" },
+              { label: "Telegram", href: "https://t.me/YieldSageBot" },
+              { label: "Docs", href: "#" },
+              { label: "Privacy", href: "#" },
+            ] as { label: string; href: string }[]).map(({ label, href }) => (
               <a
-                key={link}
-                href="#"
+                key={label}
+                href={href}
+                target={href.startsWith("http") ? "_blank" : undefined}
+                rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
                 className="text-[11px] text-white/25 hover:text-white/60 transition-colors font-mono"
               >
-                {link}
+                {label}
               </a>
             ))}
           </div>

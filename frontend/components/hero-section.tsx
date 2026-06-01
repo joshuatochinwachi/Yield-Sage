@@ -31,8 +31,8 @@ export function HeroSection() {
         </nav>
 
         <a
-          href="#access"
-          className="text-[11px] font-medium tracking-wide px-4 py-2 rounded-full border transition-all"
+          href="#agent"
+          className="flex items-center gap-2 text-[11px] font-medium tracking-wide px-4 py-2 rounded-full border transition-all"
           style={{
             borderColor: "rgba(0,255,136,0.3)",
             color: "rgba(0,255,136,0.9)",
@@ -48,7 +48,18 @@ export function HeroSection() {
             el.style.borderColor = "rgba(0,255,136,0.3)"
           }}
         >
-          Request Access
+          <span
+            style={{
+              display: "inline-block",
+              width: 6,
+              height: 6,
+              borderRadius: "50%",
+              background: "rgba(0,255,136,1)",
+              boxShadow: "0 0 6px rgba(0,255,136,0.9)",
+              animation: "ping 1.5s ease-in-out infinite",
+            }}
+          />
+          Launch AI Agent
         </a>
       </header>
 
@@ -111,7 +122,7 @@ export function HeroSection() {
         >
           <a
             id="access"
-            href="#features"
+            href="#agent"
             className="px-7 py-3 rounded-full text-sm font-medium tracking-wide transition-all"
             style={{
               background: "rgba(0,255,136,1)",
