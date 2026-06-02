@@ -1,0 +1,215 @@
+"""
+routers/yields.py
+─────────────────
+Public endpoints for live yield snapshot data.
+
+GET /api/yields/latest       — Latest snapshot per active protocol (filterable by risk_tag)
+GET /api/yields/leaderboard  — Sorted leaderboard (APY desc), with risk filter + pagination
+GET /api/yields/history/{slug} — Time-series snapshots for one protocol (default 30 days)
+"""
+
+import os
+import logging
+from datetime import datetime, timedelta
+from typing import Optional
+from fastapi import APIRouter, HTTPException, Query
+from supabase import create_client, Client
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/yields", tags=["Yields"])
+
+# ── Supabase admin client ─────────────────────────────────────────────────────
+_url = os.getenv("SUPABASE_URL", "")
+_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+_db: Client | None = create_client(_url, _key) if _url and _key else None
+
+
+def _db_or_503():
+    if not _db:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+    return _db
+
+
+# ── GET /api/yields/latest ────────────────────────────────────────────────────
+@router.get("/latest")
+async def get_latest_yields(
+    risk_tag: Optional[str] = Query(None, description="Filter by risk_tag: stable | moderate | aggressive"),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """
+    Returns the most recent yield snapshot for every active protocol.
+    Optionally filter by risk_tag. Ordered by APY descending.
+    """
+    db = _db_or_503()
+    try:
+        # Fetch active protocols
+        proto_q = db.table("protocols").select("id, slug, name, pool_name, pool_address, risk_tag, chain").eq("is_active", True)
+        if risk_tag:
+            proto_q = proto_q.eq("risk_tag", risk_tag.lower())
+        protocols = proto_q.execute().data
+
+        if not protocols:
+            return {"data": [], "count": 0, "timestamp": datetime.utcnow().isoformat()}
+
+        protocol_ids = [p["id"] for p in protocols]
+        proto_map = {p["id"]: p for p in protocols}
+
+        # Latest snapshot per protocol — fetch recent batch and deduplicate in Python
+        snap_res = (
+            db.table("yield_snapshots")
+            .select("*")
+            .in_("protocol_id", protocol_ids)
+            .order("fetched_at", desc=True)
+            .limit(len(protocol_ids) * 5)          # enough rows to find 1 per protocol
+            .execute()
+        )
+
+        seen = set()
+        latest = []
+        for row in snap_res.data:
+            pid = row["protocol_id"]
+            if pid not in seen:
+                seen.add(pid)
+                latest.append({
+                    **row,
+                    "protocol": proto_map.get(pid, {}),
+                })
+
+        # Sort by APY descending
+        latest.sort(key=lambda x: (x.get("apy") or 0), reverse=True)
+        latest = latest[:limit]
+
+        return {
+            "data": latest,
+            "count": len(latest),
+            "timestamp": datetime.utcnow().isoformat(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[yields/latest] {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch latest yields.")
+
+
+# ── GET /api/yields/leaderboard ───────────────────────────────────────────────
+@router.get("/leaderboard")
+async def get_leaderboard(
+    risk_tag: Optional[str] = Query(None, description="Filter: stable | moderate | aggressive"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+):
+    """
+    Paginated leaderboard of all active protocols, ranked by current APY.
+    """
+    db = _db_or_503()
+    try:
+        proto_q = db.table("protocols").select("id, slug, name, pool_name, pool_address, risk_tag").eq("is_active", True)
+        if risk_tag:
+            proto_q = proto_q.eq("risk_tag", risk_tag.lower())
+        protocols = proto_q.execute().data
+
+        if not protocols:
+            return {"data": [], "total": 0, "page": page, "page_size": page_size}
+
+        protocol_ids = [p["id"] for p in protocols]
+        proto_map = {p["id"]: p for p in protocols}
+
+        snap_res = (
+            db.table("yield_snapshots")
+            .select("protocol_id, apy, apy_7d, apy_30d, tvl_usd, asset, fetched_at")
+            .in_("protocol_id", protocol_ids)
+            .order("fetched_at", desc=True)
+            .limit(len(protocol_ids) * 5)
+            .execute()
+        )
+
+        seen = set()
+        rows = []
+        for row in snap_res.data:
+            pid = row["protocol_id"]
+            if pid not in seen:
+                seen.add(pid)
+                proto = proto_map.get(pid, {})
+                rows.append({
+                    "rank": 0,           # filled below
+                    "protocol_id": pid,
+                    "slug": proto.get("slug"),
+                    "name": proto.get("name"),
+                    "pool_name": proto.get("pool_name"),
+                    "pool_address": proto.get("pool_address"),
+                    "risk_tag": proto.get("risk_tag"),
+                    "apy": row.get("apy"),
+                    "apy_7d": row.get("apy_7d"),
+                    "apy_30d": row.get("apy_30d"),
+                    "tvl_usd": row.get("tvl_usd"),
+                    "asset": row.get("asset"),
+                    "fetched_at": row.get("fetched_at"),
+                })
+
+        # Sort by APY and assign ranks
+        rows.sort(key=lambda x: (x.get("apy") or 0), reverse=True)
+        for i, row in enumerate(rows):
+            row["rank"] = i + 1
+
+        total = len(rows)
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_data = rows[start:end]
+
+        return {
+            "data": page_data,
+            "total": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": (total + page_size - 1) // page_size,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[yields/leaderboard] {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch leaderboard.")
+
+
+# ── GET /api/yields/history/{slug} ───────────────────────────────────────────
+@router.get("/history/{slug}")
+async def get_yield_history(
+    slug: str,
+    days: int = Query(30, ge=1, le=90, description="Number of days of history to return"),
+):
+    """
+    Returns hourly APY snapshots for a specific protocol over the past N days.
+    Used to power the APY history chart on the dashboard.
+    """
+    db = _db_or_503()
+    try:
+        proto_res = db.table("protocols").select("id, slug, name, pool_name, pool_address, risk_tag").eq("slug", slug).limit(1).execute()
+        if not proto_res.data:
+            raise HTTPException(status_code=404, detail=f"Protocol '{slug}' not found.")
+
+        protocol = proto_res.data[0]
+        since = (datetime.utcnow() - timedelta(days=days)).isoformat()
+
+        snap_res = (
+            db.table("yield_snapshots")
+            .select("apy, base_apy, reward_apy, tvl_usd, apy_7d, apy_30d, asset, fetched_at")
+            .eq("protocol_id", protocol["id"])
+            .gte("fetched_at", since)
+            .order("fetched_at", desc=False)
+            .execute()
+        )
+
+        return {
+            "protocol": protocol,
+            "days": days,
+            "data": snap_res.data,
+            "count": len(snap_res.data),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[yields/history/{slug}] {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch yield history.")

@@ -12,3 +12,4 @@ sqlalchemy
 pydantic
 supabase
 python-dotenv
+PyJWT
