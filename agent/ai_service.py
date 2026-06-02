@@ -1131,3 +1131,125 @@ Fix any failure before responding.
                 "⚠️ Sorry, I had trouble generating your hourly market update. "
                 "I will try again next hour!"
             )
+
+    async def generate_dashboard_picks(self, yields) -> list:
+        """
+        Selects top 3 yields for stable, moderate, and aggressive risk tags,
+        and saves them to the recommendations table in Supabase.
+        """
+        if not supabase or not yields:
+            logger.error("Supabase not available or yields list empty.")
+            return []
+
+        import json
+        import hashlib
+
+        # Build candidate list for LLM
+        candidates = []
+        for i, y in enumerate(yields):
+            p = y.get("protocol") or {}
+            candidates.append({
+                "index": i,
+                "protocol": p.get("name") or "Unknown",
+                "pool_name": p.get("pool_name") or "Unknown",
+                "asset": y.get("asset") or "Unknown",
+                "apy": y.get("apy") or 0.0,
+                "tvl_usd": y.get("tvl_usd") or 0.0,
+                "risk_tag": (p.get("risk_tag") or "stable").lower()
+            })
+
+        candidates_str = json.dumps(candidates, indent=2)
+
+        system_prompt = f"""You are YieldSage, a professional DeFi yield strategist on the Mantle network.
+Your task is to select the top 3 best yield opportunities for each of the three risk tiers: 'stable', 'moderate', and 'aggressive' from the provided candidates.
+
+For each tier, rank the picks as 1 (best/top priority), 2 (second best), and 3 (third best) based on their yield vs risk tradeoffs, TVL liquidity, and protocol reputability.
+If a tier has fewer than 3 candidates, you may output fewer than 3 picks for that tier, but aim for 3 if candidates are available.
+
+Provide a short, professional, data-backed reasoning (1-2 sentences) for each pick.
+
+Output your response STRICTLY as a valid JSON object matching the following structure:
+{{
+  "stable": [
+    {{ "index": 0, "rank": 1, "reasoning": "Fluxion offers the highest stable yields with deep liquidity." }},
+    ...
+  ],
+  "moderate": [
+    ...
+  ],
+  "aggressive": [
+    ...
+  ]
+}}
+
+Ensure that the indices you select correspond EXACTLY to the index in the candidates list.
+{_DATA_INTEGRITY_BLOCK}
+"""
+
+        try:
+            response = await _llm_call(
+                messages=[{
+                    "role": "user",
+                    "content": f"Live yield candidate data:\n{candidates_str}\n\nSelect the top picks and output as a valid JSON object matching the requested structure.",
+                }],
+                system_prompt=system_prompt,
+                temperature=0.1,
+                max_tokens=2000,
+                priority="background",
+            )
+
+            content = (response.choices[0].message.content or "").strip()
+            model_used = getattr(response, "model", "AI Cascade")
+
+            # Clean markdown code block wrappers
+            if content.startswith("```"):
+                content = re.sub(r"^```(?:json)?\n", "", content)
+                content = re.sub(r"\n```$", "", content)
+                content = content.strip()
+
+            picks_data = json.loads(content)
+            date_str = datetime.utcnow().strftime("%Y-%m-%d-%H")
+
+            recs_to_insert = []
+            for tier in ["stable", "moderate", "aggressive"]:
+                picks = picks_data.get(tier, [])
+                for pick in picks:
+                    idx = pick.get("index")
+                    rank = pick.get("rank")
+                    reasoning = pick.get("reasoning")
+                    if idx is None or rank is None or reasoning is None:
+                        continue
+                    if idx < 0 or idx >= len(yields):
+                        continue
+
+                    y = yields[idx]
+                    protocol_id = y["protocol_id"]
+                    apy_at_time = y.get("apy") or 0.0
+
+                    # Hash ensures one slot per tier-rank-hour
+                    hash_input = f"{tier}-{rank}-{date_str}"
+                    rec_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
+
+                    recs_to_insert.append({
+                        "protocol_id": protocol_id,
+                        "risk_tag": tier,
+                        "rank": rank,
+                        "apy_at_time": apy_at_time,
+                        "ai_reasoning": reasoning,
+                        "ai_model": model_used,
+                        "recommendation_hash": rec_hash,
+                        "created_at": datetime.utcnow().isoformat()
+                    })
+
+            if recs_to_insert:
+                logger.info(f"Upserting {len(recs_to_insert)} AI dashboard picks into recommendations table...")
+                supabase.table("recommendations").upsert(recs_to_insert, on_conflict="recommendation_hash").execute()
+                logger.info("AI dashboard picks upserted successfully.")
+                return recs_to_insert
+            else:
+                logger.warning("No valid recommendations parsed from LLM response.")
+                return []
+
+        except Exception as e:
+            logger.error(f"Failed to generate dashboard recommendations: {e}")
+            return []

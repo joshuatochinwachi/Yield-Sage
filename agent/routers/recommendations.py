@@ -62,7 +62,7 @@ async def get_latest_recommendations(
                 .select(
                     "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
                     "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
-                    "protocols(id, slug, name, pool_name, pool_address, risk_tag)"
+                    "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
                 )
                 .eq("risk_tag", tier)
                 .eq("rank", 1)
@@ -107,7 +107,7 @@ async def get_recommendation_history(
         q = db.table("recommendations").select(
             "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
             "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
-            "protocols(id, slug, name, pool_name, pool_address, risk_tag)"
+            "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
         ).order("created_at", desc=True)
 
         if risk_tag:

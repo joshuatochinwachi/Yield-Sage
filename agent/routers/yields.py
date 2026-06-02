@@ -44,7 +44,8 @@ async def get_latest_yields(
     db = _db_or_503()
     try:
         # Fetch active protocols
-        proto_q = db.table("protocols").select("id, slug, name, pool_name, pool_address, risk_tag, chain").eq("is_active", True)
+        # Fetch active protocols
+        proto_q = db.table("protocols").select("id, slug, name, pool_name, pool_address, risk_tag, chain, image_url, app_link").eq("is_active", True)
         if risk_tag:
             proto_q = proto_q.eq("risk_tag", risk_tag.lower())
         protocols = proto_q.execute().data
@@ -97,28 +98,32 @@ async def get_latest_yields(
 @router.get("/leaderboard")
 async def get_leaderboard(
     risk_tag: Optional[str] = Query(None, description="Filter: stable | moderate | aggressive"),
+    search: Optional[str] = Query(None, description="Filter by protocol name or asset"),
+    min_tvl: Optional[float] = Query(None, description="Filter by minimum TVL in USD"),
+    min_apy: Optional[float] = Query(None, description="Filter by minimum APY in percent (e.g. 5.5 for 5.5%)"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
+    page_size: int = Query(20, ge=1, le=500),
 ):
     """
-    Paginated leaderboard of all active protocols, ranked by current APY.
+    Paginated leaderboard of all active protocols, ranked by TVL descending.
+    Supports filtering by risk_tag, search string, min_tvl, and min_apy.
     """
     db = _db_or_503()
     try:
-        proto_q = db.table("protocols").select("id, slug, name, pool_name, pool_address, risk_tag").eq("is_active", True)
+        proto_q = db.table("protocols").select("id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link").eq("is_active", True)
         if risk_tag:
             proto_q = proto_q.eq("risk_tag", risk_tag.lower())
         protocols = proto_q.execute().data
 
         if not protocols:
-            return {"data": [], "total": 0, "page": page, "page_size": page_size}
+            return {"data": [], "total": 0, "page": page, "page_size": page_size, "total_pages": 0}
 
         protocol_ids = [p["id"] for p in protocols]
         proto_map = {p["id"]: p for p in protocols}
 
         snap_res = (
             db.table("yield_snapshots")
-            .select("protocol_id, apy, apy_7d, apy_30d, tvl_usd, asset, fetched_at")
+            .select("protocol_id, apy, base_apy, reward_apy, reward_tokens, apy_1d, apy_7d, apy_30d, tvl_usd, asset, fetched_at")
             .in_("protocol_id", protocol_ids)
             .order("fetched_at", desc=True)
             .limit(len(protocol_ids) * 5)
@@ -132,6 +137,30 @@ async def get_leaderboard(
             if pid not in seen:
                 seen.add(pid)
                 proto = proto_map.get(pid, {})
+                
+                # Filter by search term (case-insensitive on name, pool_name, or asset)
+                if search:
+                    search_term = search.lower()
+                    p_name = (proto.get("name") or "").lower()
+                    p_pool = (proto.get("pool_name") or "").lower()
+                    p_asset = (row.get("asset") or "").lower()
+                    if (search_term not in p_name and 
+                        search_term not in p_pool and 
+                        search_term not in p_asset):
+                        continue
+
+                # Filter by min_tvl
+                tvl_val = row.get("tvl_usd")
+                if min_tvl is not None:
+                    if tvl_val is None or tvl_val < min_tvl:
+                        continue
+
+                # Filter by min_apy
+                apy_val = row.get("apy")
+                if min_apy is not None:
+                    if apy_val is None or apy_val < min_apy:
+                        continue
+
                 rows.append({
                     "rank": 0,           # filled below
                     "protocol_id": pid,
@@ -140,16 +169,23 @@ async def get_leaderboard(
                     "pool_name": proto.get("pool_name"),
                     "pool_address": proto.get("pool_address"),
                     "risk_tag": proto.get("risk_tag"),
+                    "image_url": proto.get("image_url"),
+                    "app_link": proto.get("app_link"),
                     "apy": row.get("apy"),
+                    "base_apy": row.get("base_apy"),
+                    "reward_apy": row.get("reward_apy"),
+                    "reward_tokens": row.get("reward_tokens"),
+                    "apy_1d": row.get("apy_1d"),
                     "apy_7d": row.get("apy_7d"),
                     "apy_30d": row.get("apy_30d"),
-                    "tvl_usd": row.get("tvl_usd"),
+                    "tvl_usd": tvl_val,
                     "asset": row.get("asset"),
                     "fetched_at": row.get("fetched_at"),
+                    "protocol": proto,   # Nested for full frontend compatibility!
                 })
 
-        # Sort by APY and assign ranks
-        rows.sort(key=lambda x: (x.get("apy") or 0), reverse=True)
+        # Sort by TVL descending and assign ranks
+        rows.sort(key=lambda x: (x.get("tvl_usd") or 0), reverse=True)
         for i, row in enumerate(rows):
             row["rank"] = i + 1
 
@@ -163,7 +199,7 @@ async def get_leaderboard(
             "total": total,
             "page": page,
             "page_size": page_size,
-            "total_pages": (total + page_size - 1) // page_size,
+            "total_pages": (total + page_size - 1) // page_size if total > 0 else 0,
         }
 
     except HTTPException:

@@ -48,16 +48,19 @@ async def get_overview_stats():
         snap_count_res = db.table("yield_snapshots").select("id", count="exact").execute()
         snapshot_count = snap_count_res.count or len(snap_count_res.data or [])
 
-        # 3. Best current APY — latest snapshot per protocol, take the max
+        # 3. Comprehensive yields metrics (TVL, best/avg/median APY, pool count)
         all_protos = db.table("protocols").select("id").eq("is_active", True).execute().data
         best_apy = 0.0
+        total_tvl = 0.0
+        apy_list = []
+        pool_count = 0
         last_fetched = None
 
         if all_protos:
             pids = [p["id"] for p in all_protos]
             snap_res = (
                 db.table("yield_snapshots")
-                .select("protocol_id, apy, fetched_at")
+                .select("protocol_id, apy, tvl_usd, fetched_at")
                 .in_("protocol_id", pids)
                 .order("fetched_at", desc=True)
                 .limit(len(pids) * 5)
@@ -69,21 +72,39 @@ async def get_overview_stats():
                 pid = row["protocol_id"]
                 if pid not in seen:
                     seen.add(pid)
-                    apy = row.get("apy") or 0
+                    apy = row.get("apy") or 0.0
+                    tvl = row.get("tvl_usd") or 0.0
+                    
+                    total_tvl += float(tvl)
+                    apy_list.append(float(apy))
+                    
                     if apy > best_apy:
                         best_apy = float(apy)
                     if last_fetched is None:
                         last_fetched = row.get("fetched_at")
 
-        # 4. Active paper trades count
+            pool_count = len(seen)
+
+        # 4. Calculate average and median APY
+        average_apy = sum(apy_list) / len(apy_list) if apy_list else 0.0
+        median_apy = 0.0
+        if apy_list:
+            sorted_apys = sorted(apy_list)
+            n = len(sorted_apys)
+            if n % 2 == 1:
+                median_apy = sorted_apys[n // 2]
+            else:
+                median_apy = (sorted_apys[n // 2 - 1] + sorted_apys[n // 2]) / 2.0
+
+        # 5. Active paper trades count
         trades_res = db.table("paper_trades").select("id", count="exact").eq("status", "active").execute()
         active_trades = trades_res.count or len(trades_res.data or [])
 
-        # 5. Total recommendations
+        # 6. Total recommendations
         recs_res = db.table("recommendations").select("id", count="exact").execute()
         recommendation_count = recs_res.count or len(recs_res.data or [])
 
-        # 6. Recommendations with on-chain proof
+        # 7. Recommendations with on-chain proof
         try:
             onchain_res = (
                 db.table("recommendations")
@@ -101,6 +122,10 @@ async def get_overview_stats():
 
         return {
             "protocols_tracked": protocol_count,
+            "pools_tracked": pool_count,
+            "total_tvl": round(total_tvl, 2),
+            "average_apy": round(average_apy, 2),
+            "median_apy": round(median_apy, 2),
             "total_snapshots": snapshot_count,
             "best_apy": round(best_apy, 2),
             "active_paper_trades": active_trades,

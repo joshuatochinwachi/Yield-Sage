@@ -204,11 +204,17 @@ class DuneFetcher:
         logger.info("Parsing CSV and ingesting into Supabase...")
         
         # Use composite key: (protocol_name, pool_address) since multiple protocols share addresses
-        resp = supabase.table("protocols").select("id, name, pool_address").execute()
-        db_protocols = {(p["name"], p["pool_address"]): p["id"] for p in resp.data if p.get("pool_address")}
+        resp = supabase.table("protocols").select("id, name, pool_address, image_url, app_link").execute()
+        db_protocols_full = {
+            (p["name"], p["pool_address"]): p 
+            for p in resp.data 
+            if p.get("pool_address")
+        }
+        db_protocols = {k: v["id"] for k, v in db_protocols_full.items()}
         
         reader = list(csv.DictReader(StringIO(csv_text)))
         new_protocols = []
+        protocols_to_update = []
         seen_keys = set(db_protocols.keys())
         
         for row in reader:
@@ -216,26 +222,63 @@ class DuneFetcher:
             protocol_name = row.get("Protocol", "Unknown")
             composite_key = (protocol_name, pool_address)
             
-            if pool_address and composite_key not in seen_keys:
-                asset = row.get("Asset", "Unknown")
-                asset_lower = asset.lower()
-                risk = "stable" if any(x in asset_lower for x in ["usd", "dai"]) else "moderate"
-                
-                new_protocols.append({
-                    "slug": f"{protocol_name}-{asset}-{pool_address[-6:]}".lower().replace(" ", "-").replace("/", "-"),
-                    "name": protocol_name,
-                    "pool_name": asset,
-                    "pool_address": pool_address,
-                    "risk_tag": risk,
-                    "chain": "mantle"
-                })
-                seen_keys.add(composite_key)
-                
+            image_val = row.get("Image") or None
+            app_link_val = row.get("App Link") or None
+            
+            if pool_address:
+                if composite_key not in seen_keys:
+                    asset = row.get("Asset", "Unknown")
+                    asset_lower = asset.lower()
+                    risk = "stable" if any(x in asset_lower for x in ["usd", "dai"]) else "moderate"
+                    
+                    new_protocols.append({
+                        "slug": f"{protocol_name}-{asset}-{pool_address[-6:]}".lower().replace(" ", "-").replace("/", "-"),
+                        "name": protocol_name,
+                        "pool_name": asset,
+                        "pool_address": pool_address,
+                        "risk_tag": risk,
+                        "chain": "mantle",
+                        "image_url": image_val,
+                        "app_link": app_link_val
+                    })
+                    seen_keys.add(composite_key)
+                else:
+                    existing = db_protocols_full[composite_key]
+                    needs_update = False
+                    update_payload = {"id": existing["id"]}
+                    
+                    # Update if a non-null/empty image or app link is fetched but was null or different in the db
+                    if image_val and existing.get("image_url") != image_val:
+                        update_payload["image_url"] = image_val
+                        needs_update = True
+                    if app_link_val and existing.get("app_link") != app_link_val:
+                        update_payload["app_link"] = app_link_val
+                        needs_update = True
+                        
+                    if needs_update:
+                        protocols_to_update.append(update_payload)
+                        
         if new_protocols:
             logger.info(f"Auto-registering {len(new_protocols)} new protocols...")
             supabase.table("protocols").insert(new_protocols).execute()
-            resp = supabase.table("protocols").select("id, name, pool_address").execute()
-            db_protocols = {(p["name"], p["pool_address"]): p["id"] for p in resp.data if p.get("pool_address")}
+            # Re-fetch database state
+            resp = supabase.table("protocols").select("id, name, pool_address, image_url, app_link").execute()
+            db_protocols_full = {
+                (p["name"], p["pool_address"]): p 
+                for p in resp.data 
+                if p.get("pool_address")
+            }
+            db_protocols = {k: v["id"] for k, v in db_protocols_full.items()}
+            
+        if protocols_to_update:
+            logger.info(f"Updating metadata for {len(protocols_to_update)} protocols...")
+            for update in protocols_to_update:
+                try:
+                    supabase.table("protocols").update({
+                        k: v for k, v in update.items() if k != "id"
+                    }).eq("id", update["id"]).execute()
+                except Exception as e:
+                    logger.error(f"Error updating protocol {update['id']}: {e}")
 
         def safe_float(val):
             if val is None or str(val).strip() in ("", "<nil>"):

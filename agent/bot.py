@@ -427,10 +427,12 @@ async def view_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
         inv = t["simulated_investment_usd"]
         
-        # Calculate yield accrued roughly
+        # Calculate yield accrued roughly using exact fractional days
         created = datetime.fromisoformat(t["created_at"].replace("Z", "+00:00"))
-        days_held = max((datetime.now(created.tzinfo) - created).days, 0)
-        est_return = inv * (current_apy / 100) * (days_held / 365)
+        delta = datetime.now(created.tzinfo) - created
+        days_held_exact = max(delta.total_seconds() / 86400, 0)
+        
+        est_return = inv * (current_apy / 100) * (days_held_exact / 365)
         
         pool_address = t["protocols"].get("pool_address")
         if pool_address:
@@ -439,10 +441,18 @@ async def view_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             text += f"🔹 **{p_name} ({p_pool})**\n"
             
+        days_int = int(days_held_exact)
+        time_display = f"{days_int} days" if days_int > 0 else "< 1 day"
+        
+        # Format accrued amount intelligently with a '+' sign
+        accrued_str = f"+${est_return:,.2f}" if est_return >= 0.01 else f"+${est_return:,.4f}"
+        current_val = inv + est_return
+            
         text += (
             f"  • Investment: **${inv:,.2f}**\n"
-            f"  • Entry APY: **{entry_apy}%** | Current: **{current_apy:.2f}%**\n"
-            f"  • Estimated Accrued: **${est_return:.2f}** ({days_held} days held)\n\n"
+            f"  • Entry APY: **{entry_apy:.2f}%** | Current: **{current_apy:.2f}%**\n"
+            f"  • Estimated Profit: **{accrued_str}** ({time_display} held)\n"
+            f"  • Current Value: **${current_val:,.2f}**\n\n"
         )
         keyboard.append([InlineKeyboardButton(f"❌ Close {p_name} ({p_pool})", callback_data=f"close_{t['id']}")] )
         

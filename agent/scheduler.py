@@ -46,6 +46,18 @@ async def run_pipeline():
     except Exception as e:
         logger.error(f"Hourly Scoring Engine failed with exception: {e}")
 
+    # 3. Generate hourly AI recommendations for the dashboard
+    try:
+        logger.info("Running Dashboard AI Picks Generator...")
+        recent_yields = await scorer.ai.get_recent_yields()
+        if recent_yields:
+            await scorer.ai.generate_dashboard_picks(recent_yields)
+            logger.info("Dashboard AI Picks generated successfully.")
+        else:
+            logger.warning("No recent yields found. Skipping AI picks generation.")
+    except Exception as e:
+        logger.error(f"Dashboard AI Picks Generator failed with exception: {e}")
+
 def start_scheduler():
     scheduler = AsyncIOScheduler()
     
