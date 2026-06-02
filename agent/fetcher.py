@@ -134,7 +134,7 @@ class DuneFetcher:
             api_key = await self.select_valid_key(client)
             
             headers = {"X-DUNE-API-KEY": api_key}
-            max_retries = 10
+            max_retries = 30
             completed = False
 
             for attempt in range(1, max_retries + 1):
