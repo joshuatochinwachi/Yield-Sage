@@ -120,7 +120,7 @@ class AIService:
             latest_yields = []
             
             # Fetch the most recent batch of snapshots (100 is enough for ~32 active protocols)
-            snap_res = supabase.table("yield_snapshots").select("*").order("fetched_at", desc=True).limit(100).execute()
+            snap_res = supabase.table("yield_snapshots").select("*").order("fetched_at", desc=True).limit(len(protocols) * 5).execute()
             
             latest_snaps = {}
             if snap_res.data:

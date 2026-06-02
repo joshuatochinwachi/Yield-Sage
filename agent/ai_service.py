@@ -359,7 +359,7 @@ class AIService:
 
             snap_res = supabase.table("yield_snapshots").select("*").order(
                 "fetched_at", desc=True
-            ).limit(100).execute()
+            ).limit(len(protocols) * 5).execute()
 
             latest_snaps = {}
             if snap_res.data:
