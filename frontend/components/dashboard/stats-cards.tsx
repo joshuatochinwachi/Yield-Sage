@@ -3,7 +3,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, LayoutGrid, Zap } from "lucide-react";
+import { Database, Coins, Flame, Percent, Cpu } from "lucide-react";
+import { useState } from "react";
+
+function formatTVL(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "N/A";
+  if (value >= 1e9) return `$${(value / 1e9).toFixed(2)}B`;
+  if (value >= 1e6) return `$${(value / 1e6).toFixed(2)}M`;
+  if (value >= 1e3) return `$${(value / 1e3).toFixed(2)}K`;
+  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+}
 
 export function StatsCards() {
   const { data, isLoading } = useQuery({
@@ -13,51 +22,109 @@ export function StatsCards() {
   });
 
   return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <Card className="bg-[#0A0A0A] border-white/5">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-white/50">
-            Active Protocols
+    <div className="grid gap-4 grid-cols-2 lg:grid-cols-5">
+      {/* Total DeFi TVL */}
+      <Card className="bg-black/40 backdrop-blur-xl border-white/5 hover:bg-white/[0.04] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-emerald-500/0 group-hover:bg-[#00ff88]/5 transition-colors duration-500" />
+        <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+          <CardTitle className="text-[10px] font-semibold font-mono tracking-wider text-white/40 uppercase">
+            DeFi TVL
           </CardTitle>
-          <LayoutGrid className="h-4 w-4 text-emerald-500" />
+          <Coins className="h-4 w-4 text-[#00ff88] group-hover:drop-shadow-[0_0_8px_rgba(0,255,136,0.8)] transition-all" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-white">
-            {isLoading ? "..." : data?.protocols_tracked || 0}
+        <CardContent className="relative z-10">
+          <div className="text-xl md:text-2xl font-bold font-mono text-white tracking-tight">
+            {isLoading ? (
+              <span className="inline-block w-16 h-6 bg-white/5 animate-pulse rounded" />
+            ) : (
+              formatTVL(data?.total_tvl)
+            )}
           </div>
-          <p className="text-xs text-white/40 mt-1">Tracked on Mantle</p>
+          <p className="text-[10px] text-white/40 font-mono mt-1">Mantle Ecosystem</p>
         </CardContent>
       </Card>
 
-      <Card className="bg-[#0A0A0A] border-white/5">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-white/50">
-            Highest Yield
+      {/* Average APY */}
+      <Card className="bg-black/40 backdrop-blur-xl border-white/5 hover:bg-white/[0.04] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-amber-500/0 group-hover:bg-amber-500/5 transition-colors duration-500" />
+        <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+          <CardTitle className="text-[10px] font-semibold font-mono tracking-wider text-white/40 uppercase">
+            Average APY
           </CardTitle>
-          <Zap className="h-4 w-4 text-amber-500" />
+          <Percent className="h-4 w-4 text-amber-400 group-hover:drop-shadow-[0_0_8px_rgba(245,158,11,0.8)] transition-all" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-white">
-            {isLoading ? "..." : `${(data?.best_apy || 0).toFixed(2)}%`}
+        <CardContent className="relative z-10">
+          <div className="text-xl md:text-2xl font-bold font-mono text-amber-400 tracking-tight">
+            {isLoading ? (
+              <span className="inline-block w-16 h-6 bg-white/5 animate-pulse rounded" />
+            ) : (
+              `${(data?.average_apy || 0).toFixed(2)}%`
+            )}
           </div>
-          <p className="text-xs text-white/40 mt-1">Across all risk tiers</p>
+          <p className="text-[10px] text-white/40 font-mono mt-1">Arithmetic Mean</p>
         </CardContent>
       </Card>
 
-      <Card className="bg-[#0A0A0A] border-white/5">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-sm font-medium text-white/50">
-            AI Recommendations
+      {/* Median APY */}
+      <Card className="bg-black/40 backdrop-blur-xl border-white/5 hover:bg-white/[0.04] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-purple-500/0 group-hover:bg-purple-500/5 transition-colors duration-500" />
+        <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+          <CardTitle className="text-[10px] font-semibold font-mono tracking-wider text-white/40 uppercase">
+            Median APY
           </CardTitle>
-          <Activity className="h-4 w-4 text-blue-500" />
+          <Flame className="h-4 w-4 text-purple-400 group-hover:drop-shadow-[0_0_8px_rgba(168,85,247,0.8)] transition-all" />
         </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold text-white">
-            {isLoading ? "..." : data?.recommendations_generated || 0}
+        <CardContent className="relative z-10">
+          <div className="text-xl md:text-2xl font-bold font-mono text-purple-400 tracking-tight">
+            {isLoading ? (
+              <span className="inline-block w-16 h-6 bg-white/5 animate-pulse rounded" />
+            ) : (
+              `${(data?.median_apy || 0).toFixed(2)}%`
+            )}
           </div>
-          <p className="text-xs text-white/40 mt-1">
-            {data?.on_chain_proofs || 0} backed by on-chain proofs
-          </p>
+          <p className="text-[10px] text-white/40 font-mono mt-1">Mid-point yield</p>
+        </CardContent>
+      </Card>
+
+      {/* Protocols count */}
+      <Card className="bg-black/40 backdrop-blur-xl border-white/5 hover:bg-white/[0.04] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group">
+        <div className="absolute inset-0 bg-cyan-500/0 group-hover:bg-cyan-500/5 transition-colors duration-500" />
+        <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+          <CardTitle className="text-[10px] font-semibold font-mono tracking-wider text-white/40 uppercase">
+            Protocols
+          </CardTitle>
+          <Cpu className="h-4 w-4 text-cyan-400 group-hover:drop-shadow-[0_0_8px_rgba(34,211,238,0.8)] transition-all" />
+        </CardHeader>
+        <CardContent className="relative z-10">
+          <div className="text-xl md:text-2xl font-bold font-mono text-cyan-400 tracking-tight">
+            {isLoading ? (
+              <span className="inline-block w-12 h-6 bg-white/5 animate-pulse rounded" />
+            ) : (
+              data?.protocols_tracked || 0
+            )}
+          </div>
+          <p className="text-[10px] text-white/40 font-mono mt-1">Active protocols</p>
+        </CardContent>
+      </Card>
+
+      {/* Pools count */}
+      <Card className="bg-black/40 backdrop-blur-xl border-white/5 hover:bg-white/[0.04] hover:-translate-y-0.5 transition-all duration-300 relative overflow-hidden group col-span-2 lg:col-span-1">
+        <div className="absolute inset-0 bg-pink-500/0 group-hover:bg-pink-500/5 transition-colors duration-500" />
+        <CardHeader className="flex flex-row items-center justify-between pb-2 relative z-10">
+          <CardTitle className="text-[10px] font-semibold font-mono tracking-wider text-white/40 uppercase">
+            Active Pools
+          </CardTitle>
+          <Database className="h-4 w-4 text-pink-400 group-hover:drop-shadow-[0_0_8px_rgba(244,114,182,0.8)] transition-all" />
+        </CardHeader>
+        <CardContent className="relative z-10">
+          <div className="text-xl md:text-2xl font-bold font-mono text-pink-400 tracking-tight">
+            {isLoading ? (
+              <span className="inline-block w-12 h-6 bg-white/5 animate-pulse rounded" />
+            ) : (
+              data?.pools_tracked || 0
+            )}
+          </div>
+          <p className="text-[10px] text-white/40 font-mono mt-1">Monitored pools</p>
         </CardContent>
       </Card>
     </div>

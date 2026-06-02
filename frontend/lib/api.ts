@@ -35,9 +35,23 @@ export const api = {
     return data;
   },
   
-  getLeaderboard: async (limit: number = 50, offset: number = 0, riskTag?: string) => {
-    const params: any = { limit, offset };
-    if (riskTag && riskTag !== "all") params.risk_tag = riskTag;
+  getLeaderboard: async (options: {
+    page?: number;
+    pageSize?: number;
+    riskTag?: string;
+    search?: string;
+    minTvl?: number;
+    minApy?: number;
+  } = {}) => {
+    const params: any = {
+      page: options.page || 1,
+      page_size: options.pageSize || 20,
+    };
+    if (options.riskTag && options.riskTag !== "all") params.risk_tag = options.riskTag;
+    if (options.search) params.search = options.search;
+    if (options.minTvl !== undefined && options.minTvl !== null) params.min_tvl = options.minTvl;
+    if (options.minApy !== undefined && options.minApy !== null) params.min_apy = options.minApy;
+    
     const { data } = await apiClient.get("/api/yields/leaderboard", { params });
     return data;
   },
