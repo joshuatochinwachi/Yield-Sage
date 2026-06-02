@@ -35,6 +35,8 @@ export const viewport: Viewport = {
   themeColor: "#050505",
 }
 
+import QueryProvider from "@/contexts/query-provider"
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
@@ -47,9 +49,11 @@ export default function RootLayout({
         className="font-sans antialiased"
         style={{ background: "#050505", color: "rgba(255,255,255,0.9)", overflowX: "hidden" }}
       >
-        <LenisProvider>
-          {children}
-        </LenisProvider>
+        <QueryProvider>
+          <LenisProvider>
+            {children}
+          </LenisProvider>
+        </QueryProvider>
       </body>
     </html>
   )

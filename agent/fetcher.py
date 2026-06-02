@@ -133,38 +133,55 @@ class DuneFetcher:
             # 1. Select key with credits
             api_key = await self.select_valid_key(client)
             
-            # 2. Trigger query execution
-            logger.info("Triggering Dune query execution...")
             headers = {"X-DUNE-API-KEY": api_key}
-            exec_url = f"https://api.dune.com/api/v1/query/{DUNE_QUERY_ID}/execute"
-            
-            exec_resp = await client.post(exec_url, headers=headers)
-            if exec_resp.status_code != 200:
-                logger.error(f"Execution trigger failed: {exec_resp.text}")
-                exec_resp.raise_for_status()
-                
-            execution_id = exec_resp.json().get("execution_id")
-            logger.info(f"Execution started: {execution_id}")
-            
-            # 3. Monitor execution status
+            max_retries = 10
             completed = False
-            while not completed:
-                await asyncio.sleep(15)
-                status_url = f"https://api.dune.com/api/v1/execution/{execution_id}/status"
-                status_resp = await client.get(status_url, headers=headers)
+
+            for attempt in range(1, max_retries + 1):
+                # 2. Trigger query execution
+                logger.info(f"Triggering Dune query execution (Attempt {attempt}/{max_retries})...")
+                exec_url = f"https://api.dune.com/api/v1/query/{DUNE_QUERY_ID}/execute"
                 
-                if status_resp.status_code != 200:
-                    logger.warning(f"Status check failed: {status_resp.text}, retrying in 15s...")
-                    continue
+                exec_resp = await client.post(exec_url, headers=headers)
+                if exec_resp.status_code != 200:
+                    logger.error(f"Execution trigger failed: {exec_resp.text}")
+                    if attempt < max_retries:
+                        await asyncio.sleep(15)
+                        continue
+                    exec_resp.raise_for_status()
                     
-                state = status_resp.json().get("state")
-                logger.info(f"Execution status: {state}")
+                execution_id = exec_resp.json().get("execution_id")
+                logger.info(f"Execution started: {execution_id}")
                 
-                if state == "QUERY_STATE_COMPLETED":
-                    completed = True
-                elif state == "QUERY_STATE_FAILED":
-                    logger.error("Query failed on Dune. Aborting this run.")
-                    raise RuntimeError("Dune query failed during execution.")
+                # 3. Monitor execution status
+                failed = False
+                while not completed and not failed:
+                    await asyncio.sleep(15)
+                    status_url = f"https://api.dune.com/api/v1/execution/{execution_id}/status"
+                    status_resp = await client.get(status_url, headers=headers)
+                    
+                    if status_resp.status_code != 200:
+                        logger.warning(f"Status check failed: {status_resp.text}, retrying in 15s...")
+                        continue
+                        
+                    state = status_resp.json().get("state")
+                    logger.info(f"Execution status: {state}")
+                    
+                    if state == "QUERY_STATE_COMPLETED":
+                        completed = True
+                    elif state == "QUERY_STATE_FAILED":
+                        logger.error(f"Query failed on Dune (Attempt {attempt}).")
+                        failed = True
+                
+                if completed:
+                    break
+                    
+                if failed and attempt < max_retries:
+                    logger.info("Retrying execution after failure in 15 seconds...")
+                    await asyncio.sleep(15)
+                    continue
+                elif failed:
+                    raise RuntimeError("Dune query failed after maximum retries.")
             
             await asyncio.sleep(5)
             

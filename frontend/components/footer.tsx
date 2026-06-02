@@ -52,7 +52,7 @@ export function Footer() {
             transition={{ duration: 0.8, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
           >
             <a
-              href="#"
+              href="/dashboard"
               className="inline-block px-10 py-4 rounded-full text-sm font-medium tracking-wide transition-all"
               style={{
                 background: "rgba(0,255,136,1)",

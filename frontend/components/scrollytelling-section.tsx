@@ -686,7 +686,7 @@ export function ScrollytellingSection({
               className="mt-6 z-20 pointer-events-auto"
             >
               <a
-                href="#features"
+                href="/dashboard"
                 className="px-8 py-3.5 rounded-full text-xs font-semibold uppercase tracking-[0.2em] font-sans border transition-all duration-300 relative group overflow-hidden block"
                 style={{
                   borderColor: "rgba(255,255,255,0.2)",
