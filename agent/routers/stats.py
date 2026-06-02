@@ -40,9 +40,10 @@ async def get_overview_stats():
     """
     db = _db_or_503()
     try:
-        # 1. Protocol count
-        proto_res = db.table("protocols").select("id", count="exact").eq("is_active", True).execute()
-        protocol_count = proto_res.count or len(proto_res.data or [])
+        # 1. Protocol count (unique names)
+        proto_res = db.table("protocols").select("name").eq("is_active", True).execute()
+        unique_names = set(p["name"] for p in (proto_res.data or []) if p.get("name"))
+        protocol_count = len(unique_names)
 
         # 2. Total snapshots
         snap_count_res = db.table("yield_snapshots").select("id", count="exact").execute()

@@ -67,6 +67,34 @@ function ProtocolIcon({ name, imageUrl }: { name: string; imageUrl?: string }) {
   );
 }
 
+function TrendPill({ label, value }: { label: string; value: number | null | undefined }) {
+  if (value === null || value === undefined) {
+    return (
+      <div className="flex flex-col items-center justify-center w-12 py-0.5 rounded bg-white/5 border border-white/5 text-white/30">
+        <span className="text-[7px] text-white/20 uppercase tracking-wider font-mono">{label}</span>
+        <span className="text-[9px] font-mono">-</span>
+      </div>
+    );
+  }
+  
+  const isUp = value > 0.0001;
+  const isDown = value < -0.0001;
+  const formattedValue = value > 0 ? `+${value.toFixed(2)}%` : `${value.toFixed(2)}%`;
+  
+  return (
+    <div className={`flex flex-col items-center justify-center w-12 py-0.5 rounded border text-[9px] font-mono transition-all duration-300 ${
+      isUp 
+        ? "text-[#00ff88] bg-[#00ff88]/10 border-[#00ff88]/20 shadow-[0_0_8px_rgba(0,255,136,0.05)]" 
+        : isDown 
+          ? "text-red-400 bg-red-500/10 border-red-500/20" 
+          : "text-white/40 bg-white/5 border-white/5"
+    }`}>
+      <span className="text-[7px] text-white/30 uppercase tracking-wider font-mono">{label}</span>
+      <span className="font-semibold">{formattedValue}</span>
+    </div>
+  );
+}
+
 type SortField = "tvl" | "apy" | "name" | "baseApy";
 type SortOrder = "asc" | "desc";
 
@@ -390,7 +418,7 @@ export function LeaderboardTable() {
                     <ArrowUpDown className="h-3 w-3 opacity-60" />
                   </div>
                 </th>
-                <th className="px-5 py-4 font-semibold font-mono text-center">Trend (7D)</th>
+                <th className="px-5 py-4 font-semibold font-mono text-center">Trends (1D/7D/30D)</th>
                 <th className="px-6 py-4 font-semibold font-mono text-center">Action</th>
               </tr>
             </thead>
@@ -421,11 +449,6 @@ export function LeaderboardTable() {
                 paginatedRows.map((row: any, i) => {
                   const protocol = row.protocol || {};
                   
-                  // Compare current APY with 7d average
-                  const apyDiff = row.apy - (row.apy_7d || row.apy);
-                  const isUp = apyDiff > 0.05;
-                  const isDown = apyDiff < -0.05;
-
                   const isRowWatched = isWatched(row.protocol_id);
 
                   // Extract pool address for explorer links
@@ -518,25 +541,12 @@ export function LeaderboardTable() {
                         </div>
                       </td>
 
-                      {/* Trend (7D) */}
-                      <td className="px-5 py-4 whitespace-nowrap text-center text-white/50">
-                        <div className="flex items-center justify-center">
-                          {isUp ? (
-                            <div className="flex items-center gap-1 text-[#00ff88] bg-[#00ff88]/10 px-2 py-0.5 rounded-full border border-[#00ff88]/20 shadow-[0_0_10px_rgba(0,255,136,0.1)]">
-                              <TrendingUp className="h-3 w-3" />
-                              <span className="text-[10px]">+{apyDiff.toFixed(2)}%</span>
-                            </div>
-                          ) : isDown ? (
-                            <div className="flex items-center gap-1 text-red-400 bg-red-500/10 px-2 py-0.5 rounded-full border border-red-500/20">
-                              <TrendingDown className="h-3 w-3" />
-                              <span className="text-[10px]">{apyDiff.toFixed(2)}%</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1 text-white/30 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
-                              <Minus className="h-3 w-3" />
-                              <span className="text-[10px]">flat</span>
-                            </div>
-                          )}
+                      {/* Trends (1D / 7D / 30D) */}
+                      <td className="px-5 py-4 whitespace-nowrap text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <TrendPill label="1d" value={row.apy_1d} />
+                          <TrendPill label="7d" value={row.apy_7d} />
+                          <TrendPill label="30d" value={row.apy_30d} />
                         </div>
                       </td>
 

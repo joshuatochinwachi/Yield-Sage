@@ -97,8 +97,7 @@ export function Footer() {
             {([
               { label: "Twitter", href: "https://x.com/yieldsageai" },
               { label: "Telegram", href: "https://t.me/YieldSageBot" },
-              { label: "Docs", href: "#" },
-              { label: "Privacy", href: "#" },
+              { label: "Docs", href: "/docs" },
             ] as { label: string; href: string }[]).map(({ label, href }) => (
               <a
                 key={label}

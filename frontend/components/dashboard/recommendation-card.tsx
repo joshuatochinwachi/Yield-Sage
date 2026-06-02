@@ -40,6 +40,10 @@ export function RecommendationCard() {
     return data?.data || {};
   }, [data]);
 
+  const hasPicks = useMemo(() => {
+    return Object.values(picks).some(p => p !== null && p !== undefined);
+  }, [picks]);
+
   const activePick = picks[selectedRisk];
 
   // Helper colors for different risk tiers
@@ -91,21 +95,23 @@ export function RecommendationCard() {
         </div>
 
         {/* Risk Selection Tabs */}
-        <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
-          {(["stable", "moderate", "aggressive"] as const).map((risk) => (
-            <button
-              key={risk}
-              onClick={() => setSelectedRisk(risk)}
-              className={`px-3 py-1 text-[10px] font-semibold rounded-lg capitalize transition-all duration-300 ${
-                selectedRisk === risk
-                  ? "bg-white/10 text-white shadow-sm border border-white/5"
-                  : "text-white/40 hover:text-white/70"
-              }`}
-            >
-              {risk}
-            </button>
-          ))}
-        </div>
+        {hasPicks && (
+          <div className="flex bg-white/5 p-1 rounded-xl border border-white/10">
+            {(["stable", "moderate", "aggressive"] as const).map((risk) => (
+              <button
+                key={risk}
+                onClick={() => setSelectedRisk(risk)}
+                className={`px-3 py-1 text-[10px] font-semibold rounded-lg capitalize transition-all duration-300 ${
+                  selectedRisk === risk
+                    ? "bg-white/10 text-white shadow-sm border border-white/5"
+                    : "text-white/40 hover:text-white/70"
+                }`}
+              >
+                {risk}
+              </button>
+            ))}
+          </div>
+        )}
       </CardHeader>
       
       <CardContent className="relative z-10 pt-5">
@@ -114,7 +120,7 @@ export function RecommendationCard() {
             <Sparkles className="h-5 w-5 text-[#00ff88] animate-spin" />
             <span>Scanning yields and computing models...</span>
           </div>
-        ) : !activePick ? (
+        ) : (!hasPicks || !activePick) ? (
           /* Telegram fallback if no AI picks exist in database */
           <div className="space-y-4 py-2">
             <div className="text-center space-y-2 max-w-[480px] mx-auto">
@@ -129,12 +135,12 @@ export function RecommendationCard() {
             
             <div className="pt-2 flex justify-center">
               <a 
-                href="https://t.me/YieldSage_Bot" 
+                href="https://t.me/YieldSageBot" 
                 target="_blank" 
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold rounded-lg bg-[#00ff88] hover:bg-[#00ff88]/90 text-black shadow-[0_0_20px_rgba(0,255,136,0.15)] transition-all duration-300 hover:-translate-y-0.5"
               >
-                Launch Telegram Bot
+                Launch YieldSage AI Agent
                 <ArrowRight className="h-3.5 w-3.5" />
               </a>
             </div>
@@ -215,7 +221,7 @@ export function RecommendationCard() {
                 )}
                 
                 <a 
-                  href="https://t.me/YieldSage_Bot" 
+                  href="https://t.me/YieldSageBot" 
                   target="_blank" 
                   rel="noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-all duration-300"

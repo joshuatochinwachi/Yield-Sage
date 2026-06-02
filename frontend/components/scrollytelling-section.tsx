@@ -356,32 +356,42 @@ export function ScrollytellingSection({
         />
 
         <div
-          className="flex items-center justify-between px-6 md:px-12 py-6"
+          className="flex items-center justify-between px-6 md:px-12 py-5"
           style={{
             background: "linear-gradient(to bottom, rgba(5,5,5,0.75) 0%, rgba(5,5,5,0.2) 100%)",
             backdropFilter: "blur(12px)",
             WebkitBackdropFilter: "blur(12px)",
           }}
         >
-          <div className="flex items-center gap-2.5">
-            <div
-              className="w-5 h-5 rounded-full"
-              style={{
-                background: "radial-gradient(circle, rgba(0,255,136,0.9) 0%, rgba(0,255,136,0.3) 100%)",
-                boxShadow: "0 0 12px rgba(0,255,136,0.5), 0 0 24px rgba(0,255,136,0.2)",
-              }}
+          {/* Logo — clicking goes to top of page */}
+          <a href="#sequence" className="flex items-center gap-2.5 group select-none">
+            <img
+              src="/logo.jpg"
+              alt="YieldSage"
+              className="w-7 h-7 rounded-lg object-cover border border-white/10 group-hover:border-[rgba(0,255,136,0.4)] transition-colors duration-300"
+              style={{ boxShadow: "0 0 10px rgba(0,255,136,0.15)" }}
             />
-            <span className="text-sm font-semibold tracking-tight text-white/90 font-sans">YieldSage</span>
-          </div>
+            <span
+              className="text-sm font-semibold tracking-tight font-sans"
+              style={{ color: "rgba(255,255,255,0.88)" }}
+            >
+              Yield<span style={{ color: "rgba(0,255,136,0.9)" }}>Sage</span>
+            </span>
+          </a>
 
           <nav className="hidden md:flex items-center gap-8">
-            {["Protocol", "Intelligence", "Allocation", "Docs"].map((item) => (
+            {[
+              { label: "Features",  href: "#features" },
+              { label: "Agent",     href: "#agent" },
+              { label: "Dashboard", href: "/dashboard" },
+              { label: "Docs",      href: "/docs" },
+            ].map((item) => (
               <a
-                key={item}
-                href={`#${item.toLowerCase()}`}
+                key={item.label}
+                href={item.href}
                 className="text-xs text-white/40 hover:text-white/80 transition-colors tracking-wide font-sans font-medium relative group py-1 select-none"
               >
-                {item}
+                {item.label}
                 {/* Expanding glowing underline on hover */}
                 <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[rgba(0,255,136,0.85)] shadow-[0_0_8px_rgba(0,255,136,0.6)] group-hover:w-full transition-all duration-300" />
               </a>
@@ -389,7 +399,7 @@ export function ScrollytellingSection({
           </nav>
 
           <a
-            href="#features"
+            href="/dashboard"
             className="text-[11px] font-sans font-semibold tracking-wider uppercase px-5 py-2.5 rounded-full border transition-all select-none"
             style={{
               borderColor: "rgba(0,255,136,0.25)",
@@ -408,7 +418,7 @@ export function ScrollytellingSection({
               el.style.boxShadow = "none"
             }}
           >
-            Request Access
+            Launch App
           </a>
         </div>
       </header>

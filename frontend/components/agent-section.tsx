@@ -169,66 +169,74 @@ export function AgentSection() {
     const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
 
     const run = async () => {
-      for (let idx = 0; idx < CONVERSATION.length; idx++) {
-        if (cancelled) return
-        const step = CONVERSATION[idx]
+      while (!cancelled) {
+        setRendered([])
+        setTypingIdx(null)
 
-        await sleep(step.pauseBefore ?? 400)
-        if (cancelled) return
+        for (let idx = 0; idx < CONVERSATION.length; idx++) {
+          if (cancelled) return
+          const step = CONVERSATION[idx]
 
-        // Push skeleton
-        setRendered((prev) => [
-          ...prev,
-          { step, displayText: "", done: false },
-        ])
+          await sleep(step.pauseBefore ?? 400)
+          if (cancelled) return
 
-        if (step.role === "system_event") {
+          // Push skeleton
+          setRendered((prev) => [
+            ...prev,
+            { step, displayText: "", done: false },
+          ])
+
+          if (step.role === "system_event") {
+            setRendered((prev) => {
+              const copy = [...prev]
+              copy[copy.length - 1] = { ...copy[copy.length - 1], done: true }
+              return copy
+            })
+            continue
+          }
+
+          // Show typing indicator for bot messages
+          if (step.role === "bot") {
+            setTypingIdx(idx)
+            const thinkTime = step.isThinking ? 900 + Math.random() * 600 : 200
+            await sleep(thinkTime)
+            if (cancelled) return
+            setTypingIdx(null)
+          }
+
+          // Typewriter
+          const text = step.text ?? ""
+          const speed = step.typeSpeed ?? 18
+          let current = ""
+
+          for (let ci = 0; ci < text.length; ci++) {
+            if (cancelled) return
+            current += text[ci]
+            const snapshot = current
+            setRendered((prev) => {
+              const copy = [...prev]
+              const last = { ...copy[copy.length - 1], displayText: snapshot }
+              copy[copy.length - 1] = last
+              return copy
+            })
+            const ch = text[ci]
+            let delay = speed
+            if (ch === "\n") delay = speed * 3
+            else if ([".", "!", "?", ":"].includes(ch)) delay = speed * 5
+            else if ([",", ";"].includes(ch)) delay = speed * 2
+            await sleep(delay)
+          }
+
+          // Mark done (shows inline buttons)
           setRendered((prev) => {
             const copy = [...prev]
             copy[copy.length - 1] = { ...copy[copy.length - 1], done: true }
             return copy
           })
-          continue
         }
 
-        // Show typing indicator for bot messages
-        if (step.role === "bot") {
-          setTypingIdx(idx)
-          const thinkTime = step.isThinking ? 900 + Math.random() * 600 : 200
-          await sleep(thinkTime)
-          if (cancelled) return
-          setTypingIdx(null)
-        }
-
-        // Typewriter
-        const text = step.text ?? ""
-        const speed = step.typeSpeed ?? 18
-        let current = ""
-
-        for (let ci = 0; ci < text.length; ci++) {
-          if (cancelled) return
-          current += text[ci]
-          const snapshot = current
-          setRendered((prev) => {
-            const copy = [...prev]
-            const last = { ...copy[copy.length - 1], displayText: snapshot }
-            copy[copy.length - 1] = last
-            return copy
-          })
-          const ch = text[ci]
-          let delay = speed
-          if (ch === "\n") delay = speed * 3
-          else if ([".", "!", "?", ":"].includes(ch)) delay = speed * 5
-          else if ([",", ";"].includes(ch)) delay = speed * 2
-          await sleep(delay)
-        }
-
-        // Mark done (shows inline buttons)
-        setRendered((prev) => {
-          const copy = [...prev]
-          copy[copy.length - 1] = { ...copy[copy.length - 1], done: true }
-          return copy
-        })
+        // Wait 8 seconds before looping again
+        await sleep(8000)
       }
     }
 
@@ -351,7 +359,7 @@ export function AgentSection() {
               animate={inView ? { opacity: 1, y: 0 } : {}}
               transition={{ duration: 1, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
               className="relative mx-auto lg:mx-0"
-              style={{ width: "100%", maxWidth: 400 }}
+              style={{ width: "100%", maxWidth: 380 }}
             >
               {/* Outer glow */}
               <div
@@ -364,39 +372,64 @@ export function AgentSection() {
                 }}
               />
 
-              {/* Phone shell */}
+              {/* Outer Phone Shell (iOS Bezel Frame) */}
               <div
-                className="relative rounded-[36px] overflow-hidden"
+                className="relative rounded-[48px] p-[10px] bg-[#0c0d0f] border border-white/10 shadow-[0_0_0_4px_#1e1f22,0_0_0_5px_#2b2d30,0_40px_80px_rgba(0,0,0,0.85)] select-none"
                 style={{
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "#17212b",
-                  boxShadow:
-                    "0 0 0 1px rgba(0,255,136,0.08), 0 40px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.06)",
+                  width: "100%",
+                  maxWidth: 380,
+                  margin: "0 auto",
                 }}
               >
-                {/* Status bar */}
+                {/* Physical Side Buttons */}
+                {/* Silent Switch */}
+                <div className="absolute left-[-5px] top-[90px] w-[5px] h-[30px] bg-[#1e1f22] rounded-l-md border-y border-l border-white/5" />
+                {/* Volume Up */}
+                <div className="absolute left-[-5px] top-[140px] w-[5px] h-[50px] bg-[#1e1f22] rounded-l-md border-y border-l border-white/5" />
+                {/* Volume Down */}
+                <div className="absolute left-[-5px] top-[205px] w-[5px] h-[50px] bg-[#1e1f22] rounded-l-md border-y border-l border-white/5" />
+                {/* Power Button */}
+                <div className="absolute right-[-5px] top-[160px] w-[5px] h-[75px] bg-[#1e1f22] rounded-r-md border-y border-r border-white/5" />
+
+                {/* Inner Screen */}
                 <div
-                  className="flex items-center justify-between px-6 pt-4 pb-2"
-                  style={{ background: "#17212b" }}
+                  className="relative rounded-[38px] overflow-hidden bg-[#17212b] border border-black/40 shadow-inner"
                 >
-                  <span className="text-[11px] font-semibold text-white/60 font-mono">9:41</span>
-                  <div className="flex items-center gap-1.5">
-                    {/* signal */}
-                    {[3, 4, 5].map((h) => (
-                      <div key={h} style={{ width: 3, height: h, borderRadius: 1, background: "rgba(255,255,255,0.5)" }} />
-                    ))}
-                    {/* wifi */}
-                    <svg width="13" height="10" viewBox="0 0 13 10" fill="none">
-                      <path d="M6.5 8.5L8 7C7.4 6.4 6.6 6 6.5 6C6.4 6 5.6 6.4 5 7L6.5 8.5Z" fill="rgba(255,255,255,0.5)"/>
-                      <path d="M6.5 10L6.5 10" stroke="rgba(255,255,255,0.5)" strokeWidth="1.5" strokeLinecap="round"/>
-                    </svg>
-                    {/* battery */}
-                    <div style={{ width: 20, height: 10, border: "1.5px solid rgba(255,255,255,0.4)", borderRadius: 2, position: "relative" }}>
-                      <div style={{ position: "absolute", right: -3, top: 2, width: 2, height: 6, background: "rgba(255,255,255,0.3)", borderRadius: 1 }} />
-                      <div style={{ position: "absolute", left: 1.5, top: 1.5, width: "60%", height: "calc(100% - 3px)", background: "rgba(255,255,255,0.5)", borderRadius: 1 }} />
+                  {/* Dynamic Island */}
+                  <div className="absolute top-3 left-1/2 -translate-x-1/2 w-28 h-6 bg-black rounded-full z-50 flex items-center justify-between px-3 border border-white/5 shadow-md">
+                    {/* Camera */}
+                    <div className="w-2 h-2 rounded-full bg-[#0d0d0d] border border-white/5 flex items-center justify-center">
+                      <div className="w-1 h-1 rounded-full bg-[#180838]" />
+                    </div>
+                    {/* Speaker */}
+                    <div className="w-10 h-0.5 bg-[#0a0a0a] rounded-full" />
+                  </div>
+
+                  {/* Status bar */}
+                  <div
+                    className="flex items-center justify-between px-6 pt-4 pb-2 relative z-40"
+                    style={{ background: "#17212b" }}
+                  >
+                    <span className="text-[10px] font-semibold text-white/80 font-mono leading-none">9:41</span>
+                    <div className="w-28 h-4" />
+                    <div className="flex items-center gap-1.5 leading-none">
+                      {/* signal */}
+                      <div className="flex items-end gap-[1px]">
+                        {[3, 5, 7, 9].map((h) => (
+                          <div key={h} className="bg-white/70" style={{ width: 1.5, height: h, borderRadius: 0.5 }} />
+                        ))}
+                      </div>
+                      {/* wifi */}
+                      <svg width="11" height="9" viewBox="0 0 13 10" fill="none" className="text-white/70">
+                        <path d="M6.5 8.5L8 7C7.4 6.4 6.6 6 6.5 6C6.4 6 5.6 6.4 5 7L6.5 8.5Z" fill="currentColor"/>
+                        <path d="M6.5 10L6.5 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                      {/* battery */}
+                      <div className="border border-white/40 rounded-[3px] p-[1px] flex items-center" style={{ width: 18, height: 9.5 }}>
+                        <div className="h-full bg-white/80 rounded-[0.5px]" style={{ width: "70%" }} />
+                      </div>
                     </div>
                   </div>
-                </div>
 
                 {/* Telegram chat header */}
                 <div
@@ -664,12 +697,13 @@ export function AgentSection() {
                   </div>
                 </div>
 
-                {/* Bottom nav bar */}
-                <div
-                  className="flex justify-center py-1.5"
-                  style={{ background: "#17212b" }}
-                >
-                  <div style={{ width: 100, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.15)" }} />
+                  {/* iOS Home Indicator */}
+                  <div
+                    className="flex justify-center pt-1.5 pb-2.5"
+                    style={{ background: "#17212b" }}
+                  >
+                    <div className="w-32 h-1 bg-white/30 rounded-full" />
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -736,7 +770,7 @@ export function AgentSection() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={inView ? { opacity: 1, y: 0 } : {}}
                 transition={{ duration: 0.8, delay: 0.95, ease: [0.22, 1, 0.36, 1] }}
-                className="mt-2"
+                className="mt-6 flex flex-col items-center justify-center text-center w-full"
               >
                 <a
                   href="https://t.me/YieldSageBot"
@@ -763,7 +797,7 @@ export function AgentSection() {
                   Launch YieldSage AI Agent
                 </a>
 
-                <div className="flex items-center gap-4 mt-5">
+                <div className="flex items-center justify-center gap-4 mt-5">
                   <a
                     href="https://x.com/yieldsageai"
                     target="_blank"

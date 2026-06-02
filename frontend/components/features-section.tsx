@@ -2,23 +2,23 @@
 
 import { useRef } from "react"
 import { motion, useInView } from "framer-motion"
-import { Brain, ShieldCheck, Activity, TrendingUp, Bell } from "lucide-react"
+import { Brain, ShieldCheck, Activity, TrendingUp, Bell, Layers } from "lucide-react"
 
 const features = [
   {
     icon: Brain,
     label: "AI Yield Ranking",
     description:
-      "A live leaderboard analyzing and ranking every Mantle protocol by risk-adjusted APY, liquidity depth, and protocol health in real time.",
-    stat: "240+",
-    statLabel: "Protocols monitored",
+      "A live leaderboard scoring every tracked Mantle pool by risk-adjusted APY, TVL depth, and protocol health — refreshed every hour via Dune Analytics.",
+    stat: "Hourly",
+    statLabel: "Scoring cadence",
     color: "rgba(0,255,136,",
   },
   {
     icon: ShieldCheck,
     label: "Risk-Adjusted Allocation",
     description:
-      "Select your risk profile. Capital is autonomously routed across stable, moderate, or aggressive tiers using our multi-factor engine.",
+      "Select your risk appetite. Pools are automatically classified into Stable, Moderate, or Aggressive tiers using a multi-factor scoring engine.",
     stat: "3 Tiers",
     statLabel: "Risk profiles",
     color: "rgba(99,179,237,",
@@ -27,28 +27,37 @@ const features = [
     icon: Activity,
     label: "On-Chain Verification",
     description:
-      "No black boxes. Every yield recommendation and tier shift is logged and verifiable directly on the Mantle network.",
+      "No black boxes. Every pool recommendation links directly to its on-chain address on MantleScan so you can verify the contract before you invest.",
     stat: "100%",
-    statLabel: "Verifiable",
+    statLabel: "On-chain verifiable",
     color: "rgba(0,255,136,",
   },
   {
     icon: TrendingUp,
-    label: "Paper Trading Mode",
+    label: "Paper Trading Simulation",
     description:
-      "Test strategies with simulated capital before committing real funds. Backtest last week's recommendations instantly.",
+      "Test any yield strategy with simulated capital before committing real funds. Track performance hourly and get alerted when your paper position underperforms.",
     stat: "1 Click",
-    statLabel: "Simulation mode",
+    statLabel: "Simulation entry",
     color: "rgba(246,173,85,",
   },
   {
     icon: Bell,
-    label: "Telegram / Discord Alerts",
+    label: "Real-Time Telegram Alerts",
     description:
-      "Real-time yield shift notifications. Get pinged the exact moment a better risk-adjusted opportunity opens up on Mantle.",
-    stat: "Real-time",
-    statLabel: "Alert delivery speed",
+      "Instant push notifications the moment a superior risk-adjusted pool opens up on Mantle. Never miss a yield shift while you are away from the screen.",
+    stat: "<1 min",
+    statLabel: "Alert latency",
     color: "rgba(159,122,234,",
+  },
+  {
+    icon: Layers,
+    label: "Multi-Protocol Coverage",
+    description:
+      "Tracks every major DeFi protocol deployed on Mantle — including Merchant Moe, Lendle, Aurelius, Cleo, Pendle, and more — all in a single unified dashboard.",
+    stat: "All",
+    statLabel: "Mantle protocols",
+    color: "rgba(251,113,133,",
   },
 ]
 
@@ -181,7 +190,7 @@ export function FeaturesSection() {
           </motion.h2>
         </div>
 
-        {/* Feature grid */}
+        {/* Feature grid — 3×2 for even orientation */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {features.map((feature, i) => (
             <FeatureCard key={feature.label} feature={feature} index={i} />
