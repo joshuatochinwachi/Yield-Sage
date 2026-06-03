@@ -36,8 +36,7 @@ export function ProtocolCharts({ data, isLoading }: ProtocolChartsProps) {
     });
     
     return Object.values(map)
-      .sort((a, b) => b.tvl - a.tvl)
-      .slice(0, 8); // Top 8 protocols
+      .sort((a, b) => b.tvl - a.tvl);
   }, [data]);
 
   // Color palette for the bars (HSL tailored to dark/green aesthetic)

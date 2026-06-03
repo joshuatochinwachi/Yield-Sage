@@ -246,31 +246,111 @@ export default function DocsPage() {
             <div className="p-6 bg-black/60 border border-white/5 rounded-2xl space-y-4">
               <h4 className="text-xs font-semibold uppercase tracking-wider text-white/90 font-mono">System Flow & Data Topology</h4>
               
-              {/* ASCII Diagram representation */}
-              <pre className="p-4 bg-white/[0.02] border border-white/5 rounded-xl text-[10px] md:text-xs font-mono text-cyan-400 overflow-x-auto leading-relaxed">
-{`   ┌──────────────┐
-   │   Dune API   │
-   └──────┬───────┘
-          │ (Hourly fetch)
-          ▼
-   ┌──────────────┐      ┌─────────────┐
-   │ Dune Fetcher │ ───> │  Supabase  │
-   └──────────────┘      │  Database   │
-                         └──────┬──────┘
-                                │
-          ┌─────────────────────┼─────────────────────┐
-          │ (Query yields)      │ (Scoring / recommendations)
-          ▼                     ▼                     ▼
-   ┌──────────────┐      ┌─────────────┐      ┌───────────────┐
-   │ FastAPI App  │      │ AI Scorer   │ ───> │ Telegram Bot  │
-   └──────┬───────┘      └─────────────┘      └───────────────┘
-          │ (REST API)
-          ▼
-   ┌──────────────┐
-   │ Next.js Web  │
-   │ (Pro Dash)   │
-   └──────────────┘`}
-              </pre>
+              {/* Responsive Visual Flowchart representing System Flow & Data Topology */}
+              <div className="space-y-6">
+                {/* Desktop View */}
+                <div className="hidden md:flex flex-col items-center justify-center p-8 bg-white/[0.02] border border-white/5 rounded-xl space-y-6 font-mono text-xs">
+                  {/* Row 1: Dune API */}
+                  <div className="flex flex-col items-center">
+                    <div className="px-5 py-2 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg shadow-[0_0_15px_rgba(16,185,129,0.05)]">
+                      Dune API
+                    </div>
+                    <div className="w-[1px] h-6 bg-gradient-to-b from-emerald-500/50 to-cyan-500/50 flex items-center justify-center relative">
+                      <div className="absolute top-full -translate-y-1 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[5px] border-t-cyan-500/50" />
+                    </div>
+                    <span className="text-[10px] text-white/30 mt-1">Hourly fetch</span>
+                  </div>
+
+                  {/* Row 2: Dune Fetcher & Supabase */}
+                  <div className="flex items-center gap-12">
+                    <div className="px-5 py-2 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-lg shadow-[0_0_15px_rgba(6,182,212,0.05)]">
+                      Dune Fetcher
+                    </div>
+                    <div className="flex items-center">
+                      <div className="h-[1px] w-12 bg-gradient-to-r from-cyan-500/50 to-blue-500/50 flex items-center justify-center relative">
+                        <div className="absolute left-full -translate-x-1 w-0 h-0 border-t-[3px] border-t-transparent border-b-[3px] border-b-transparent border-l-[5px] border-l-blue-500/50" />
+                      </div>
+                    </div>
+                    <div className="px-5 py-2 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg shadow-[0_0_15px_rgba(59,130,246,0.05)] flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                      Supabase Database
+                    </div>
+                  </div>
+
+                  {/* Splitter Line from Supabase */}
+                  <div className="flex flex-col items-center w-full relative h-8">
+                    <div className="w-[1px] h-4 bg-blue-500/50 absolute top-0 left-1/2 -translate-x-1/2" />
+                    <div className="w-[50%] h-[1px] bg-blue-500/30 absolute top-4 left-1/4" />
+                    <div className="flex justify-between w-[50%] absolute top-4 left-1/4">
+                      <div className="w-[1px] h-4 bg-blue-500/30" />
+                      <div className="w-[1px] h-4 bg-blue-500/30" />
+                    </div>
+                  </div>
+
+                  {/* Row 3: FastAPI App, AI Scorer, Telegram Bot */}
+                  <div className="flex justify-between w-full items-start px-8">
+                    {/* Left Column: API & Web */}
+                    <div className="flex flex-col items-center w-5/12">
+                      <div className="px-5 py-2 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded-lg shadow-[0_0_15px_rgba(168,85,247,0.05)] text-center">
+                        FastAPI App
+                      </div>
+                      <div className="w-[1px] h-8 bg-purple-500/50 flex items-center justify-center relative">
+                        <div className="absolute top-full -translate-y-1 w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-t-[5px] border-t-purple-500/50" />
+                      </div>
+                      <span className="text-[9px] text-white/30 mt-1 mb-1">REST API</span>
+                      <div className="px-5 py-2 bg-[#00ff88]/10 border border-[#00ff88]/20 text-[#00ff88] rounded-lg shadow-[0_0_15px_rgba(0,255,136,0.05)] text-center">
+                        Next.js Web (Pro Dash)
+                      </div>
+                    </div>
+
+                    {/* Right Column: AI & Telegram */}
+                    <div className="flex items-center justify-end w-7/12 gap-4 pt-2">
+                      <div className="flex flex-col items-center">
+                        <div className="px-5 py-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg shadow-[0_0_15px_rgba(245,158,11,0.05)] text-center">
+                          AI Scorer
+                        </div>
+                        <span className="text-[9px] text-white/30 mt-1">Scoring / Recommendations</span>
+                      </div>
+                      <div className="flex items-center">
+                        <div className="h-[1px] w-8 bg-gradient-to-r from-amber-500/50 to-pink-500/50 flex items-center justify-center relative">
+                          <div className="absolute left-full -translate-x-1 w-0 h-0 border-t-[3px] border-t-transparent border-b-[3px] border-b-transparent border-l-[5px] border-l-pink-500/50" />
+                        </div>
+                      </div>
+                      <div className="px-5 py-2 bg-pink-500/10 border border-pink-500/20 text-pink-400 rounded-lg shadow-[0_0_15px_rgba(236,72,153,0.05)] text-center">
+                        Telegram Bot
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mobile View */}
+                <div className="flex md:hidden flex-col items-center gap-4 p-5 bg-white/[0.02] border border-white/5 rounded-xl font-mono text-[10px]">
+                  <div className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 rounded-lg">Dune API</div>
+                  <div className="text-white/20">↓ (Hourly fetch)</div>
+                  <div className="px-3 py-1.5 bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 rounded-lg">Dune Fetcher</div>
+                  <div className="text-white/20">↓</div>
+                  <div className="px-3 py-1.5 bg-blue-500/10 border border-blue-500/20 text-blue-400 rounded-lg flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    Supabase Database
+                  </div>
+                  <div className="text-white/20">↓</div>
+                  
+                  <div className="w-full grid grid-cols-2 gap-3">
+                    <div className="flex flex-col items-center p-3 bg-white/[0.01] border border-white/5 rounded-xl gap-2">
+                      <span className="text-[8px] text-white/30 uppercase tracking-wider">Web Portal</span>
+                      <div className="px-2 py-1 bg-purple-500/10 border border-purple-500/20 text-purple-400 rounded text-center">FastAPI App</div>
+                      <div className="text-white/20">↓</div>
+                      <div className="px-2 py-1 bg-[#00ff88]/10 border border-[#00ff88]/20 text-[#00ff88] rounded text-center">Next.js Web (Pro Dash)</div>
+                    </div>
+                    <div className="flex flex-col items-center p-3 bg-white/[0.01] border border-white/5 rounded-xl gap-2">
+                      <span className="text-[8px] text-white/30 uppercase tracking-wider">AI Bot Channel</span>
+                      <div className="px-2 py-1 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded text-center">AI Scorer</div>
+                      <div className="text-white/20">↓</div>
+                      <div className="px-2 py-1 bg-pink-500/10 border border-pink-500/20 text-pink-400 rounded text-center">Telegram Bot</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </section>
 

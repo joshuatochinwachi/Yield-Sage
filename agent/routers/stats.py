@@ -40,25 +40,26 @@ async def get_overview_stats():
     """
     db = _db_or_503()
     try:
-        # 1. Protocol count (unique names)
-        proto_res = db.table("protocols").select("name").eq("is_active", True).execute()
-        unique_names = set(p["name"] for p in (proto_res.data or []) if p.get("name"))
-        protocol_count = len(unique_names)
-
-        # 2. Total snapshots
+        # 1. Fetch active protocols and construct a lookup mapping
+        all_protos = db.table("protocols").select("id, name").eq("is_active", True).execute().data
+        
+        # 2. Total snapshots in database
         snap_count_res = db.table("yield_snapshots").select("id", count="exact").execute()
         snapshot_count = snap_count_res.count or len(snap_count_res.data or [])
 
-        # 3. Comprehensive yields metrics (TVL, best/avg/median APY, pool count)
-        all_protos = db.table("protocols").select("id").eq("is_active", True).execute().data
+        # 3. Comprehensive yields metrics (TVL, best/avg/median APY, pool count, unique protocols)
         best_apy = 0.0
         total_tvl = 0.0
         apy_list = []
         pool_count = 0
+        protocol_count = 0
         last_fetched = None
 
         if all_protos:
             pids = [p["id"] for p in all_protos]
+            proto_map = {p["id"]: p for p in all_protos}
+            
+            # Fetch latest snapshots for active protocol IDs
             snap_res = (
                 db.table("yield_snapshots")
                 .select("protocol_id, apy, tvl_usd, fetched_at")
@@ -68,11 +69,12 @@ async def get_overview_stats():
                 .execute()
             )
 
-            seen = set()
+            seen_pids = set()
+            seen_proto_names = set()
             for row in snap_res.data:
                 pid = row["protocol_id"]
-                if pid not in seen:
-                    seen.add(pid)
+                if pid not in seen_pids:
+                    seen_pids.add(pid)
                     apy = row.get("apy") or 0.0
                     tvl = row.get("tvl_usd") or 0.0
                     
@@ -83,8 +85,14 @@ async def get_overview_stats():
                         best_apy = float(apy)
                     if last_fetched is None:
                         last_fetched = row.get("fetched_at")
+                    
+                    # Track unique protocol names
+                    p_name = proto_map.get(pid, {}).get("name")
+                    if p_name:
+                        seen_proto_names.add(p_name)
 
-            pool_count = len(seen)
+            pool_count = len(seen_pids)
+            protocol_count = len(seen_proto_names)
 
         # 4. Calculate average and median APY
         average_apy = sum(apy_list) / len(apy_list) if apy_list else 0.0
