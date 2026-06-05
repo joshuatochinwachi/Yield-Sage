@@ -6,7 +6,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { CheckCircle2, XCircle, Loader2, ShieldCheck, ArrowRight, ExternalLink, Database, Cpu } from "lucide-react";
 import { api } from "@/lib/api";
 
-export default function VerifyPage() {
+import { Suspense } from "react";
+
+function VerifyContent() {
   const searchParams = useSearchParams();
   const txHash = searchParams?.get("tx");
 
@@ -233,5 +235,13 @@ export default function VerifyPage() {
         )}
       </motion.div>
     </div>
+  );
+}
+
+export default function VerifyPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-4"><Loader2 className="w-10 h-10 text-emerald-400 animate-spin" /></div>}>
+      <VerifyContent />
+    </Suspense>
   );
 }
