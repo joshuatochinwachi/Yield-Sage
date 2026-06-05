@@ -90,43 +90,9 @@ async def get_latest_recommendations(
         raise HTTPException(status_code=500, detail="Failed to fetch latest recommendations.")
 
 
-# ── GET /api/recommendations/{rec_id} ─────────────────────────────────────────
-@router.get("/{rec_id}")
-async def get_recommendation_by_id(rec_id: str):
-    """
-    Returns a single recommendation details by ID, including protocol metadata
-    and on-chain proof information.
-    """
-    db = _db_or_503()
-    try:
-        rec_res = (
-            db.table("recommendations")
-            .select(
-                "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
-                "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
-                "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
-            )
-            .eq("id", rec_id)
-            .single()
-            .execute()
-        )
-
-        if not rec_res.data:
-            raise HTTPException(status_code=404, detail="Recommendation not found.")
-
-        rec = rec_res.data
-        rec["explorer_url"] = _build_explorer_link(rec.get("on_chain_tx_hash"))
-        return {
-            "data": rec
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"[recommendations/get_by_id] {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch recommendation details.")
-
-
 # ── GET /api/recommendations/history ─────────────────────────────────────────
+# NOTE: This MUST be registered before /{rec_id} to prevent 'history' being
+# treated as a UUID path parameter by FastAPI's route matching.
 @router.get("/history")
 async def get_recommendation_history(
     risk_tag: Optional[str] = Query(None, description="Filter by risk_tag"),
@@ -172,6 +138,44 @@ async def get_recommendation_history(
     except Exception as e:
         logger.error(f"[recommendations/history] {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch recommendation history.")
+
+
+# ── GET /api/recommendations/{rec_id} ─────────────────────────────────────────
+# NOTE: Keep this AFTER all named routes (/history, /verify, etc.) so FastAPI
+# does not swallow those paths as UUID params.
+@router.get("/{rec_id}")
+async def get_recommendation_by_id(rec_id: str):
+    """
+    Returns a single recommendation details by ID, including protocol metadata
+    and on-chain proof information.
+    """
+    db = _db_or_503()
+    try:
+        rec_res = (
+            db.table("recommendations")
+            .select(
+                "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
+                "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
+                "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
+            )
+            .eq("id", rec_id)
+            .single()
+            .execute()
+        )
+
+        if not rec_res.data:
+            raise HTTPException(status_code=404, detail="Recommendation not found.")
+
+        rec = rec_res.data
+        rec["explorer_url"] = _build_explorer_link(rec.get("on_chain_tx_hash"))
+        return {
+            "data": rec
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[recommendations/get_by_id] {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch recommendation details.")
 
 # ── GET /api/recommendations/verify/{tx_hash} ────────────────────────────────
 @router.get("/verify/{tx_hash}")
