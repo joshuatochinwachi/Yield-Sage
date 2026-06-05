@@ -67,6 +67,16 @@ export const api = {
     return data;
   },
 
+  getRecommendationById: async (id: string) => {
+    const { data } = await apiClient.get(`/api/recommendations/${id}`);
+    return data;
+  },
+
+  verifyRecommendation: async (txHash: string) => {
+    const { data } = await apiClient.get(`/api/recommendations/verify/${txHash}`);
+    return data;
+  },
+
   // User & Paper Trades (Protected)
   getUserProfile: async () => {
     const { data } = await apiClient.get("/api/user/profile");

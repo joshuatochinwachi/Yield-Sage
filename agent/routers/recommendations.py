@@ -90,6 +90,42 @@ async def get_latest_recommendations(
         raise HTTPException(status_code=500, detail="Failed to fetch latest recommendations.")
 
 
+# ── GET /api/recommendations/{rec_id} ─────────────────────────────────────────
+@router.get("/{rec_id}")
+async def get_recommendation_by_id(rec_id: str):
+    """
+    Returns a single recommendation details by ID, including protocol metadata
+    and on-chain proof information.
+    """
+    db = _db_or_503()
+    try:
+        rec_res = (
+            db.table("recommendations")
+            .select(
+                "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
+                "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
+                "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
+            )
+            .eq("id", rec_id)
+            .single()
+            .execute()
+        )
+
+        if not rec_res.data:
+            raise HTTPException(status_code=404, detail="Recommendation not found.")
+
+        rec = rec_res.data
+        rec["explorer_url"] = _build_explorer_link(rec.get("on_chain_tx_hash"))
+        return {
+            "data": rec
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[recommendations/get_by_id] {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch recommendation details.")
+
+
 # ── GET /api/recommendations/history ─────────────────────────────────────────
 @router.get("/history")
 async def get_recommendation_history(
@@ -136,3 +172,67 @@ async def get_recommendation_history(
     except Exception as e:
         logger.error(f"[recommendations/history] {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch recommendation history.")
+
+# ── GET /api/recommendations/verify/{tx_hash} ────────────────────────────────
+@router.get("/verify/{tx_hash}")
+async def verify_recommendation_by_tx(tx_hash: str):
+    """
+    Returns a recommendation and its canonical JSON payload to allow client-side
+    verification of the on-chain SHA-256 hash.
+    """
+    db = _db_or_503()
+    try:
+        # 1. Fetch from DB
+        rec_res = (
+            db.table("recommendations")
+            .select(
+                "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
+                "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
+                "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
+            )
+            .eq("on_chain_tx_hash", tx_hash)
+            .single()
+            .execute()
+        )
+
+        if not rec_res.data:
+            raise HTTPException(status_code=404, detail="Recommendation not found for this transaction hash.")
+
+        rec = rec_res.data
+        rec["explorer_url"] = _build_explorer_link(rec.get("on_chain_tx_hash"))
+
+        # 2. Reconstruct the canonical JSON payload
+        # This must match EXACTLY what was hashed before on-chain logging.
+        from logger import build_recommendation_payload
+        import json
+        from datetime import datetime
+        
+        # created_at is stored as string "YYYY-MM-DDTHH:MM:SSZ", parse it back to datetime
+        scored_at_dt = datetime.strptime(rec["created_at"], "%Y-%m-%dT%H:%M:%SZ")
+
+        payload = build_recommendation_payload(
+            protocol_name=rec["protocols"]["name"],
+            pool_name=rec["protocols"]["pool_name"],
+            pool_address=rec["protocols"]["pool_address"],
+            risk_tag=rec["risk_tag"],
+            rank=rec["rank"],
+            apy_at_time=rec["apy_at_time"],
+            tvl_usd=0.0, # TVL was hardcoded to 0.0 when hashed in ai_service.py line 1312
+            ai_reasoning=rec["ai_reasoning"],
+            ai_model=rec["ai_model"],
+            scored_at=scored_at_dt,
+        )
+
+        # Create exact canonical string
+        canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+
+        return {
+            "data": rec,
+            "canonical_payload": canonical_json
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[recommendations/verify] {e}")
+        raise HTTPException(status_code=500, detail="Failed to verify recommendation details.")
