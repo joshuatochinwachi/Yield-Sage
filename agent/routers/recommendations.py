@@ -216,6 +216,18 @@ async def verify_recommendation_by_tx(tx_hash: str):
         created_at_str = rec["created_at"].replace("Z", "+00:00")
         scored_at_dt = datetime.fromisoformat(created_at_str)
 
+        # Get the real TVL from the snapshot at the time of scoring
+        snap_res = (
+            db.table("yield_snapshots")
+            .select("tvl_usd")
+            .eq("protocol_id", rec["protocols"]["id"])
+            .lte("fetched_at", rec["created_at"])
+            .order("fetched_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        real_tvl = snap_res.data[0]["tvl_usd"] if snap_res.data else 0.0
+
         payload = build_recommendation_payload(
             protocol_name=rec["protocols"]["name"],
             pool_name=rec["protocols"]["pool_name"],
@@ -223,14 +235,20 @@ async def verify_recommendation_by_tx(tx_hash: str):
             risk_tag=rec["risk_tag"],
             rank=rec["rank"],
             apy_at_time=rec["apy_at_time"],
-            tvl_usd=0.0, # TVL was hardcoded to 0.0 when hashed in ai_service.py line 1312
+            tvl_usd=real_tvl,
             ai_reasoning=rec["ai_reasoning"],
             ai_model=rec["ai_model"],
             scored_at=scored_at_dt,
         )
 
-        # Create exact canonical string
+        import hashlib
         canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
+
+        # Backward compatibility: older recommendations had tvl hardcoded to 0.0
+        if computed_hash != rec["recommendation_hash"]:
+            payload["tvl_usd"] = "0.00"
+            canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
         return {
             "data": rec,

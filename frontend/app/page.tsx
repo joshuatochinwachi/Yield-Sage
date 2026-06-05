@@ -6,6 +6,7 @@ import { MouseGradientBackground } from "@/components/mouse-gradient-background"
 import { ScrollytellingSection } from "@/components/scrollytelling-section"
 import { FeaturesSection } from "@/components/features-section"
 import { AgentSection } from "@/components/agent-section"
+import { OnChainProofSection } from "@/components/on-chain-proof-section"
 import { Footer } from "@/components/footer"
 
 export default function Home() {
@@ -138,6 +139,7 @@ export default function Home() {
         <AgentSection />
 
         {/* Brand reveal footer */}
+        <OnChainProofSection />
         <Footer />
       </main>
     </>
