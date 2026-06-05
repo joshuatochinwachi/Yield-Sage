@@ -76,14 +76,16 @@ Every AI recommendation produced by YieldSage is permanently anchored on the Man
 1. Each recommendation batch is serialised to canonical JSON and SHA-256 hashed.
 2. The hash is embedded in a 0-MNT self-transaction on Mantle as `yieldsage:<hash>`.
 3. The Mantle transaction hash is stored in the database alongside every recommendation.
-4. The YieldSage dashboard renders a direct Mantlescan link for every recommendation row.
+4. The YieldSage web dashboard provides an interactive **Proof Verification Page** (`/verify?tx=...`).
+5. Users can view the exact canonical JSON payload and click to perform a live, in-browser cryptographic SHA-256 hash to prove it matches the Mantle transaction perfectly.
 
 **Sample verified recommendation:**
 
-- View on Mantlescan: `https://mantlescan.xyz/tx/0x3d8544f8365691f63bc2d614d9b4bfae498c8c50e26b15efb58e77a2f1b4a39b`
-- Input data decodes to: `yieldsage:c45f8fdf4e877e8a93a54dcd0d9bf896cfc3d7e820c8de65d8a9f0fe3a1d1a1b`
+- View Proof Verification Page: `https://yieldsageai.xyz/verify?tx=956988089b6b61a42d5c8238c40fb07db3205ed373283801ba28151f22b98f16`
+- Raw Mantlescan TX: `https://mantlescan.xyz/tx/956988089b6b61a42d5c8238c40fb07db3205ed373283801ba28151f22b98f16`
+- Input data decodes to: `yieldsage:<SHA-256_HASH_OF_RECOMMENDATION>`
 
-All recommendations since June 2026 are permanently auditable on-chain.
+All recommendations since June 2026 are permanently auditable on-chain and instantly verifiable via the dashboard.
 
 ---
 
