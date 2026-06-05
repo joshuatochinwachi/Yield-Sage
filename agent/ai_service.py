@@ -1212,7 +1212,7 @@ Ensure that the indices you select correspond EXACTLY to the index in the candid
 
             picks_data = json.loads(content)
 
-            from logger import build_recommendation_payload, log_recommendation_onchain
+            from logger import build_recommendation_payload, log_recommendation_onchain, hash_payload
 
             inserted_recs = []
             for tier in ["stable", "moderate", "aggressive"]:
@@ -1236,27 +1236,8 @@ Ensure that the indices you select correspond EXACTLY to the index in the candid
                     pool_address = p.get("pool_address") or ""
                     tvl_usd = y.get("tvl_usd") or 0.0
 
-                    # 1. Write recommendation to DB first (without tx_hash or rec_hash yet)
-                    insert_result = supabase.table("recommendations").insert({
-                        "protocol_id":         protocol_id,
-                        "risk_tag":            tier,
-                        "rank":                rank,
-                        "apy_at_time":         apy_at_time,
-                        "ai_reasoning":        reasoning,
-                        "ai_model":            model_used,
-                        "recommendation_hash": None,
-                        "on_chain_tx_hash":    None,
-                        "on_chain_logged_at":  None,
-                        "created_at":          datetime.now(timezone.utc).isoformat()
-                    }).execute()
-
-                    if not insert_result.data:
-                        logger.error(f"Failed to insert recommendation for {protocol_name} in DB.")
-                        continue
-
-                    rec_id = insert_result.data[0]["id"]
-
-                    # 2. Build the canonical payload
+                    # 1. Build the canonical payload and compute hash BEFORE inserting to DB
+                    #    so recommendation_hash (NOT NULL) is always set on insert.
                     payload = build_recommendation_payload(
                         protocol_name = protocol_name,
                         pool_name      = pool_name,
@@ -1269,26 +1250,48 @@ Ensure that the indices you select correspond EXACTLY to the index in the candid
                         ai_model       = model_used,
                         scored_at      = scored_at,
                     )
+                    rec_hash = hash_payload(payload)
 
-                    # 3. Log on-chain (with retry)
-                    tx_hash, rec_hash = log_recommendation_onchain(payload)
-
-                    # 4. Update the DB row with the hash and tx_hash
-                    update_data = {
+                    # 2. Insert to DB with hash already set; on_chain_tx_hash stays null until logged
+                    insert_result = supabase.table("recommendations").insert({
+                        "protocol_id":         protocol_id,
+                        "risk_tag":            tier,
+                        "rank":                rank,
+                        "apy_at_time":         apy_at_time,
+                        "ai_reasoning":        reasoning,
+                        "ai_model":            model_used,
                         "recommendation_hash": rec_hash,
-                    }
+                        "on_chain_tx_hash":    None,
+                        "on_chain_logged_at":  None,
+                        "created_at":          datetime.now(timezone.utc).isoformat()
+                    }).execute()
+
+                    if not insert_result.data:
+                        logger.error(f"Failed to insert recommendation for {protocol_name} in DB.")
+                        continue
+
+                    rec_id = insert_result.data[0]["id"]
+
+                    # 3. Log on-chain (with retry) — returns (tx_hash, rec_hash)
+                    tx_hash, _ = log_recommendation_onchain(payload)
+
+                    # 4. If tx succeeded, update only the on-chain fields
                     if tx_hash:
-                        update_data["on_chain_tx_hash"]   = tx_hash
-                        update_data["on_chain_logged_at"] = datetime.now(timezone.utc).isoformat()
-
-                    update_result = supabase.table("recommendations").update(update_data).eq("id", rec_id).execute()
-
-                    if update_result.data:
-                        inserted_recs.append(update_result.data[0])
+                        supabase.table("recommendations").update({
+                            "on_chain_tx_hash":   tx_hash,
+                            "on_chain_logged_at": datetime.now(timezone.utc).isoformat(),
+                        }).eq("id", rec_id).execute()
                         logger.info(
-                            f"[scorer] Recommendation {rec_id} logged. "
-                            f"tx={tx_hash or 'PENDING_RETRY'} hash={rec_hash[:12]}..."
+                            f"[scorer] Recommendation {rec_id} on-chain. "
+                            f"tx={tx_hash} hash={rec_hash[:12]}..."
                         )
+                    else:
+                        logger.info(
+                            f"[scorer] Recommendation {rec_id} saved. "
+                            f"On-chain log pending retry. hash={rec_hash[:12]}..."
+                        )
+
+                    inserted_recs.append(insert_result.data[0])
 
             return inserted_recs
 
