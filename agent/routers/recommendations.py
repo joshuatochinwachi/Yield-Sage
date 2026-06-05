@@ -203,12 +203,18 @@ async def verify_recommendation_by_tx(tx_hash: str):
 
         # 2. Reconstruct the canonical JSON payload
         # This must match EXACTLY what was hashed before on-chain logging.
-        from logger import build_recommendation_payload
+        try:
+            from agent.logger import build_recommendation_payload
+        except ImportError:
+            from logger import build_recommendation_payload
+            
         import json
         from datetime import datetime
         
-        # created_at is stored as string "YYYY-MM-DDTHH:MM:SSZ", parse it back to datetime
-        scored_at_dt = datetime.strptime(rec["created_at"], "%Y-%m-%dT%H:%M:%SZ")
+        # Supabase may return it with +00:00 timezone. Parse ISO format safely.
+        # Then the build_recommendation_payload will safely format it back to %Y-%m-%dT%H:%M:%SZ
+        created_at_str = rec["created_at"].replace("Z", "+00:00")
+        scored_at_dt = datetime.fromisoformat(created_at_str)
 
         payload = build_recommendation_payload(
             protocol_name=rec["protocols"]["name"],
