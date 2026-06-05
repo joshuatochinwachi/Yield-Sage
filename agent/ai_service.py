@@ -959,6 +959,61 @@ REQUIRED JSON SCHEMA
                     f"APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
                 )
 
+        # Get latest recommendations from database matching risk preference
+        recs_context = ""
+        if supabase:
+            try:
+                pref_tiers = [t.strip().lower() for t in risk_preference.split(",") if t.strip()]
+                recs_data = []
+                if pref_tiers:
+                    for tier in pref_tiers:
+                        # Get latest 3 recommendations for this tier
+                        res = supabase.table("recommendations")\
+                            .select("*, protocols(*)")\
+                            .eq("risk_tag", tier)\
+                            .order("created_at", desc=True)\
+                            .limit(3)\
+                            .execute()
+                        if res.data:
+                            # Sort by rank
+                            sorted_recs = sorted(res.data, key=lambda x: x.get("rank", 99))
+                            recs_data.extend(sorted_recs)
+                
+                if recs_data:
+                    recs_context = "Selected On-chain Yield Recommendations (Ranked by priority):\n"
+                    for r in recs_data:
+                        p = r.get("protocols") or {}
+                        apy_val = r.get("apy_at_time")
+                        # Try to find corresponding TVL from yields list
+                        tvl_val = None
+                        if yields:
+                            for y in yields:
+                                if y.get("protocol_id") == r.get("protocol_id"):
+                                    tvl_val = y.get("tvl_usd")
+                                    break
+                        apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
+                        tvl_str = f"${tvl_val:,.0f}" if tvl_val else "N/A"
+                        pool_addr = p.get("pool_address") or ""
+                        tx_hash = r.get("on_chain_tx_hash")
+                        
+                        tx_str = f" | [Proof](https://mantlescan.xyz/tx/{tx_hash})" if tx_hash else ""
+                        
+                        if pool_addr:
+                            url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
+                            recs_context += (
+                                f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}): "
+                                f"APY: {apy_str} | TVL: {tvl_str} | Risk: {r['risk_tag'].upper()}{tx_str}\n"
+                                f"  Reason: {r.get('ai_reasoning')}\n"
+                            )
+                        else:
+                            recs_context += (
+                                f"- {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}): "
+                                f"APY: {apy_str} | TVL: {tvl_str} | Risk: {r['risk_tag'].upper()}{tx_str}\n"
+                                f"  Reason: {r.get('ai_reasoning')}\n"
+                            )
+            except Exception as e:
+                logger.error(f"Failed to fetch recommendations for hourly update: {e}")
+
         if user_trades:
             trade_context = "User's Active Paper Trades:\n"
             for t in user_trades:
@@ -1022,13 +1077,19 @@ RIGHT →
   Reason here.
 Never put two bullets on the same line. Each bullet gets its own line and a blank line above it.
 
+LAW 8 ── ALL SNAPSHOT RECOMMENDATIONS MUST INCLUDE THEIR EXACT PROOF LINK.
+You must include the exact Proof link provided at the end of the pool details line.
+FORMAT → | [Proof](https://mantlescan.xyz/tx/0x...)
+WRONG → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE
+RIGHT → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE | [Proof](https://mantlescan.xyz/tx/0x10ad97e9...)
+
 ════════════════════════════════════════
 MANDATORY OUTPUT STRUCTURE — FOLLOW EXACTLY
 ════════════════════════════════════════
 
 📊 **Mantle Yield Snapshots & Recommendations**
-[2-3 bullets of top pools for risk tier: {risk_preference.upper()} — each on its OWN line]
-[Each bullet: pool link, APY from context, TVL from context, one-line reason]
+[2-3 bullets of selected yield recommendations matching the user's risk preference — each on its OWN line]
+[Each bullet MUST match the pool link, APY, TVL, and proof link from Selected On-chain Yield Recommendations context. Do not invent any values!]
 
 💼 **Personalized Portfolio Analysis**
 [Active trades: review every one — Entry APY → Current APY — alert if underperforming by 2%+]
@@ -1043,10 +1104,10 @@ FORMAT EXAMPLE — COPY THIS STRUCTURE EXACTLY
 
 📊 **Mantle Yield Snapshots & Recommendations**
 
-• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123): **17.50% APY** | TVL: $2,100,000 | STABLE
+• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123): **17.50% APY** | TVL: $2,100,000 | STABLE | [Proof](https://mantlescan.xyz/tx/0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f)
   Institutional private credit pool. Highest stable-tier yield right now.
 
-• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456): **7.03% APY** | TVL: $3,682,789 | STABLE
+• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456): **7.03% APY** | TVL: $3,682,789 | STABLE | [Proof](https://mantlescan.xyz/tx/0x672451fa76d787d52a23e59048a609d949d6b1ba543fc2c5e29dbc54577bd96f)
   Battle-tested. Lowest counterparty risk on Mantle.
 
 💼 **Personalized Portfolio Analysis**
@@ -1078,7 +1139,8 @@ MANDATORY SELF-CHECK BEFORE RESPONDING
 6. No raw underscores
 7. Bold = **double asterisks**
 8. Every bullet on its own line with blank line before it
-9. Every APY and TVL value matches the live data exactly — not invented
+9. Every recommendation includes the correct Proof link format at the end
+10. Every APY, TVL, and Proof value matches the context exactly — not invented
 
 Fix any failure before responding.
 """
@@ -1088,11 +1150,13 @@ Fix any failure before responding.
                 messages=[{
                     "role": "user",
                     "content": (
+                        f"{recs_context}\n\n"
                         f"Live yield data:\n{yield_context}\n\n"
                         f"User trades:\n{trade_context}\n\n"
                         "Generate the hourly Telegram update now. "
                         "Start IMMEDIATELY with 📊 **Mantle Yield Snapshots & Recommendations** — "
                         "no introduction, no preamble. "
+                        "Use the Selected On-chain Yield Recommendations list above for Section 1, including their Proof links exactly. "
                         "Use ONLY APY and TVL values from the live data above. "
                         "All pool links as [Name](url). Bold = **double asterisks**. No # headers."
                     ),

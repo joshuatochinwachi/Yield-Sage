@@ -38,15 +38,7 @@ async def run_pipeline():
         logger.error("Dune Fetcher failed after all attempts. Skipping Scoring Engine for this hour.")
         return
 
-    # 2. Run Scorer to evaluate paper trades against updated yields and queue alerts
-    try:
-        logger.info("Running Hourly AI Scoring Engine...")
-        await scorer.run()
-        logger.info("Hourly AI Scoring Engine completed successfully.")
-    except Exception as e:
-        logger.error(f"Hourly Scoring Engine failed with exception: {e}")
-
-    # 3. Generate hourly AI recommendations for the dashboard
+    # 2. Generate hourly AI recommendations for the dashboard
     try:
         logger.info("Running Dashboard AI Picks Generator...")
         recent_yields = await scorer.ai.get_recent_yields()
@@ -57,6 +49,14 @@ async def run_pipeline():
             logger.warning("No recent yields found. Skipping AI picks generation.")
     except Exception as e:
         logger.error(f"Dashboard AI Picks Generator failed with exception: {e}")
+
+    # 3. Run Scorer to evaluate paper trades against updated yields and queue alerts
+    try:
+        logger.info("Running Hourly AI Scoring Engine...")
+        await scorer.run()
+        logger.info("Hourly AI Scoring Engine completed successfully.")
+    except Exception as e:
+        logger.error(f"Hourly Scoring Engine failed with exception: {e}")
 
 async def retry_failed_onchain_logs():
     """
