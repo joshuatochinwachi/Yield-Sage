@@ -8,6 +8,7 @@ __pycache__/
 testapikey.bash
 
 Yieldsage_Project_Documentation.md
+Yieldsage_OnChain_Logging_Procedure.md
 token_optimization_rules.md
 
 agent/fetcher_state.json

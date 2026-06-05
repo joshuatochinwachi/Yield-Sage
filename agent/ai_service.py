@@ -4,7 +4,7 @@ import json
 import logging
 import httpx
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from supabase import create_client, Client
 from openai import AsyncOpenAI, RateLimitError
 
@@ -1187,6 +1187,9 @@ Ensure that the indices you select correspond EXACTLY to the index in the candid
 """
 
         try:
+            # Set scored_at BEFORE calling the LLM cascade
+            scored_at = datetime.now(timezone.utc)
+
             response = await _llm_call(
                 messages=[{
                     "role": "user",
@@ -1208,9 +1211,10 @@ Ensure that the indices you select correspond EXACTLY to the index in the candid
                 content = content.strip()
 
             picks_data = json.loads(content)
-            date_str = datetime.utcnow().strftime("%Y-%m-%d-%H")
 
-            recs_to_insert = []
+            from logger import build_recommendation_payload, log_recommendation_onchain
+
+            inserted_recs = []
             for tier in ["stable", "moderate", "aggressive"]:
                 picks = picks_data.get(tier, [])
                 for pick in picks:
@@ -1226,29 +1230,67 @@ Ensure that the indices you select correspond EXACTLY to the index in the candid
                     protocol_id = y["protocol_id"]
                     apy_at_time = y.get("apy") or 0.0
 
-                    # Hash ensures one slot per tier-rank-hour
-                    hash_input = f"{tier}-{rank}-{date_str}"
-                    rec_hash = hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
+                    p = y.get("protocol") or {}
+                    protocol_name = p.get("name") or "Unknown"
+                    pool_name = p.get("pool_name") or "Unknown"
+                    pool_address = p.get("pool_address") or ""
+                    tvl_usd = y.get("tvl_usd") or 0.0
 
-                    recs_to_insert.append({
-                        "protocol_id": protocol_id,
-                        "risk_tag": tier,
-                        "rank": rank,
-                        "apy_at_time": apy_at_time,
-                        "ai_reasoning": reasoning,
-                        "ai_model": model_used,
+                    # 1. Write recommendation to DB first (without tx_hash or rec_hash yet)
+                    insert_result = supabase.table("recommendations").insert({
+                        "protocol_id":         protocol_id,
+                        "risk_tag":            tier,
+                        "rank":                rank,
+                        "apy_at_time":         apy_at_time,
+                        "ai_reasoning":        reasoning,
+                        "ai_model":            model_used,
+                        "recommendation_hash": None,
+                        "on_chain_tx_hash":    None,
+                        "on_chain_logged_at":  None,
+                        "created_at":          datetime.now(timezone.utc).isoformat()
+                    }).execute()
+
+                    if not insert_result.data:
+                        logger.error(f"Failed to insert recommendation for {protocol_name} in DB.")
+                        continue
+
+                    rec_id = insert_result.data[0]["id"]
+
+                    # 2. Build the canonical payload
+                    payload = build_recommendation_payload(
+                        protocol_name = protocol_name,
+                        pool_name      = pool_name,
+                        pool_address   = pool_address,
+                        risk_tag       = tier,
+                        rank           = rank,
+                        apy_at_time    = apy_at_time,
+                        tvl_usd        = tvl_usd,
+                        ai_reasoning   = reasoning,
+                        ai_model       = model_used,
+                        scored_at      = scored_at,
+                    )
+
+                    # 3. Log on-chain (with retry)
+                    tx_hash, rec_hash = log_recommendation_onchain(payload)
+
+                    # 4. Update the DB row with the hash and tx_hash
+                    update_data = {
                         "recommendation_hash": rec_hash,
-                        "created_at": datetime.utcnow().isoformat()
-                    })
+                    }
+                    if tx_hash:
+                        update_data["on_chain_tx_hash"]   = tx_hash
+                        update_data["on_chain_logged_at"] = datetime.now(timezone.utc).isoformat()
 
-            if recs_to_insert:
-                logger.info(f"Upserting {len(recs_to_insert)} AI dashboard picks into recommendations table...")
-                supabase.table("recommendations").upsert(recs_to_insert, on_conflict="recommendation_hash").execute()
-                logger.info("AI dashboard picks upserted successfully.")
-                return recs_to_insert
-            else:
-                logger.warning("No valid recommendations parsed from LLM response.")
-                return []
+                    update_result = supabase.table("recommendations").update(update_data).eq("id", rec_id).execute()
+
+                    if update_result.data:
+                        inserted_recs.append(update_result.data[0])
+                        logger.info(
+                            f"[scorer] Recommendation {rec_id} logged. "
+                            f"tx={tx_hash or 'PENDING_RETRY'} hash={rec_hash[:12]}..."
+                        )
+
+            return inserted_recs
 
         except Exception as e:
             logger.error(f"Failed to generate dashboard recommendations: {e}")

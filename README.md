@@ -41,6 +41,7 @@
 ## 📖 Table of Contents
 
 - [🏛️ Grand System Architecture](#-grand-system-architecture)
+- [⛓️ On-Chain Verifiability](#️-on-chain-verifiability)
 - [✨ Feature Highlights](#-feature-highlights)
 - [🎬 Cinematic UI/UX Engine](#-cinematic-uiux-engine)
 - [⚙️ Backend — Python Agent](#-backend--python-agent)
@@ -63,6 +64,26 @@
 - [🚀 Setup & Running Locally](#-setup--running-locally)
 - [📚 Documentation Library](#-documentation-library)
 - [🗺️ Roadmap](#️-roadmap)
+
+---
+
+## ⛓️ On-Chain Verifiability
+
+Every AI recommendation produced by YieldSage is permanently anchored on the Mantle Network.
+
+**How it works:**
+
+1. Each recommendation batch is serialised to canonical JSON and SHA-256 hashed.
+2. The hash is embedded in a 0-MNT self-transaction on Mantle as `yieldsage:<hash>`.
+3. The Mantle transaction hash is stored in the database alongside every recommendation.
+4. The YieldSage dashboard renders a direct Mantlescan link for every recommendation row.
+
+**Sample verified recommendation:**
+
+- View on Mantlescan: `https://mantlescan.xyz/tx/0x3d8544f8365691f63bc2d614d9b4bfae498c8c50e26b15efb58e77a2f1b4a39b`
+- Input data decodes to: `yieldsage:c45f8fdf4e877e8a93a54dcd0d9bf896cfc3d7e820c8de65d8a9f0fe3a1d1a1b`
+
+All recommendations since June 2026 are permanently auditable on-chain.
 
 ---
 

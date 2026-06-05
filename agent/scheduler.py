@@ -2,7 +2,7 @@ import asyncio
 import logging
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fetcher import DuneFetcher
+from fetcher import DuneFetcher, supabase
 from scorer import HourlyScorer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -58,14 +58,97 @@ async def run_pipeline():
     except Exception as e:
         logger.error(f"Dashboard AI Picks Generator failed with exception: {e}")
 
+async def retry_failed_onchain_logs():
+    """
+    Finds recommendations that were hashed but not yet logged on-chain,
+    and retries the transaction. Runs every 6 hours.
+    """
+    from logger import log_recommendation_onchain, hash_payload, build_recommendation_payload
+    from datetime import datetime, timezone
+
+    if not supabase:
+        logger.error("[retry_job] Supabase client not initialized.")
+        return
+
+    try:
+        result = supabase.table("recommendations") \
+            .select("*") \
+            .is_("on_chain_tx_hash", "null") \
+            .not_.is_("recommendation_hash", "null") \
+            .execute()
+        pending = result.data
+    except Exception as e:
+        logger.error(f"[retry_job] Failed to fetch pending recommendations: {e}")
+        return
+
+    if not pending:
+        logger.info("[retry_job] No pending on-chain logs. All clear.")
+        return
+
+    logger.info(f"[retry_job] Found {len(pending)} recommendations missing tx_hash. Retrying...")
+    for rec in pending:
+        try:
+            # Reconstruct the payload from the DB row
+            protocol_res = supabase.table("protocols") \
+                .select("name, pool_name, pool_address") \
+                .eq("id", rec["protocol_id"]) \
+                .single() \
+                .execute()
+            protocol = protocol_res.data
+            if not protocol:
+                logger.error(f"[retry_job] Protocol id {rec['protocol_id']} not found. Skipping.")
+                continue
+
+            payload = build_recommendation_payload(
+                protocol_name = protocol["name"],
+                pool_name     = protocol["pool_name"],
+                pool_address  = protocol["pool_address"],
+                risk_tag      = rec["risk_tag"],
+                rank          = rec["rank"],
+                apy_at_time   = rec["apy_at_time"],
+                tvl_usd       = 0.0,          # TVL not stored in rec — use 0.0 as placeholder
+                ai_reasoning  = rec["ai_reasoning"],
+                ai_model      = rec["ai_model"],
+                scored_at     = datetime.fromisoformat(rec["created_at"].replace("Z", "+00:00")),
+            )
+
+            # Verify the hash still matches before sending the transaction
+            recomputed_hash = hash_payload(payload)
+            if recomputed_hash != rec["recommendation_hash"]:
+                logger.error(
+                    f"[retry_job] Hash mismatch for rec {rec['id']}! "
+                    f"Stored: {rec['recommendation_hash'][:12]} | "
+                    f"Recomputed: {recomputed_hash[:12]}. Skipping."
+                )
+                continue
+
+            tx_hash, _ = log_recommendation_onchain(payload, max_retries=2)
+            if tx_hash:
+                supabase.table("recommendations").update({
+                    "on_chain_tx_hash":   tx_hash,
+                    "on_chain_logged_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", rec["id"]).execute()
+                logger.info(f"[retry_job] ✅ Recovered rec {rec['id']}: {tx_hash}")
+        except Exception as e:
+            logger.error(f"[retry_job] Error retrying rec {rec.get('id')}: {e}")
+
 def start_scheduler():
     scheduler = AsyncIOScheduler()
     
     # Run immediately on startup, then every 1 hour
     scheduler.add_job(run_pipeline, 'interval', hours=1, id="pipeline_job", next_run_time=datetime.now())
     
+    # Run retry job every 6 hours
+    scheduler.add_job(
+        retry_failed_onchain_logs,
+        "interval",
+        hours=6,
+        id="retry_onchain_logs",
+        replace_existing=True,
+    )
+    
     scheduler.start()
-    logger.info("APScheduler started. Pipeline job running now, then every 1 hour.")
+    logger.info("APScheduler started. Pipeline job running now, then every 1 hour. Retry job runs every 6 hours.")
     
     # Keep the main thread alive if run independently
     try:

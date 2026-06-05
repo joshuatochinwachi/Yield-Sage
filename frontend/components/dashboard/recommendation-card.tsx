@@ -194,16 +194,17 @@ export function RecommendationCard() {
               <div>
                 {activePick.on_chain_tx_hash ? (
                   <a 
-                    href={activePick.explorer_url || `https://mantlescan.xyz/tx/${activePick.on_chain_tx_hash}`}
+                    href={`https://mantlescan.xyz/tx/${activePick.on_chain_tx_hash}`}
                     target="_blank"
-                    rel="noreferrer"
-                    className="text-xs text-white/40 hover:text-[#00ff88] flex items-center gap-1.5 transition-colors font-mono"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-mono text-[#4ADE80] hover:underline underline-offset-2 transition-opacity hover:opacity-80"
                   >
-                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-                    On-chain Proof Verified <ExternalLink className="h-3 w-3" />
+                    <span>⛓</span>
+                    <span>Verify on Mantle</span>
+                    <span className="text-[#52504D]">{activePick.on_chain_tx_hash.slice(0, 8)}...{activePick.on_chain_tx_hash.slice(-6)}</span>
                   </a>
                 ) : (
-                  <span className="text-[10px] text-white/25 font-mono">Proof pending verification</span>
+                  <span className="text-xs text-[#52504D] font-mono">Logging pending...</span>
                 )}
               </div>
               
