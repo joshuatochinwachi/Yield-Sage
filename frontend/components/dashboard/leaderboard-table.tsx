@@ -18,7 +18,8 @@ import {
   Coins,
   ShieldAlert,
   Percent,
-  TrendingUp as TrendUpIcon
+  TrendingUp as TrendUpIcon,
+  Sparkles
 } from "lucide-react";
 import { useWatchlist } from "@/components/dashboard/watchlist-provider";
 
@@ -116,6 +117,11 @@ export function LeaderboardTable() {
   // Pagination state
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 20;
+
+  const [simModalOpen, setSimModalOpen] = useState(false);
+  const [simPoolAddr, setSimPoolAddr] = useState("");
+  const [simPoolName, setSimPoolName] = useState("");
+  const [simAmount, setSimAmount] = useState("1000");
 
   // Debounced filters to pass to API
   const minTvl = minTvlInput ? parseFloat(minTvlInput) : undefined;
@@ -550,21 +556,40 @@ export function LeaderboardTable() {
                         </div>
                       </td>
 
-                      {/* Action (Invest Link) */}
+                      {/* Action (Invest Link & Simulate) */}
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        {protocol.app_link || row.app_link ? (
-                          <a
-                            href={protocol.app_link || row.app_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#00ff88]/10 hover:bg-[#00ff88]/20 text-[#00ff88] border border-[#00ff88]/25 hover:border-[#00ff88]/50 shadow-[0_0_12px_rgba(0,255,136,0.08)] transition-all duration-300 hover:-translate-y-0.5"
+                        <div className="flex items-center justify-center gap-2">
+                          {protocol.app_link || row.app_link ? (
+                            <a
+                              href={protocol.app_link || row.app_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#00ff88]/10 hover:bg-[#00ff88]/20 text-[#00ff88] border border-[#00ff88]/25 hover:border-[#00ff88]/50 shadow-[0_0_12px_rgba(0,255,136,0.08)] transition-all duration-300 hover:-translate-y-0.5"
+                              title="Go to protocol DApp to invest"
+                            >
+                              Invest
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          ) : (
+                            <span className="text-xs text-white/20 font-mono">-</span>
+                          )}
+                          <button
+                            onClick={() => {
+                              setSimPoolAddr(poolAddr || "");
+                              setSimPoolName(`${protocol.name || "Unknown"} (${row.asset || "Pool"})`);
+                              setSimAmount("1000");
+                              setSimModalOpen(true);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#a78bfa]/10 hover:bg-[#a78bfa]/20 text-[#a78bfa] border border-[#a78bfa]/25 hover:border-[#a78bfa]/50 shadow-[0_0_12px_rgba(167,139,250,0.08)] transition-all duration-300 hover:-translate-y-0.5 cursor-pointer"
+                            title="Simulate trade in Telegram"
                           >
-                            Invest
-                            <ExternalLink className="w-3 h-3" />
-                          </a>
-                        ) : (
-                          <span className="text-xs text-white/20 font-mono">-</span>
-                        )}
+                            Simulate
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M22 2L11 13" />
+                              <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -634,6 +659,49 @@ export function LeaderboardTable() {
           </div>
         )}
       </CardContent>
+      {simModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 transition-all duration-300">
+          <div className="bg-[#0a0a0c] border border-white/10 rounded-2xl p-6 max-w-sm w-full mx-auto shadow-2xl relative z-55">
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-indigo-400" />
+              Simulate Paper Trade
+            </h3>
+            <p className="text-xs text-white/60 mb-4 leading-relaxed">
+              How much USD would you like to simulate investing in <span className="text-white font-semibold">{simPoolName}</span>?
+            </p>
+            <div className="relative mb-5">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-xs font-mono">$</span>
+              <input
+                type="number"
+                value={simAmount}
+                onChange={(e) => setSimAmount(e.target.value)}
+                placeholder="1000"
+                className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 rounded-xl pl-8 pr-4 py-2.5 text-sm font-mono text-white placeholder-white/20 outline-none transition-all"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setSimModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold rounded-lg border border-white/10 hover:bg-white/5 text-white/70 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setSimModalOpen(false);
+                  const cleanAddr = simPoolAddr.match(/0x[a-fA-F0-9]{40}/)?.[0] || simPoolAddr;
+                  const telegramUrl = `https://t.me/YieldSageBot?text=${encodeURIComponent(`/trade address=${cleanAddr} amount=${simAmount} token=${simPoolName}`)}`;
+                  window.open(telegramUrl, "_blank", "noopener,noreferrer");
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+              >
+                Approve
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

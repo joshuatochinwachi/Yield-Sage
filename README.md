@@ -163,7 +163,7 @@ graph TD
 | ⛓️ **On-Chain Proof-of-Recommendation** | Every AI scoring batch is SHA-256 hashed and logged as a 0-MNT transaction on the Mantle Network. Permanently auditable on Mantle Explorer. |
 | 📊 **Real-Time Yield Leaderboard** | Full-width filterable, searchable, sortable table with 1D / 7D / 30D trend pills, risk-tier badges, TVL, protocol logos, and on-chain links. |
 | 💬 **Conversational Telegram AI Agent** | Multi-turn memory, slash commands (`/yields`, `/top`, `/trade`, `/portfolio`, `/alerts`), and natural language DeFi advisory powered by the LLM cascade. |
-| 📈 **Paper Trading Simulator** | Open, monitor, and close mock yield-bearing positions. Continuous-time APY accrual math tracks P&L in real-time against live pool rates. |
+| 📈 **Paper Trading Simulator** | Open, monitor, and close simulated yield positions. Accrues P&L in real-time. Features zero-friction dashboard-to-Telegram simulation matching. |
 | 🧩 **Risk Tier Classification** | Pools are auto-classified as `stable` (stablecoin pairs) or `moderate` (volatile asset pairs) based on asset name analysis. |
 | 🔒 **Supabase RLS Security** | Row Level Security policies enforce that users can only read/write their own trades, alerts, and chat memory. Public yield data is read-only. |
 | 📡 **Personalized Hourly Alerts** | The scorer evaluates each user's active paper trades against live yields and pushes tailored Telegram alerts when significant drift is detected. |

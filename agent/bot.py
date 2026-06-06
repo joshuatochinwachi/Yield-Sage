@@ -472,7 +472,97 @@ async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         if query.data.startswith("tradepage_"):
             page = int(query.data.split("_")[1])
-            
+    else:
+        # Check if arguments were passed (e.g. /trade address=... amount=... token=...)
+        if update.message and update.message.text:
+            text = update.message.text.strip()
+            if len(text.split()) > 1:
+                import re
+                address_match = re.search(r'address=(.*?)(?=\s+(?:amount|token)=|$)', text)
+                amount_match = re.search(r'amount=(.*?)(?=\s+(?:address|token)=|$)', text)
+                token_match = re.search(r'token=(.*?)(?=\s+(?:address|amount)=|$)', text)
+                
+                address = address_match.group(1).strip() if address_match else None
+                amount_str = amount_match.group(1).strip() if amount_match else None
+                token = token_match.group(1).strip() if token_match else None
+                
+                if address:
+                    hex_match = re.search(r'0x[a-fA-F0-9]{40}', address)
+                    if hex_match:
+                        address = hex_match.group(0)
+                
+                if address or token:
+                    protocol = None
+                    if address:
+                        try:
+                            proto_res = supabase.table("protocols").select("id, name, pool_name, pool_address").ilike("pool_address", f"%{address}%").execute()
+                            if proto_res.data:
+                                protocol = proto_res.data[0]
+                        except Exception as e:
+                            logger.error(f"Error querying protocols by address: {e}")
+                    
+                    if not protocol and token:
+                        try:
+                            proto_res = supabase.table("protocols").select("id, name, pool_name, pool_address").ilike("pool_name", f"%{token}%").execute()
+                            if proto_res.data:
+                                protocol = proto_res.data[0]
+                        except Exception as e:
+                            logger.error(f"Error querying protocols by token: {e}")
+                    
+                    if protocol:
+                        try:
+                            amount = 1000.0
+                            if amount_str:
+                                clean_amt = "".join(c for c in amount_str if c.isdigit() or c == ".")
+                                amount = float(clean_amt) if clean_amt else 1000.0
+                            if amount <= 0:
+                                amount = 1000.0
+                        except Exception:
+                            amount = 1000.0
+                            
+                        entry_apy = 0.0
+                        try:
+                            snap_res = supabase.table("yield_snapshots").select("apy").eq("protocol_id", protocol["id"]).order("fetched_at", desc=True).limit(1).execute()
+                            if snap_res.data:
+                                raw_apy = snap_res.data[0].get("apy")
+                                entry_apy = float(raw_apy) if raw_apy is not None else 0.0
+                        except Exception as e:
+                            logger.error(f"Error fetching entry APY: {e}")
+                            
+                        try:
+                            chat_id = update.effective_chat.id
+                            user = update.effective_user
+                            user_uuid = await ensure_user_exists(chat_id, user.username, user.first_name, user.last_name)
+                            if user_uuid:
+                                payload = {
+                                    "user_id": user_uuid,
+                                    "protocol_id": protocol["id"],
+                                    "simulated_investment_usd": amount,
+                                    "entry_apy": entry_apy,
+                                    "status": "active"
+                                }
+                                supabase.table("paper_trades").insert(payload).execute()
+                                
+                                confirm_text = (
+                                    f"✅ **Paper Trade Simulated Successfully!**\n\n"
+                                    f"💰 Invested: **${amount:,.2f}**\n"
+                                    f"🏦 Pool: **{protocol['name']} ({protocol['pool_name']})**\n"
+                                    f"📈 Entry APY: **{entry_apy:.2f}%**\n\n"
+                                    f"I will now monitor this position hourly. You will receive alerts if the APY drops or if better options appear!"
+                                )
+                                keyboard = [[InlineKeyboardButton("💼 View My Positions", callback_data="view_positions")]]
+                                await update.message.reply_text(confirm_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+                                return
+                        except Exception as e:
+                            logger.error(f"Error registering direct paper trade: {e}")
+                            await update.message.reply_text("❌ Failed to register paper trade. Please try again.")
+                            return
+                    else:
+                        await update.message.reply_text(
+                            f"🔍 Could not find a pool with address `{address or ''}` or token `{token or ''}` in our database.\n\n"
+                            "Listing active yield opportunities instead:"
+                        )
+
     yields = await ai.get_recent_yields()
     if not yields:
         text = "⚠️ No active yield pools available to trade right now."

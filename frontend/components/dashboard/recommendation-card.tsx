@@ -28,6 +28,10 @@ function formatTimeAgo(dateString?: string): string {
 
 export function RecommendationCard() {
   const [selectedRisk, setSelectedRisk] = useState<"stable" | "moderate" | "aggressive">("stable");
+  const [simModalOpen, setSimModalOpen] = useState(false);
+  const [simPoolAddr, setSimPoolAddr] = useState("");
+  const [simPoolName, setSimPoolName] = useState("");
+  const [simAmount, setSimAmount] = useState("1000");
 
   const { data, isLoading } = useQuery({
     queryKey: ["latestRecommendations"],
@@ -228,26 +232,74 @@ export function RecommendationCard() {
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-[#00ff88]/10 hover:bg-[#00ff88]/20 text-[#00ff88] border border-[#00ff88]/35 shadow-[0_0_10px_rgba(0,255,136,0.05)] transition-all duration-300"
+                    title="Go to protocol DApp to invest"
                   >
                     Invest Pool
                     <ExternalLink className="h-3 w-3" />
                   </a>
                 )}
                 
-                <a 
-                  href="https://t.me/YieldSageBot" 
-                  target="_blank" 
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-white/5 hover:bg-white/10 text-white/70 hover:text-white border border-white/10 transition-all duration-300"
+                <button 
+                  onClick={() => {
+                    setSimPoolAddr(activePick.protocols?.pool_address || "");
+                    setSimPoolName(activePick.protocols?.pool_name || "");
+                    setSimAmount("1000");
+                    setSimModalOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/25 hover:border-indigo-500/50 shadow-[0_0_12px_rgba(99,102,241,0.08)] transition-all duration-300 hover:-translate-y-0.5 cursor-pointer"
+                  title="Simulate Trade via Telegram Agent"
                 >
-                  Chat with bot
+                  Simulate
                   <Send className="h-3 w-3" />
-                </a>
+                </button>
               </div>
             </div>
           </div>
         )}
       </CardContent>
+      {simModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 transition-all duration-300">
+          <div className="bg-[#0a0a0c] border border-white/10 rounded-2xl p-6 max-w-sm w-full mx-auto shadow-2xl relative z-55">
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-indigo-400" />
+              Simulate Paper Trade
+            </h3>
+            <p className="text-xs text-white/60 mb-4 leading-relaxed">
+              How much USD would you like to simulate investing in <span className="text-white font-semibold">{simPoolName}</span>?
+            </p>
+            <div className="relative mb-5">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-xs font-mono">$</span>
+              <input
+                type="number"
+                value={simAmount}
+                onChange={(e) => setSimAmount(e.target.value)}
+                placeholder="1000"
+                className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 rounded-xl pl-8 pr-4 py-2.5 text-sm font-mono text-white placeholder-white/20 outline-none transition-all"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setSimModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold rounded-lg border border-white/10 hover:bg-white/5 text-white/70 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setSimModalOpen(false);
+                  const cleanAddr = simPoolAddr.match(/0x[a-fA-F0-9]{40}/)?.[0] || simPoolAddr;
+                  const telegramUrl = `https://t.me/YieldSageBot?text=${encodeURIComponent(`/trade address=${cleanAddr} amount=${simAmount} token=${simPoolName}`)}`;
+                  window.open(telegramUrl, "_blank", "noopener,noreferrer");
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+              >
+                Approve
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

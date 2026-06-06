@@ -465,6 +465,16 @@ export default function DocsPage() {
               <p>
                 The primary conversational gateway is the official Telegram assistant bot (<code>t.me/YieldSageBot</code>). The bot processes commands, handles simulated paper trades, and monitors active user allocations.
               </p>
+              <h3 className="text-sm font-semibold text-white/90 font-mono uppercase tracking-wide">Direct & Pre-populated Simulations</h3>
+              <p>
+                YieldSage implements a zero-friction paper trading flow. Clicking <strong>Simulate</strong> on any pool in the web dashboard prompts you for a USD amount, then automatically redirects you to Telegram with a pre-populated command containing exact parameter values:
+              </p>
+              <div className="bg-black/40 border border-white/5 p-4 rounded-xl font-mono text-xs text-[#00ff88]">
+                /trade address=0x5d54d430d1fd9425976147318e6080479bffc16d amount=10000 token=merchant-moe (USDe-WMNT)
+              </div>
+              <p>
+                Upon sending this pre-populated message, the bot parses the parameters directly, matches the protocol and retrieves its latest APY, and records the simulated trade on your profile immediately, without requiring any manual menu navigation.
+              </p>
               <h3 className="text-sm font-semibold text-white/90 font-mono uppercase tracking-wide">Supported Commands</h3>
               <ul className="list-disc pl-5 space-y-2 text-white/50 font-mono text-xs">
                 <li><code>/start</code> — Registers user, aligns default risk tiers, outputs interactive dashboard menu.</li>

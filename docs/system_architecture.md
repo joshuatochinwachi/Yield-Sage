@@ -11,7 +11,7 @@ YieldSage is structured as a decoupled, multi-tier system designed to ensure hig
 1. **Data Ingestion & Agent Layer (Python Backend)**: 
    - **Dune Fetcher**: Periodically execution-triggers and pulls yield metrics from Dune Analytics.
    - **AI Scorer / Advisor Service**: Interacts with the LLM cascade (Cerebras, SambaNova, Groq, NVIDIA, Gemini) to score pools and formulate plain-English advice.
-   - **Telegram Bot**: Long-polls commands and serves as the conversational channel for users.
+   - **Telegram Bot**: Processes queries, handles paper trade simulations with direct parameter parsing, and broadcasts hourly yield alerts.
    - **FastAPI REST API**: Serving the web application.
 
 2. **Database Layer (Supabase / PostgreSQL)**:
@@ -166,3 +166,13 @@ graph LR
   2. `worker` (APScheduler cron jobs running data fetches hourly and recommendations daily).
   3. `bot` (Telegram async event loop processing long-poll messages).
 - **Database (Supabase)**: Multi-region PostgreSQL DB with strict Row Level Security (RLS) policies.
+
+---
+
+## 6. Zero-Friction Paper Trading Flow
+
+To make paper trading simulations seamless, YieldSage integrates the Next.js Pro Dashboard with the Telegram AI Agent:
+
+1. **Dashboard Prompt**: When a user clicks **Simulate** on a pool in the web interface, a modal prompts them for a USD investment amount.
+2. **Prefilled Command Redirect**: Clicking **Approve** redirects the user to Telegram with a pre-filled deep-link command: `/trade address=<pool_address> amount=<amount> token=<pool_name>`.
+3. **Instant Simulation**: The Telegram Bot parses these parameters directly, matches the protocol in the database, grabs the latest APY snapshot, and instantly simulates the trade, skipping the manual interactive configuration steps.

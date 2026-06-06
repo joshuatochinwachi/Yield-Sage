@@ -1177,7 +1177,7 @@ Fix any failure before responding.
                 f"\n\n🕐 Data snapshot: "
                 f"{utc_now.strftime('%d %b %Y · %H:%M UTC')}"
             )
-            cta_line = "\n\n📋 View all live yield opportunities on Mantle → /yields"
+            cta_line = "\n\n📋 View all live yield opportunities on Mantle → /yields or [yieldsageai.xyz/dashboard](https://yieldsageai.xyz/dashboard)"
             result = result + timestamp_line + cta_line
 
             _response_cache["hourly_update"] = result

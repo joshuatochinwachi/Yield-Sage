@@ -208,12 +208,10 @@ function VerifyContent() {
         <nav className="flex items-center justify-between px-6 md:px-12 py-5 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
           <a href="/" className="flex items-center gap-2.5 group">
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: "rgba(0,255,136,0.12)", border: "1px solid rgba(0,255,136,0.25)" }}
+              className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0"
+              style={{ border: "1px solid rgba(0,255,136,0.25)" }}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(0,255,136,0.9)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
+              <img src="/logo.jpg" alt="YieldSage" className="w-full h-full object-cover" />
             </div>
             <span className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>YieldSage</span>
             <span className="text-sm" style={{ color: "rgba(255,255,255,0.2)" }}>/</span>

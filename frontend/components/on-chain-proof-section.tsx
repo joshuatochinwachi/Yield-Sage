@@ -28,27 +28,35 @@ const RISK_COLOR: Record<string, string> = {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+const PAGE_SIZE = 8
+
 export function OnChainProofSection() {
   const ref = useRef<HTMLDivElement>(null)
   const inView = useInView(ref, { once: true, margin: "-80px" })
 
-  const [recs, setRecs]           = useState<any[]>([])
+  const [recs, setRecs]               = useState<any[]>([])
+  const [page, setPage]               = useState(1)
+  const [hasMore, setHasMore]         = useState(false)
+  const [totalFetched, setTotalFetched] = useState(0)
   const [lastFetched, setLastFetched] = useState<Date | null>(null)
-  const [loading, setLoading]     = useState(false)
+  const [loading, setLoading]         = useState(false)
 
-  const fetchRecs = useCallback(async () => {
+  const fetchPage = useCallback(async (p: number) => {
     setLoading(true)
     try {
-      // /history returns { data: [...], page, page_size, has_more }
-      // We want recent records that have been committed on-chain
-      const res = await fetch(`${API_URL}/api/recommendations/history?page=1&page_size=20`)
+      const res = await fetch(
+        `${API_URL}/api/recommendations/history?page=${p}&page_size=${PAGE_SIZE}`
+      )
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
       const list: any[] = Array.isArray(json.data) ? json.data : []
-      // Only show rows with a confirmed on-chain tx hash
+      // Only show rows confirmed on-chain
       const verified = list.filter((r: any) => !!r.on_chain_tx_hash)
-      setRecs(verified.slice(0, 6))
+      setRecs(verified)
+      setHasMore(json.has_more === true)
+      setTotalFetched(prev => p === 1 ? verified.length : prev)
       setLastFetched(new Date())
+      setPage(p)
     } catch {
       // leave previous data intact on error
     } finally {
@@ -56,12 +64,12 @@ export function OnChainProofSection() {
     }
   }, [])
 
-  // Initial fetch + refresh every 5 minutes
+  // Initial load + auto-refresh every 5 minutes (resets to page 1)
   useEffect(() => {
-    fetchRecs()
-    const id = setInterval(fetchRecs, 5 * 60 * 1000)
+    fetchPage(1)
+    const id = setInterval(() => fetchPage(1), 5 * 60 * 1000)
     return () => clearInterval(id)
-  }, [fetchRecs])
+  }, [fetchPage])
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -102,9 +110,9 @@ export function OnChainProofSection() {
             className="text-3xl md:text-5xl font-semibold tracking-tight leading-tight mb-5"
             style={{ color: "rgba(255,255,255,0.9)" }}
           >
-            Zero trust, zero black boxes.
-            <br />
-            <span style={{ color: "rgba(255,255,255,0.28)" }}>Every call, permanently auditable.</span>
+            Cryptographic Proof of Intelligence.
+            <br className="hidden md:block" />
+            <span style={{ color: "rgba(255,255,255,0.45)" }}>Every decision, permanently verifiable.</span>
           </motion.h2>
 
           <motion.p
@@ -215,7 +223,7 @@ export function OnChainProofSection() {
                 </span>
               )}
               <button
-                onClick={fetchRecs}
+                onClick={() => fetchPage(1)}
                 disabled={loading}
                 className="text-[10px] font-mono tracking-wider uppercase transition-colors"
                 style={{ color: "rgba(0,255,136,0.5)", cursor: loading ? "wait" : "pointer" }}
@@ -341,17 +349,78 @@ export function OnChainProofSection() {
             )
           })}
 
-          {/* Footer note */}
-          {recs.length > 0 && (
-            <div className="px-6 py-3 border-t flex items-center justify-between" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
-              <span className="text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.18)" }}>
-                Showing {recs.length} most recent verified recommendation{recs.length !== 1 ? "s" : ""}
-              </span>
-              {lastFetched && (
-                <span className="text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.15)" }}>
-                  Last updated: {lastFetched.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+          {/* ── Pagination footer ── */}
+          {(recs.length > 0 || page > 1) && (
+            <div
+              className="px-6 py-4 border-t flex flex-wrap items-center justify-between gap-4"
+              style={{ borderColor: "rgba(255,255,255,0.05)" }}
+            >
+              {/* Left: count + timestamp */}
+              <div className="flex items-center gap-3">
+                <span className="text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.2)" }}>
+                  Page {page} · {recs.length} record{recs.length !== 1 ? "s" : ""}
                 </span>
-              )}
+                {lastFetched && (
+                  <span className="text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.13)" }}>
+                    · Updated {lastFetched.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                  </span>
+                )}
+              </div>
+
+              {/* Right: prev / page indicator dots / next */}
+              <div className="flex items-center gap-2">
+                {/* Prev */}
+                <button
+                  onClick={() => !loading && page > 1 && fetchPage(page - 1)}
+                  disabled={loading || page <= 1}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono transition-all"
+                  style={{
+                    background: page > 1 ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.02)",
+                    border: "1px solid rgba(255,255,255,0.07)",
+                    color: page > 1 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)",
+                    cursor: page > 1 && !loading ? "pointer" : "default",
+                  }}
+                  onMouseEnter={e => page > 1 && !loading && ((e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.9)")}
+                  onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = page > 1 ? "rgba(255,255,255,0.55)" : "rgba(255,255,255,0.18)")}
+                >
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                  Prev
+                </button>
+
+                {/* Page number pill */}
+                <div
+                  className="flex items-center justify-center min-w-[32px] h-7 px-2.5 rounded-lg text-[10px] font-mono font-semibold"
+                  style={{
+                    background: "rgba(0,255,136,0.1)",
+                    border: "1px solid rgba(0,255,136,0.2)",
+                    color: "rgba(0,255,136,0.9)",
+                  }}
+                >
+                  {page}
+                </div>
+
+                {/* Next */}
+                <button
+                  onClick={() => !loading && hasMore && fetchPage(page + 1)}
+                  disabled={loading || !hasMore}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-mono transition-all"
+                  style={{
+                    background: hasMore ? "rgba(0,255,136,0.08)" : "rgba(255,255,255,0.02)",
+                    border: hasMore ? "1px solid rgba(0,255,136,0.18)" : "1px solid rgba(255,255,255,0.07)",
+                    color: hasMore ? "rgba(0,255,136,0.75)" : "rgba(255,255,255,0.18)",
+                    cursor: hasMore && !loading ? "pointer" : "default",
+                  }}
+                  onMouseEnter={e => hasMore && !loading && ((e.currentTarget as HTMLElement).style.color = "rgba(0,255,136,1)")}
+                  onMouseLeave={e => ((e.currentTarget as HTMLElement).style.color = hasMore ? "rgba(0,255,136,0.75)" : "rgba(255,255,255,0.18)")}
+                >
+                  Next
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </button>
+              </div>
             </div>
           )}
         </motion.div>

@@ -91,6 +91,36 @@ export default function DashboardPage() {
           {/* Stats Cards Section */}
           <StatsCards />
 
+          {/* AI Agent Features Banner */}
+          <div className="relative overflow-hidden rounded-2xl border border-[#00ff88]/20 bg-[#00ff88]/[0.02] p-6 sm:p-8">
+            <div className="absolute inset-0 bg-gradient-to-r from-[#00ff88]/10 via-transparent to-transparent pointer-events-none" />
+            <div className="relative flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
+              <div className="flex-1 space-y-2.5">
+                <div className="flex items-center gap-2 text-[#00ff88] font-mono text-xs font-semibold tracking-wider uppercase">
+                  <BrainCircuit className="w-4 h-4" />
+                  <span>YieldSage Telegram Agent</span>
+                </div>
+                <h3 className="text-xl sm:text-2xl font-light text-white font-sans tracking-tight">
+                  Simulate trades directly or chat with the AI Agent.
+                </h3>
+                <p className="text-white/60 text-sm max-w-3xl font-mono leading-relaxed">
+                  Click <span className="text-white font-semibold">Simulate</span> on any yield pool to run a paper trade instantly, or chat with the agent for personalized portfolio analysis, risk profiling, and hourly updates.
+                </p>
+              </div>
+              <div className="flex-shrink-0 w-full lg:w-auto">
+                <a
+                  href="https://t.me/YieldSageBot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-[#00ff88]/10 hover:bg-[#00ff88]/20 text-[#00ff88] border border-[#00ff88]/30 shadow-[0_0_20px_rgba(0,255,136,0.1)] transition-all duration-300 font-mono text-xs uppercase tracking-wider font-semibold group w-full lg:w-auto"
+                >
+                  <Send className="w-4 h-4 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 transition-transform" />
+                  Chat With Agent
+                </a>
+              </div>
+            </div>
+          </div>
+
           {/* Full-Width Leaderboard Table */}
           <LeaderboardTable />
 

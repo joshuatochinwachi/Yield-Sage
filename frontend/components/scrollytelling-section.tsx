@@ -381,10 +381,11 @@ export function ScrollytellingSection({
 
           <nav className="hidden md:flex items-center gap-8">
             {[
-              { label: "Features",  href: "#features" },
-              { label: "AI Agent",     href: "#agent" },
-              { label: "Dashboard", href: "/dashboard" },
-              { label: "Docs",      href: "/docs" },
+              { label: "Features",      href: "#features" },
+              { label: "AI Agent",      href: "#agent" },
+              { label: "Verifiability", href: "#on-chain-proof" },
+              { label: "Dashboard",     href: "/dashboard" },
+              { label: "Docs",          href: "/docs" },
             ].map((item) => (
               <a
                 key={item.label}
