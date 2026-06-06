@@ -7,7 +7,7 @@ GET /api/recommendations/latest   — Latest recommendation per risk tier
 GET /api/recommendations/history  — Full paginated history with on-chain proof links
 """
 
-from agent.logger import build_recommendation_payload
+from logger import build_recommendation_payload
 import os
 import logging
 from typing import Optional
