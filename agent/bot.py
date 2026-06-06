@@ -281,8 +281,9 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         created_at_str = rec["created_at"].replace("Z", "+00:00")
         scored_at_dt = datetime.fromisoformat(created_at_str)
 
-        # Get TVL from snapshot at scoring time
-        snap_res = (
+        # Get TVL candidates from snapshots immediately before or after created_at
+        # (resolves race conditions where snapshot fetched_at is slightly after rec created_at)
+        snap_res_lte = (
             supabase.table("yield_snapshots")
             .select("tvl_usd")
             .eq("protocol_id", rec["protocols"]["id"])
@@ -291,7 +292,22 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             .limit(1)
             .execute()
         )
-        real_tvl = snap_res.data[0]["tvl_usd"] if snap_res.data else 0.0
+        snap_res_gte = (
+            supabase.table("yield_snapshots")
+            .select("tvl_usd")
+            .eq("protocol_id", rec["protocols"]["id"])
+            .gte("fetched_at", rec["created_at"])
+            .order("fetched_at", desc=False)
+            .limit(1)
+            .execute()
+        )
+        
+        tvls = [0.0]
+        if snap_res_lte.data:
+            tvls.append(snap_res_lte.data[0]["tvl_usd"])
+        if snap_res_gte.data:
+            tvls.append(snap_res_gte.data[0]["tvl_usd"])
+        tvls = list(set(tvls))
 
         target_hash = rec["recommendation_hash"]
         matched_payload = None
@@ -310,8 +326,6 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             rec["protocols"]["pool_name"].replace("/", "-"),
             rec["protocols"]["pool_name"].replace("-", "/"),
         ]))
-        
-        tvls = [real_tvl, 0.0]
 
         for proto_n in proto_names:
             for pool_n in pool_names:
