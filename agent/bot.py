@@ -87,11 +87,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = user.first_name or "there"
     greeting = (
         f"👋 **Welcome to YieldSage, {name}!**\n\n"
-        "I am your intelligent DeFi yield advisor for the **Mantle Network**.\n\n"
+        "I am your intelligent AI-powered DeFi yield assistant for the **Mantle Network**.\n\n"
         "Here is what I can do for you:\n"
-        "📈 **Paper Trading**: Simulate investing in yield pools and track APY changes.\n"
-        "🚨 **Hourly Scoring**: Analyze your positions and alert you if yields drop or if better options appear.\n"
-        "💬 **DeFi Assistant**: Ask me any questions about yield opportunities or adjusting your portfolio!\n\n"
+        "📈 **Paper Trading**: Simulate investing in live yield pools with zero capital risk.\n"
+        "🚨 **Hourly Scoring & Alerts**: Automatically analyze your positions and alert you if yields drop or if better options appear.\n"
+        "🔍 **On-Chain Verification**: Check and cryptographically verify AI recommendations using on-chain SHA-256 hashes.\n"
+        "💬 **DeFi Assistant & Insights**: Ask me any questions about yield strategies, pool risks, TVL drops, or portfolio optimization!\n\n"
         "Use the buttons below to explore:"
     )
     
@@ -106,9 +107,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ],
         [
             InlineKeyboardButton("🔔 Alert Settings", callback_data="view_alerts"),
-            InlineKeyboardButton("💡 Prompts", callback_data="view_prompts")
+            InlineKeyboardButton("💡 Prompts & FAQs", callback_data="view_prompts")
         ],
         [
+            InlineKeyboardButton("🔍 Verify Proof", callback_data="view_verify"),
             InlineKeyboardButton("❓ Help & Guide", callback_data="view_help")
         ]
     ]
@@ -812,6 +814,23 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
         await query.message.edit_text(help_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
+    elif data == "view_verify":
+        # Send on-chain proof verification instructions
+        verify_text = (
+            "🔍 **On-Chain Yield Verification**\n\n"
+            "Every YieldSage recommendation is fingerprinted with a secure SHA-256 hash and permanently logged on the **Mantle blockchain**.\n\n"
+            "To verify the authenticity of any recommendation, run:\n"
+            "`/verify <transaction_hash>`\n\n"
+            "Example:\n"
+            "`/verify 0x1af457148117e2b1d866af5c086a53ba9a63764f96f8983b75cb0f96b77adbfa`\n\n"
+            "**What happens next?**\n"
+            "1. We fetch the matching recommendation from the secure database.\n"
+            "2. We reconstruct the exact JSON metadata payload (APY, TVL, AI Reasoning, and timestamp).\n"
+            "3. We hash it using SHA-256 and cross-examine it against the on-chain logged transaction hash.\n"
+            "4. This mathematically proves the recommendation's integrity and prevents tampering."
+        )
+        keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]
+        await query.message.edit_text(verify_text, reply_markup=InlineKeyboardMarkup(keyboard), parse_mode=ParseMode.MARKDOWN)
     elif data == "view_prompts":
         await query.answer()
         await prompts_command(update, context)
