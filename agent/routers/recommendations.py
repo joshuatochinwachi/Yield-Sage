@@ -1,7 +1,7 @@
 """
 routers/recommendations.py
 ───────────────────────────
-Public endpoints for AI-generated yield recommendations.
+Public endpoints for AI-generated yield recommendations
 
 GET /api/recommendations/latest   — Latest recommendation per risk tier
 GET /api/recommendations/history  — Full paginated history with on-chain proof links
