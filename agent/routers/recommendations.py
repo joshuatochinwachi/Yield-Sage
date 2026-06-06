@@ -186,7 +186,8 @@ async def verify_recommendation_by_tx(tx_hash: str):
     """
     db = _db_or_503()
     try:
-        # 1. Fetch from DB
+        # 1. Fetch from DB using ilike for case-insensitive lookup
+        tx_lower = tx_hash.lower()
         rec_res = (
             db.table("recommendations")
             .select(
@@ -194,15 +195,28 @@ async def verify_recommendation_by_tx(tx_hash: str):
                 "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
                 "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
             )
-            .eq("on_chain_tx_hash", tx_hash)
-            .single()
+            .ilike("on_chain_tx_hash", tx_lower)
             .execute()
         )
 
         if not rec_res.data:
+            # Try without 0x prefix just in case
+            clean_hash = tx_lower.replace("0x", "")
+            rec_res = (
+                db.table("recommendations")
+                .select(
+                    "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
+                    "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
+                    "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
+                )
+                .ilike("on_chain_tx_hash", f"%{clean_hash}%")
+                .execute()
+            )
+
+        if not rec_res.data:
             raise HTTPException(status_code=404, detail="Recommendation not found for this transaction hash.")
 
-        rec = rec_res.data
+        rec = rec_res.data[0]
         rec["explorer_url"] = _build_explorer_link(rec.get("on_chain_tx_hash"))
 
         # 2. Reconstruct the canonical JSON payload

@@ -208,7 +208,8 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
     
     try:
-        # Fetch from DB
+        # Fetch from DB. We check for exact match, case-insensitive match, and prefixes.
+        # Use execute() instead of single() to avoid PGRST116 exceptions.
         rec_res = (
             supabase.table("recommendations")
             .select(
@@ -216,19 +217,47 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
                 "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
             )
-            .eq("on_chain_tx_hash", tx_hash)
-            .single()
+            .execute()
+        )
+
+        # Let's filter in memory or try direct queries. Since recommendations table is small,
+        # we can first try an exact case-insensitive match, or try to query specific formats.
+        # But to be robust and performant, we can do a targeted query using .ilike or filter:
+        tx_lower = tx_hash.lower()
+        rec_res = (
+            supabase.table("recommendations")
+            .select(
+                "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
+                "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
+                "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
+            )
+            .ilike("on_chain_tx_hash", tx_lower)
             .execute()
         )
 
         if not rec_res.data:
+            # Try without 0x prefix just in case it is stored that way in some rows
+            clean_hash = tx_lower.replace("0x", "")
+            rec_res = (
+                supabase.table("recommendations")
+                .select(
+                    "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
+                    "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
+                    "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
+                )
+                .ilike("on_chain_tx_hash", f"%{clean_hash}%")
+                .execute()
+            )
+
+        if not rec_res.data:
             await update.message.reply_text(
-                "❌ Recommendation not found in database for this transaction hash. "
-                "Make sure you copied the correct Mantle transaction hash."
+                "❌ Recommendation not found in database for this transaction hash.\n"
+                f"Searched for hash: `{tx_hash}`\n"
+                "Make sure you copied the correct Mantle transaction hash, or that the transaction has finished indexing."
             )
             return
 
-        rec = rec_res.data
+        rec = rec_res.data[0]
 
         # Reconstruct canonical JSON payload
         try:
