@@ -7,6 +7,7 @@ GET /api/recommendations/latest   — Latest recommendation per risk tier
 GET /api/recommendations/history  — Full paginated history with on-chain proof links
 """
 
+from agent.logger import build_recommendation_payload
 import os
 import logging
 from typing import Optional
@@ -229,6 +230,11 @@ async def verify_recommendation_by_tx(tx_hash: str):
         # 2. Reconstruct the canonical JSON payload
         # Try permutations to find the exact configuration matching the stored recommendation_hash
         # (resolving issues from historic renames, TVL placeholders, or legacy formats)
+        try:
+            from agent.logger import build_recommendation_payload
+        except ImportError:
+            from logger import build_recommendation_payload
+
         import json
         import hashlib
         from datetime import datetime
