@@ -1,178 +1,221 @@
 # YieldSage System Architecture
 
-This document describes the high-level system architecture, data topology, and service integrations of the YieldSage yield intelligence agent on the Mantle Network.
+**Version:** 1.2.0 — June 2026  
+**Target Platform:** Mantle Network (Chain ID 5000)  
+**Security Level:** Production-ready (RLS-enforced + Cryptographically audited)
+
+This document describes the high-level system topology, decoupled service interactions, and data-flow sequences that govern the YieldSage runtime ecosystem.
 
 ---
 
-## 1. Architectural Overview
+## 1. High-Level Decoupled Architecture
 
-YieldSage is structured as a decoupled, multi-tier system designed to ensure high performance, fault tolerance, and absolute data consistency. The architecture is split into three core layers:
-
-1. **Data Ingestion & Agent Layer (Python Backend)**: 
-   - **Dune Fetcher**: Periodically execution-triggers and pulls yield metrics from Dune Analytics.
-   - **AI Scorer / Advisor Service**: Interacts with the LLM cascade (Cerebras, SambaNova, Groq, NVIDIA, Gemini) to score pools and formulate plain-English advice.
-   - **Telegram Bot**: Processes queries, handles paper trade simulations with direct parameter parsing, and broadcasts hourly yield alerts.
-   - **FastAPI REST API**: Serving the web application.
-
-2. **Database Layer (Supabase / PostgreSQL)**:
-   - Houses structural schemas, user profile preferences, alerts, paper trades, yield snapshots, and recommendations. Actively enforces Row Level Security (RLS).
-
-3. **Client Layer (Next.js & Telegram)**:
-   - **Next.js Web Dashboard**: Highly-optimized dark-mode React interface for yield monitoring, charts, and simulated trading.
-   - **Telegram Chat**: Interactive bot for real-time alerts, prompt shortcuts, and natural language advisory queries.
-
-### High-Level Component Interactions
+YieldSage is built on a decoupled, asynchronous multi-tier architecture to guarantee high availability, resilient data ingestion, and trustless verification.
 
 ```mermaid
 graph TB
-    subgraph Client Layer [Client Layer]
-        A["Next.js Web Dashboard"]
-        B["Telegram User Chat"]
+    subgraph ClientLayer ["1. Client & User Layer"]
+        NextJS["Next.js Web App\n(Vercel Edge Nodes)"]
+        TGUser["Telegram Client\n(Mobile / Desktop)"]
     end
 
-    subgraph Service Layer [Service Layer]
-        C["FastAPI App (REST API)"]
-        D["Telegram Bot Event Loop"]
-        E["AI Scorer & Advisor"]
+    subgraph GatewayLayer ["2. REST API Gateway"]
+        FastAPI["FastAPI Web Service\n(Railway Web Container)"]
+        JWTAuth["JWT Authentication\n(Supabase Auth)"]
+        FastAPI <--> JWTAuth
     end
 
-    subgraph Database Layer [Database Layer]
-        F[(Supabase / PostgreSQL)]
+    subgraph DatabaseLayer ["3. Database Persistence"]
+        DB[("Supabase PostgreSQL\n(RLS Policies Enforced)")]
     end
 
-    subgraph Data Ingestion Layer [Data Ingestion & Blockchain Layer]
-        G["Dune Analytics API"]
-        H["Mantle RPC Validator Node"]
+    subgraph AgentLayer ["4. Agent & Pipeline Layer"]
+        Fetcher["Dune Ingestion Fetcher\n(agent/fetcher.py)"]
+        Scorer["Scoring & Scoring Engine\n(agent/scorer.py)"]
+        OnChainLogger["On-Chain Logger\n(agent/logger.py)"]
+        TGBot["Telegram Bot Daemon\n(agent/bot.py)"]
+        Scheduler["APScheduler Daemon\n(agent/scheduler.py)"]
     end
 
-    %% Data flow directions
-    G -->|Hourly fetch| E
-    E -->|Write snapshots/recommendations| F
-    C -->|Read-only stats / yields| F
-    D -->|Read memory / trade states| F
-    A -->|Fetch REST APIs| C
-    B -->|Interact commands / text| D
-    D -->|Conversational API| E
-    E -->|Log recommendation memos| H
+    subgraph ExternalServices ["5. Off-Chain & On-Chain Networks"]
+        Dune["Dune Analytics API\n(Query #7595582)"]
+        AICascade["LLM cascade Providers\n(Cerebras / SambaNova / Groq)"]
+        Mantle["Mantle L2 Network\n(RPC Node Chain 5000)"]
+    end
+
+    %% Client Interactions
+    NextJS <-->|HTTPS / JSON| FastAPI
+    TGUser <-->|HTTPS / Webhook| TGBot
+    TGBot <-->|Internal API Calls| FastAPI
+
+    %% Gateway to Database
+    FastAPI <-->|SQL Queries / Auth| DB
+
+    %% Agent Interactions
+    Scheduler -->|Every 60m| Fetcher
+    Scheduler -->|Every 60m| Scorer
+    Scheduler -->|Every 6h| OnChainLogger
+
+    Fetcher -->|Dune API Key Pool| Dune
+    Fetcher -->|Upsert Protocols & Snapshots| DB
+
+    Scorer -->|Fetch Fresh Yields| DB
+    Scorer -->|Execute Cascade Prompts| AICascade
+    Scorer -->|Save AI Recommendations| DB
+
+    OnChainLogger -->|Scan Missed Hashes| DB
+    OnChainLogger -->|Send 0-MNT Transaction| Mantle
+    
+    DB <-->|Read / Write state| TGBot
 ```
 
 ---
 
-## 2. Ingestion & Sync Topology
+## 2. Scheduled Pipeline Sequence Diagram
 
-The ingestion process runs hourly, pulling structured pool statistics directly from Dune. The data is processed composite-key style (grouped by `(Protocol, Pool Address)`) to handle protocols that have multiple pools on the same contract or distinct asset groups.
-
-### Ingestion Flow Diagram
+YieldSage operates on an automated 60-minute synchronization pipeline managed by `agent/scheduler.py`. This diagram shows the chronology of actions during an hourly run.
 
 ```mermaid
 sequenceDiagram
     autonumber
+    participant S as APScheduler
+    participant F as DuneFetcher (fetcher.py)
     participant D as Dune Analytics API
-    participant F as Dune Fetcher (agent/fetcher.py)
-    participant DB as Supabase Database
-    
-    F->>D: POST /query/{query_id}/execute (using active credentials key)
-    D-->>F: Return execution_id
-    loop Every 15 seconds
-        F->>D: GET /execution/{execution_id}/status
-        D-->>F: Return Status (PENDING/COMPLETED)
-    end
-    F->>D: GET /query/{query_id}/results/csv
-    D-->>F: Return CSV Data Stream
-    
-    Note over F,DB: Composite Key Analysis: (protocol_name, pool_address)
-    F->>DB: SELECT id, name, pool_address FROM protocols
-    DB-->>F: Return existing protocols list
-    
-    rect rgb(20, 20, 20)
-        Note over F: Deduplicate & register new protocols (if missing)
-        F->>DB: INSERT INTO protocols (new records)
-    end
-    
-    F->>DB: INSERT INTO yield_snapshots (APY, TVL, Base APY, Reward APY, etc.)
-    DB-->>F: Acknowledge writes
+    participant DB as Supabase PostgreSQL
+    participant E as ScoringEngine (scorer.py)
+    participant AI as AI Cascade (ai_service.py)
+    participant L as OnChainLogger (logger.py)
+    participant M as Mantle L2 Network
+
+    %% Ingestion phase
+    S->>F: Trigger Ingestion (Hourly Cron)
+    activate F
+    F->>F: Rotate API Key (Check Credits)
+    F->>D: Execute Query 7595582
+    activate D
+    D-->>F: Return Yield CSV Dataset
+    deactivate D
+    F->>DB: Upsert Protocols & Snapshots (deduplicated)
+    F-->>S: Ingestion Complete
+    deactivate F
+
+    %% Scoring phase
+    S->>E: Trigger Scoring & Alerts
+    activate E
+    E->>DB: Query Latest Yield Snapshots
+    activate DB
+    DB-->>E: Return Live Snapshots
+    deactivate DB
+    E->>AI: Request Scoring & Reasoning Cascade
+    activate AI
+    AI->>AI: Evaluate APY Trends, TVL, and Asset Risks
+    AI-->>E: Return AI Picks & Explanations
+    deactivate AI
+    E->>DB: Insert recommendations & user alerts
+    E-->>S: Scoring Complete
+    deactivate E
+
+    %% On-Chain logging phase
+    S->>L: Trigger On-Chain Logging
+    activate L
+    L->>DB: Fetch New Unlogged recommendations
+    activate DB
+    DB-->>L: Return Canonical recommendation Info
+    deactivate DB
+    L->>L: Serialize Canonical payload (Deterministic)
+    L->>L: Compute SHA-256 Hash
+    L->>M: Send 0-MNT self-transaction with memo: "yieldsage:<hash>"
+    activate M
+    M-->>L: Return Transaction Hash (tx_hash)
+    deactivate M
+    L->>DB: Update recommendation record (tx_hash, logged_at)
+    L-->>S: Logging Complete
+    deactivate L
 ```
 
 ---
 
-## 3. Multi-LLM Cascading Architecture
+## 3. Multi-LLM Cascade & Outage Recovery Flow
 
-To guarantee 100% service uptime for real-time Telegram queries and background scoring tasks, YieldSage implements a **Cascading Fallback Routing** algorithm across multiple independent LLM providers. If a provider throws a `RateLimitError` (HTTP 429) or other API exceptions, the engine immediately cascades down to the next provider.
-
-### Realtime User Query Routing Priority
-
-1. **Cerebras** (`gpt-oss-120b` ➛ `zai-glm-4.7`)
-2. **SambaNova** (`Meta-Llama-3.3-70B-Instruct` ➛ `gemma-3-12b-it`)
-3. **Groq** (`llama-3-3-70b-versatile`)
-4. **NVIDIA** (`meta/llama-3.3-70b-instruct` ➛ `meta/llama-3.1-70b-instruct`)
-5. **Gemini** (`gemini-2.5-flash-lite` ➛ `gemini-2.5-flash`)
-
-For background tasks (such as hourly scoring of paper trades), the priority order is rearranged to route through **NVIDIA** and **Gemini** first, reserving Cerebras/SambaNova high-speed slots for interactive user chats.
-
-### Cascade Control Sequence
+To ensure uninterrupted service, YieldSage routes queries through a priority queue of LLM providers. If a provider rate-limits or returns an error, the engine instantly falls back.
 
 ```mermaid
 flowchart TD
-    Start([User query received]) --> BuildPrompt[Build context & system prompts]
-    BuildPrompt --> TryCerebras{Try Cerebras API}
+    Start[User Query or Scorer Request] --> CheckInteractive{Query Type?}
     
-    TryCerebras -->|Success| ReturnResponse[Format & clean output]
-    TryCerebras -->|429 / Error| TrySambaNova{Try SambaNova API}
+    %% Interactive Routing
+    CheckInteractive -->|Interactive Telegram| P1[Priority 1: Cerebras\nLlama-3.1-70B\nFastest Response]
+    P1 -->|Success| Save[Return Response]
+    P1 -->|Outage / Timeout| P2[Priority 2: SambaNova\nLlama-3.1-405B]
+    P2 -->|Success| Save
+    P2 -->|Outage / Timeout| P3[Priority 3: Groq\nLlama-3.3-70B]
+    P3 -->|Success| Save
+    P3 -->|Outage / Timeout| P4[Priority 4: NVIDIA NIM\nLlama-3-70B]
+    P4 -->|Success| Save
+    P4 -->|Outage / Timeout| P5[Priority 5: Google Gemini\nFlash-1.5\nFallback]
+    P5 -->|Success| Save
+    P5 -->|Failure| ErrorAlert[Return Error / Alert Ops]
     
-    TrySambaNova -->|Success| ReturnResponse
-    TrySambaNova -->|429 / Error| TryGroq{Try Groq API}
-    
-    TryGroq -->|Success| ReturnResponse
-    TryGroq -->|429 / Error| TryNvidia{Try NVIDIA API}
-    
-    TryNvidia -->|Success| ReturnResponse
-    TryNvidia -->|429 / Error| TryGemini{Try Gemini API}
-    
-    TryGemini -->|Success| ReturnResponse
-    TryGemini -->|Failure| ServeCache[Serve Last-Known-Good cached advice]
-    
-    ServeCache --> ReturnResponse
-    ReturnResponse --> End([Reply sent to client])
+    %% Background Routing (Reversed to save Cerebras credits for live users)
+    CheckInteractive -->|Background Alerting| B1[Priority 1: SambaNova / Groq\nLarge Context Capacity]
+    B1 -->|Success| Save
+    B1 -->|Outage / Timeout| B2[Priority 2: NVIDIA NIM / Gemini]
+    B2 -->|Success| Save
+    B2 -->|Outage / Timeout| B3[Priority 3: Cerebras\nLast Fallback]
+    B3 -->|Success| Save
+    B3 -->|Failure| LogDbError[Log Fail to DB Queue]
 ```
 
 ---
 
-## 4. On-Chain Verifiability Layer
+## 4. On-Chain Commit & Recovery Lifecycle
 
-To establish trust and verify that the AI agent's recommendations are real, directional, and tamper-proof, every daily recommendation batch is cryptographically logged on the Mantle Network.
-
-1. **Hash Generation**: A SHA-256 hash is computed from the daily recommendation payload (timestamp, ranking order, risk tiers, and recommended APYs).
-2. **On-Chain Log**: The agent triggers a 0-value transaction to its own wallet address, appending the SHA-256 hash as hexadecimal data in the transaction `data` (memo) field.
-3. **Proof Verification**: The dashboard reads the transaction hash from the database, rendering a direct link to the transaction on the Mantle Explorer.
+If RPC latency or gas price fluctuations cause the initial Mantle transaction to fail, the system falls back to a 6-hourly recovery pipeline to ensure every recommendation is eventual-consistent on-chain.
 
 ```mermaid
-graph LR
-    A[Daily Scorer Output] -->|Serialize payload| B(JSON String)
-    B -->|SHA-256 Hash| C(Hash: 0x6e3d...)
-    D[YieldSage Agent Wallet] -->|0 MNT Transaction + data=0x6e3d...| E[Mantle Network Validator]
-    E -->|Mine block| F(Tx Hash: 0x82b4...)
-    F -->|Stored in| G[(recommendations.on_chain_tx_hash)]
-    H[Frontend Dashboard] -->|Queries /api/recommendations/history| G
-    H -->|Renders Link| I["Mantle Explorer Link (Verify on-chain)"]
+stateDiagram-v2
+    [*] --> RecommendationGenerated : Scorer completes run
+    
+    state In_Database {
+        RecommendationGenerated --> HashComputed : Compute SHA-256 fingerprint
+        HashComputed --> StoredInDB : Save recommendation with status (pending_log)
+    }
+
+    state Log_To_Mantle {
+        StoredInDB --> BroadcastTx : Submit 0-MNT transaction to Mantle Network
+        
+        state ConfirmationCheck <<choice>>
+        BroadcastTx --> ConfirmationCheck
+        
+        ConfirmationCheck --> VerifiedOnChain : Transaction confirmed (success)
+        ConfirmationCheck --> FailToLog : RPC Timeout / Gas error (failure)
+    }
+    
+    state Recovery_Scheduler {
+        FailToLog --> SixHourCron : Waits in database with tx_hash = NULL
+        SixHourCron --> FetchUnlogged : Recovery job scans for null tx_hash
+        FetchUnlogged --> RecomputeHash : Reconstruct canonical payload & verify matches DB hash
+        RecomputeHash --> ReBroadcastTx : Resubmit 0-MNT transaction
+        
+        state RecoveryCheck <<choice>>
+        ReBroadcastTx --> RecoveryCheck
+        
+        RecoveryCheck --> VerifiedOnChain : Confirmed on Mantle (success)
+        RecoveryCheck --> FailToLog : Retries exhausted (wait next 6h)
+    }
+
+    VerifiedOnChain --> [*] : Update DB with tx_hash & logged_at
 ```
 
 ---
 
-## 5. Network & Deployment Topology
+## 5. Deployment & Security Architecture
 
-- **Web Frontend (Vercel)**: Next.js 14 static-optimized client files communicating over secure HTTPS to the backend APIs. Uses React Query for client caching and polling.
-- **Backend Services (Railway)**: Dockerized Python environment running three processes:
-  1. `web` (FastAPI REST server serving requests on port 8000 via Uvicorn).
-  2. `worker` (APScheduler cron jobs running data fetches hourly and recommendations daily).
-  3. `bot` (Telegram async event loop processing long-poll messages).
-- **Database (Supabase)**: Multi-region PostgreSQL DB with strict Row Level Security (RLS) policies.
+### Network Configuration
+*   **Vercel:** Hosts the Next.js frontend app. Traffic is routed through Vercel's global CDN Edge Nodes for maximum speed.
+*   **Railway:** Runs the FastAPI web backend, Telegram listener daemon, and scheduled background workers within an isolated Docker private network.
+*   **Supabase:** Secure PostgreSQL database layer. Port access is locked down; all user CRUD queries must validate against Row Level Security (RLS) rules matching the authenticated Supabase JWT.
 
----
-
-## 6. Zero-Friction Paper Trading Flow
-
-To make paper trading simulations seamless, YieldSage integrates the Next.js Pro Dashboard with the Telegram AI Agent:
-
-1. **Dashboard Prompt**: When a user clicks **Simulate** on a pool in the web interface, a modal prompts them for a USD investment amount.
-2. **Prefilled Command Redirect**: Clicking **Approve** redirects the user to Telegram with a pre-filled deep-link command: `/trade address=<pool_address> amount=<amount> token=<pool_name>`.
-3. **Instant Simulation**: The Telegram Bot parses these parameters directly, matches the protocol in the database, grabs the latest APY snapshot, and instantly simulates the trade, skipping the manual interactive configuration steps.
+### Key Management
+*   **System Wallets:** Private keys required for signing Mantle transactions are injected directly into Railway environment variables. They are never committed to git or stored in public database columns.
+*   **RPC Node Redundancy:** The Python `Web3` client contains automatic fallback routing. If `rpc.mantle.xyz` fails, it rotates requests to backup public RPC endpoints (e.g. `ankr.com/mantle`, `infura.io`) to ensure transactions are processed.

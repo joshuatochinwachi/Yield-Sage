@@ -79,13 +79,22 @@ export default function DashboardPage() {
 
         {/* Main Content Body */}
         <main className="relative z-10 w-full max-w-[1600px] mx-auto pt-10 pb-20 px-4 sm:px-6 lg:px-12 xl:px-16 space-y-8 animate-in fade-in duration-700">
-          <div className="space-y-1">
-            <h1 className="text-4xl sm:text-5xl font-light text-white tracking-tight font-sans">
-              Yield Intelligence
-            </h1>
-            <p className="text-white/60 text-xs sm:text-sm font-light max-w-2xl font-mono leading-relaxed">
-              Real-time APY tracking, AI-driven recommendations, and risk-adjusted metrics for the Mantle network.
-            </p>
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 border-b border-white/5 pb-6">
+            <div className="space-y-1">
+              <h1 className="text-4xl sm:text-5xl font-light text-white tracking-tight font-sans">
+                Yield Intelligence
+              </h1>
+              <p className="text-white/60 text-xs sm:text-sm font-light max-w-2xl font-mono leading-relaxed">
+                Real-time APY tracking, AI-driven recommendations, and risk-adjusted metrics for the Mantle network.
+              </p>
+            </div>
+            <a 
+              href="/#on-chain-proof" 
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest text-[#00ff88]/60 hover:text-[#00ff88] border border-[#00ff88]/15 hover:border-[#00ff88]/30 bg-[#00ff88]/5 rounded-lg transition-all duration-300 self-start md:self-auto hover:shadow-[0_0_12px_rgba(0,255,136,0.08)] hover:-translate-y-0.5"
+            >
+              <span>⛓</span>
+              <span>On-Chain Verification</span>
+            </a>
           </div>
 
           {/* Stats Cards Section */}

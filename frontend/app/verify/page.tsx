@@ -142,6 +142,10 @@ function VerifyContent() {
   const [errorMsg, setErrorMsg] = useState("");
   const [computedHash, setComputedHash] = useState("");
   const [step, setStep] = useState(0); // 0=fetching, 1=building, 2=hashing, 3=comparing
+  const [simModalOpen, setSimModalOpen] = useState(false);
+  const [simPoolAddr, setSimPoolAddr] = useState("");
+  const [simPoolName, setSimPoolName] = useState("");
+  const [simAmount, setSimAmount] = useState("1000");
 
   useEffect(() => {
     if (!txHash) {
@@ -205,24 +209,73 @@ function VerifyContent() {
       <div className="relative z-10 min-h-screen flex flex-col">
 
         {/* ── Top nav strip ── */}
-        <nav className="flex items-center justify-between px-6 md:px-12 py-5 border-b" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
-          <a href="/" className="flex items-center gap-2.5 group">
+        <nav className="flex items-center justify-between px-4 sm:px-6 md:px-12 py-4 border-b gap-3" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+          {/* Left: brand breadcrumb */}
+          <a href="/" className="flex items-center gap-2 group flex-shrink-0">
             <div
               className="w-7 h-7 rounded-lg overflow-hidden flex-shrink-0"
               style={{ border: "1px solid rgba(0,255,136,0.25)" }}
             >
               <img src="/logo.jpg" alt="YieldSage" className="w-full h-full object-cover" />
             </div>
-            <span className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.7)" }}>YieldSage</span>
-            <span className="text-sm" style={{ color: "rgba(255,255,255,0.2)" }}>/</span>
+            <span className="text-sm font-semibold hidden sm:inline" style={{ color: "rgba(255,255,255,0.7)" }}>YieldSage</span>
+            <span className="text-sm hidden sm:inline" style={{ color: "rgba(255,255,255,0.2)" }}>/</span>
             <span className="text-sm font-mono" style={{ color: "rgba(0,255,136,0.7)" }}>Proof Verification</span>
           </a>
-          <div
-            className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-mono tracking-widest uppercase"
-            style={{ background: "rgba(0,255,136,0.06)", border: "1px solid rgba(0,255,136,0.15)", color: "rgba(0,255,136,0.6)" }}
-          >
-            <span style={{ width: 5, height: 5, borderRadius: "50%", background: "rgba(0,255,136,1)", display: "inline-block", animation: "glowPulse 1.5s ease-in-out infinite" }} />
-            Mantle Network · Chain ID 5000
+
+          {/* Centre / Right: quick nav links */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+            <a
+              href="/dashboard"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono tracking-wide transition-all duration-200 border"
+              style={{
+                background: "rgba(0,255,136,0.07)",
+                border: "1px solid rgba(0,255,136,0.18)",
+                color: "rgba(0,255,136,0.8)",
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(0,255,136,0.14)";
+                (e.currentTarget as HTMLElement).style.color = "rgba(0,255,136,1)";
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(0,255,136,0.07)";
+                (e.currentTarget as HTMLElement).style.color = "rgba(0,255,136,0.8)";
+              }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+              </svg>
+              Dashboard
+            </a>
+            <a
+              href="/docs"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-mono tracking-wide transition-all duration-200"
+              style={{
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid rgba(255,255,255,0.09)",
+                color: "rgba(255,255,255,0.45)",
+              }}
+              onMouseEnter={e => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.08)";
+                (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.85)";
+              }}
+              onMouseLeave={e => {
+                (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.04)";
+                (e.currentTarget as HTMLElement).style.color = "rgba(255,255,255,0.45)";
+              }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>
+              </svg>
+              Docs
+            </a>
+            <div
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] font-mono tracking-widest uppercase"
+              style={{ background: "rgba(0,255,136,0.06)", border: "1px solid rgba(0,255,136,0.15)", color: "rgba(0,255,136,0.6)" }}
+            >
+              <span style={{ width: 5, height: 5, borderRadius: "50%", background: "rgba(0,255,136,1)", display: "inline-block", animation: "glowPulse 1.5s ease-in-out infinite" }} />
+              Mantle · Chain 5000
+            </div>
           </div>
         </nav>
 
@@ -529,6 +582,59 @@ function VerifyContent() {
                     </div>
                   </div>
 
+                  {/* Take Action Card */}
+                  {status === "success" && data.data.protocols && (
+                    <div
+                      className="rounded-2xl p-5 space-y-4"
+                      style={{
+                        background: "linear-gradient(135deg, rgba(0,255,136,0.06) 0%, rgba(0,200,100,0.02) 100%)",
+                        border: "1px solid rgba(0,255,136,0.18)",
+                        backdropFilter: "blur(24px)",
+                      }}
+                    >
+                      <div>
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-white flex items-center gap-1.5 font-mono">
+                          <span className="text-[#00ff88]">⚡</span>
+                          Take Action
+                        </h4>
+                        <p className="text-[11px] text-white/50 leading-relaxed mt-1">
+                          If this yield opportunity aligns with your risk profile, execute the trade or run a simulated test.
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        {data.data.protocols.app_link && (
+                          <a
+                            href={data.data.protocols.app_link}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#00ff88]/10 hover:bg-[#00ff88]/20 text-[#00ff88] border border-[#00ff88]/25 transition-all text-center cursor-pointer"
+                            title="Go to protocol DApp to invest"
+                          >
+                            Invest
+                            <IconLink />
+                          </a>
+                        )}
+                        <button
+                          onClick={() => {
+                            setSimPoolAddr(data.data.protocols.pool_address || "");
+                            setSimPoolName(`${data.data.protocols.name || "Protocol"} (${data.data.protocols.pool_name || "Pool"})`);
+                            setSimAmount("1000");
+                            setSimModalOpen(true);
+                          }}
+                          className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/25 transition-all text-center cursor-pointer"
+                          title="Simulate paper trade on Telegram"
+                        >
+                          Simulate
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M22 2L11 13" />
+                            <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* How it works card */}
                   <div
                     className="rounded-2xl p-5 space-y-3"
@@ -589,6 +695,49 @@ function VerifyContent() {
           )}
         </AnimatePresence>
       </div>
+      {simModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 transition-all duration-300">
+          <div className="bg-[#0a0a0c] border border-white/10 rounded-2xl p-6 max-w-sm w-full mx-auto shadow-2xl relative z-55">
+            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2 font-mono">
+              <span className="text-indigo-400">✨</span>
+              Simulate Paper Trade
+            </h3>
+            <p className="text-xs text-white/60 mb-4 leading-relaxed">
+              How much USD would you like to simulate investing in <span className="text-white font-semibold">{simPoolName}</span>?
+            </p>
+            <div className="relative mb-5">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-xs font-mono">$</span>
+              <input
+                type="number"
+                value={simAmount}
+                onChange={(e) => setSimAmount(e.target.value)}
+                placeholder="1000"
+                className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 rounded-xl pl-8 pr-4 py-2.5 text-sm font-mono text-white placeholder-white/20 outline-none transition-all"
+                autoFocus
+              />
+            </div>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setSimModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold rounded-lg border border-white/10 hover:bg-white/5 text-white/70 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setSimModalOpen(false);
+                  const cleanAddr = simPoolAddr.match(/0x[a-fA-F0-9]{40}/)?.[0] || simPoolAddr;
+                  const telegramUrl = `https://t.me/YieldSageBot?text=${encodeURIComponent(`/trade address=${cleanAddr} amount=${simAmount} token=${simPoolName}`)}`;
+                  window.open(telegramUrl, "_blank", "noopener,noreferrer");
+                }}
+                className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+              >
+                Approve
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

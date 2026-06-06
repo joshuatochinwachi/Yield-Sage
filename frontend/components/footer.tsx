@@ -93,11 +93,13 @@ export function Footer() {
           </div>
 
           {/* Links */}
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 sm:gap-6 flex-wrap justify-center">
             {([
               { label: "Twitter", href: "https://x.com/yieldsageai" },
               { label: "Telegram", href: "https://t.me/YieldSageBot" },
               { label: "Docs", href: "/docs" },
+              { label: "Privacy", href: "/privacy" },
+              { label: "Cookies", href: "/cookies" },
             ] as { label: string; href: string }[]).map(({ label, href }) => (
               <a
                 key={label}

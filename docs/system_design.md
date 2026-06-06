@@ -1,215 +1,304 @@
-# YieldSage System Design
+# YieldSage System Design Blueprint
 
-This document details the database schema design, the paper trading simulation engine, the AI scoring pipeline, and security enforcement policies for the YieldSage platform.
+**Version:** 1.2.0 — June 2026  
+**System Class:** Financial Intelligence & Cryptographic Logging Agent  
+**Host Target:** Railway (Backend) & Vercel (Frontend)
+
+This document specifies the internal design, database structures, algorithmic pathways, and operational parameters of the YieldSage yield intelligence engine.
 
 ---
 
-## 1. Database Schema & Entity Relationships
+## 1. System Design Principles & Decoupled Layout
 
-YieldSage uses a relational PostgreSQL database hosted on Supabase. Below is the Entity-Relationship Diagram (ERD) detailing the schema relations and constraints.
+YieldSage decouples concerns into independent service boundaries interacting asynchronously through a shared PostgreSQL database and blockchain network:
 
-### Entity-Relationship Diagram (ERD)
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                                SYSTEM BOUNDARY                                │
+├────────────────────────────┬──────────────────────────────────────────────────┤
+│ Ingestion & Scheduler      │ agent/fetcher.py, agent/scheduler.py             │
+├────────────────────────────┼──────────────────────────────────────────────────┤
+│ AI Intelligence & Scoring  │ agent/ai_service.py, agent/scorer.py             │
+├────────────────────────────┼──────────────────────────────────────────────────┤
+│ Verifiability Log          │ agent/logger.py, Mantle L2                       │
+├────────────────────────────┼──────────────────────────────────────────────────┤
+│ Gateway REST API           │ agent/main.py, agent/routers/                    │
+├────────────────────────────┼──────────────────────────────────────────────────┤
+│ Client UI                  │ Next.js 14 Web App, Telegram Bot                 │
+└────────────────────────────┴──────────────────────────────────────────────────┘
+```
+
+---
+
+## 2. Complete Database Schema & RLS Policies
+
+YieldSage utilizes Supabase PostgreSQL for persistence. The database is secured via Row-Level Security (RLS) policies to protect user-specific data while keeping yield feeds public.
 
 ```mermaid
 erDiagram
-    USERS ||--|| ALERT_PREFERENCES : "has (one-to-one)"
-    USERS ||--o{ PAPER_TRADES : "simulates (one-to-many)"
-    USERS ||--o{ TELEGRAM_MESSAGES : "receives (one-to-many)"
-    USERS ||--o{ CHAT_MEMORY : "owns (one-to-many)"
-    
-    PROTOCOLS ||--o{ YIELD_SNAPSHOTS : "has historical (one-to-many)"
-    PROTOCOLS ||--o{ RECOMMENDATIONS : "recommended-in (one-to-many)"
-    PROTOCOLS ||--o{ PAPER_TRADES : "linked-to (one-to-many)"
+    users ||--o{ paper_trades : owns
+    users ||--o| alert_preferences : configures
+    users ||--o{ telegram_messages : receives
+    protocols ||--o{ yield_snapshots : logs
+    protocols ||--o{ recommendations : guides
+    protocols ||--o{ paper_trades : references
+    protocols ||--o{ ai_picks : caches
+```
 
-    USERS {
-        uuid id PK
-        text email "UNIQUE, NOT NULL"
-        text full_name
-        bigint telegram_chat_id "UNIQUE, NULL"
-        text risk_preference "stable,moderate,aggressive"
-        timestamptz created_at
-        timestamptz updated_at
-    }
+### 2.1 Table Schemas & Constraints
 
-    ALERT_PREFERENCES {
-        uuid id PK
-        uuid user_id FK "UNIQUE, NOT NULL"
-        numeric stable_apy_threshold
-        numeric moderate_apy_threshold
-        numeric aggressive_apy_threshold
-        boolean is_active "DEFAULT true"
-        timestamptz created_at
-        timestamptz updated_at
-    }
+#### Table: `users`
+Represents registered users interacting via Web UI or Telegram.
+```sql
+CREATE TABLE public.users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT UNIQUE,
+    full_name TEXT,
+    telegram_chat_id BIGINT UNIQUE,
+    risk_preference TEXT DEFAULT 'stable,moderate,aggressive',
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
 
-    PAPER_TRADES {
-        uuid id PK
-        uuid user_id FK "NOT NULL"
-        uuid protocol_id FK "NOT NULL"
-        numeric simulated_investment_usd "NOT NULL"
-        numeric entry_apy "NOT NULL"
-        text status "active | closed"
-        timestamptz closed_at
-        timestamptz created_at
-    }
+#### Table: `protocols`
+The canonical directory of tracked yield contracts and metadata.
+```sql
+CREATE TABLE public.protocols (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    slug TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    pool_name TEXT NOT NULL,
+    pool_address TEXT NOT NULL,
+    risk_tag TEXT NOT NULL CHECK (risk_tag IN ('stable', 'moderate', 'aggressive')),
+    chain TEXT DEFAULT 'mantle',
+    image_url TEXT,
+    app_link TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    CONSTRAINT unique_protocol_pool UNIQUE (name, pool_address)
+);
+CREATE INDEX idx_protocols_active ON public.protocols(is_active) WHERE is_active = TRUE;
+CREATE INDEX idx_protocols_slug ON public.protocols(slug);
+```
 
-    PROTOCOLS {
-        uuid id PK
-        text slug "UNIQUE, NOT NULL"
-        text name "NOT NULL"
-        text pool_name "NOT NULL"
-        text pool_address "NOT NULL"
-        text risk_tag "stable | moderate | aggressive"
-        text chain "DEFAULT 'mantle'"
-        text image_url
-        text app_link
-        boolean is_active "DEFAULT true"
-        timestamptz created_at
-    }
+#### Table: `yield_snapshots`
+Time-series metrics parsed from Dune Analytics feeds.
+```sql
+CREATE TABLE public.yield_snapshots (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    protocol_id UUID NOT NULL REFERENCES public.protocols(id) ON DELETE CASCADE,
+    asset TEXT NOT NULL,
+    apy DOUBLE PRECISION NOT NULL,
+    base_apy DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    reward_apy DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    tvl_usd DOUBLE PRECISION NOT NULL,
+    reward_tokens TEXT,
+    apy_1d DOUBLE PRECISION DEFAULT 0.0,
+    apy_7d DOUBLE PRECISION DEFAULT 0.0,
+    apy_30d DOUBLE PRECISION DEFAULT 0.0,
+    raw_payload JSONB,
+    fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_yield_snapshots_proto_date ON public.yield_snapshots(protocol_id, fetched_at DESC);
+```
 
-    YIELD_SNAPSHOTS {
-        uuid id PK
-        uuid protocol_id FK "NOT NULL"
-        numeric apy "NOT NULL"
-        numeric base_apy
-        numeric reward_apy
-        numeric tvl_usd
-        text reward_tokens
-        numeric apy_1d
-        numeric apy_7d
-        numeric apy_30d
-        jsonb raw_payload
-        timestamptz fetched_at
-    }
+#### Table: `recommendations`
+AI decisions fingerprinted and logged to Mantle.
+```sql
+CREATE TABLE public.recommendations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    protocol_id UUID REFERENCES public.protocols(id) ON DELETE SET NULL,
+    risk_tag TEXT NOT NULL,
+    rank INTEGER NOT NULL,
+    apy_at_time DOUBLE PRECISION NOT NULL,
+    ai_reasoning TEXT NOT NULL,
+    ai_model TEXT NOT NULL,
+    recommendation_hash TEXT NOT NULL,
+    on_chain_tx_hash TEXT,
+    on_chain_logged_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+CREATE INDEX idx_recommendations_tx ON public.recommendations(on_chain_tx_hash);
+CREATE INDEX idx_recommendations_created ON public.recommendations(created_at DESC);
+```
 
-    RECOMMENDATIONS {
-        uuid id PK
-        uuid protocol_id FK "NOT NULL"
-        text risk_tag "stable | moderate | aggressive"
-        integer rank "NOT NULL"
-        numeric apy_at_time "NOT NULL"
-        text ai_reasoning "NOT NULL"
-        text ai_model "NOT NULL"
-        text on_chain_tx_hash "UNIQUE"
-        timestamptz on_chain_logged_at
-        text recommendation_hash "NOT NULL"
-        timestamptz created_at
-    }
+#### Table: `paper_trades`
+Simulated positions held by users.
+```sql
+CREATE TABLE public.paper_trades (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    protocol_id UUID NOT NULL REFERENCES public.protocols(id) ON DELETE CASCADE,
+    simulated_investment_usd DOUBLE PRECISION NOT NULL,
+    entry_apy DOUBLE PRECISION NOT NULL,
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'closed')),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    closed_at TIMESTAMPTZ
+);
+CREATE INDEX idx_paper_trades_user_status ON public.paper_trades(user_id, status);
+```
 
-    TELEGRAM_MESSAGES {
-        uuid id PK
-        uuid user_id FK "NULL (broadcast)"
-        bigint chat_id "NOT NULL"
-        text message_type "daily_push | query_response | alert"
-        text content "NOT NULL"
-        text status "pending | sent | failed"
-        timestamptz sent_at
-        text error_message
-    }
+#### Table: `alert_preferences`
+Toggles for scheduled user notifications.
+```sql
+CREATE TABLE public.alert_preferences (
+    user_id UUID PRIMARY KEY REFERENCES public.users(id) ON DELETE CASCADE,
+    is_active BOOLEAN DEFAULT TRUE NOT NULL
+);
+```
 
-    CHAT_MEMORY {
-        uuid id PK
-        uuid user_id FK "NULL"
-        bigint telegram_chat_id "NULL"
-        text role "user | assistant"
-        text content "NOT NULL"
-        timestamptz created_at
-    }
+#### Table: `telegram_messages`
+Job queue database table for outbound telegram alerts.
+```sql
+CREATE TABLE public.telegram_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
+    chat_id BIGINT NOT NULL,
+    message_type TEXT NOT NULL,
+    content TEXT NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+    error_message TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    sent_at TIMESTAMPTZ
+);
+```
 
-    AGENT_ERRORS {
-        uuid id PK
-        text job_type "fetch | score | onchain_log | telegram_push"
-        text error_message "NOT NULL"
-        text stack_trace
-        integer retry_count "DEFAULT 0"
-        boolean resolved "DEFAULT false"
-        timestamptz created_at
-    }
+### 2.2 Row-Level Security (RLS) Policies
+
+To protect private data, RLS is active on tables containing user identity attributes.
+
+```sql
+-- Enable RLS
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.paper_trades ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alert_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.telegram_messages ENABLE ROW LEVEL SECURITY;
+
+-- 1. Users table policies
+CREATE POLICY "Users can only read own profile" ON public.users
+    FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can only update own profile" ON public.users
+    FOR UPDATE USING (auth.uid() = id);
+
+-- 2. Paper Trades table policies
+CREATE POLICY "Users can only access own trades" ON public.paper_trades
+    FOR ALL USING (auth.uid() = user_id);
+
+-- 3. Alert Preferences table policies
+CREATE POLICY "Users can only configure own alerts" ON public.alert_preferences
+    FOR ALL USING (auth.uid() = user_id);
 ```
 
 ---
 
-## 2. Paper Trading Simulation Engine
+## 3. Cryptographic Proof & Verification Pipeline
 
-The YieldSage Paper Trading Engine allows users to open mock yield-bearing positions and track interest accumulation without deploying real capital. This serves as a risk-free Sandbox environment to test strategies and monitor yield shifts.
+YieldSage implements mathematical verifiability to prevent database manipulation.
 
-### Mathematical Accrual Model
+```
+AI Model Output ──> Build Payload ──> Deterministic Sorting ──> SHA-256 Hash ──> Commit to Mantle (0-MNT)
+```
 
-Yield accrued is computed using continuous-time calculation. Given:
-- $I_0$: Simulated investment amount in USD (`simulated_investment_usd`)
-- $APY$: The current APY of the pool (expressed as a decimal, e.g., $17.50\% \to 0.1750$)
-- $T_{entry}$: Time the trade was opened (`created_at`)
-- $T_{now}$: Current system time
+### 3.1 Canonical Payload Schema
+To ensure hash determinism across programming languages (Python and TypeScript), the recommendation details must be structured into a strict format:
 
-The fractional days held is calculated as:
-$$D = \max\left(\frac{T_{now} - T_{entry}}{86400 \text{ seconds}}, 0\right)$$
+```json
+{
+  "version": "1.0",
+  "source": "dune_query_7595582",
+  "scored_at": "2026-06-06T08:00:00Z",
+  "risk_tag": "moderate",
+  "rank": 1,
+  "protocol_name": "Merchant Moe",
+  "pool_name": "USDe-WMNT",
+  "pool_address": "0x5d54d430d1fd9425976147318e6080479bffc16d",
+  "apy_at_time": "18.4200",
+  "tvl_usd": "4200000.00",
+  "ai_reasoning": "This pool demonstrates high yield derived from Moe incentives...",
+  "ai_model": "llama-3.3-70b",
+  "chain": "mantle",
+  "chain_id": 5000
+}
+```
 
-The estimated interest earned ($Profit$) is:
-$$Profit = I_0 \times \left(\frac{APY}{100}\right) \times \left(\frac{D}{365}\right)$$
+### 3.2 Canonical Formatting Rules
+1.  **Field Order:** Dict keys are alphabetically sorted during serialization.
+2.  **Formatting Constraints:**
+    *   `scored_at` must be formatted to ISO 8601 UTC string (`YYYY-MM-DDTHH:MM:SSZ`).
+    *   `apy_at_time` is converted to a fixed-precision string with 4 decimal places.
+    *   `tvl_usd` is converted to a fixed-precision string with 2 decimal places.
+    *   `pool_address` is cast to all-lowercase.
+    *   `ai_reasoning` is stripped of leading and trailing whitespace.
+3.  **JSON Stringification:** Compact formatting with no spaces (`separators=(',', ':')` in Python, equivalent to `JSON.stringify(obj)` in browser JS).
 
-And the current total value of the trade ($Value_{current}$) is:
-$$Value_{current} = I_0 + Profit$$
+### 3.3 Hashing Code Reference (Python vs JavaScript)
 
-### Trade Simulation Lifecycle
+#### Python Implementation (`agent/logger.py`)
+```python
+import json
+import hashlib
 
-```mermaid
-stateDiagram-v2
-    [*] --> Active : User submits /trade or opens in web
-    
-    state Active {
-        [*] --> EntryCaptured : Record entry APY & initial USD
-        EntryCaptured --> HourlyMonitoring : Awaiting cron run
-        HourlyMonitoring --> EvaluateYieldShift : Query current yield vs Entry
-        EvaluateYieldShift --> TriggerAlert : Yield drops > threshold or better pool exists
-        TriggerAlert --> HourlyMonitoring
-    }
+def get_canonical_hash(payload: dict) -> str:
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+```
 
-    Active --> Closed : User triggers Close Trade action
-    Closed --> [*] : Save final closed P&L and timestamp
+#### TypeScript / Web Crypto Implementation (`frontend/app/verify/page.tsx`)
+```typescript
+async function computeHash(payloadObj: Record<string, any>): Promise<string> {
+  const sortedObj = Object.keys(payloadObj).sort().reduce((acc, key) => {
+    acc[key] = payloadObj[key];
+    return acc;
+  }, {} as Record<string, any>);
+  
+  const jsonString = JSON.stringify(sortedObj);
+  const encoder = new TextEncoder();
+  const data = encoder.encode(jsonString);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+}
 ```
 
 ---
 
-## 3. AI Scoring & Recommendation Pipeline
+## 4. Key Configuration & Environment Variables
 
-YieldSage runs an automated scoring loop that aggregates live yields, checks TVLs, compares historical risk, and generates daily ranked recommendations per risk tier.
+The system relies on a unified `.env` configuration file distributed to backend components:
 
-### Recommendations Data Flow
+```ini
+# Database (Supabase)
+SUPABASE_URL=https://<id>.supabase.co
+SUPABASE_ANON_KEY=<anon_key>
+SUPABASE_SERVICE_ROLE_KEY=<service_role_key>
 
-```mermaid
-graph TD
-    A[(yield_snapshots)] -->|Query latest snapshot per pool| B[AI Scorer]
-    C[(protocols)] -->|Fetch active names & risk tags| B
-    D[(paper_trades)] -->|Fetch user positions| B
-    
-    B -->|Build Dynamic Prompt + Data Context| E[OpenAI Function Call / LLM]
-    E -->|Selects active provider| F[LLM Cascade: Cerebras/SambaNova/NVIDIA/Groq/Gemini]
-    F -->|Return JSON recommendations| G[AI Scorer Output Parser]
-    
-    G -->|Insert| H[(recommendations)]
-    G -->|Generate SHA-256| I[On-Chain Memo Logger]
-    I -->|Submit Tx| J[Mantle Blockchain]
-    J -->|Tx Hash| K[(recommendations.on_chain_tx_hash)]
-    
-    G -->|Queue alerts| L[(telegram_messages)]
-    L -->|Broadcast Job| M[Telegram Bot]
-    M -->|Send Push Notification| N[Telegram Client]
+# Blockchain Connection (Mantle L2)
+MANTLE_RPC_URL=https://rpc.mantle.xyz
+YIELDSAGE_WALLET_PRIVATE_KEY=0x<hex_private_key>
+
+# Ingestion Keys (Dune Analytics)
+DUNE_API_KEYS=key1,key2,key3
+
+# AI Inference Providers
+CEREBRAS_API_KEY=sb_...
+SAMBANOVA_API_KEY=sn_...
+GROQ_API_KEY=gq_...
+NVIDIA_NIM_API_KEY=nv_...
+GEMINI_API_KEY=AIzaSy...
+
+# Telegram Bot
+TELEGRAM_BOT_TOKEN=<bot_token>
 ```
 
 ---
 
-## 4. Security & RLS (Row Level Security) Policies
+## 5. Scheduler Pipeline Configuration
 
-To protect sensitive user data (such as simulated portfolio sizes and Telegram chat IDs), PostgreSQL Row Level Security (RLS) is enabled on all tables in Supabase. The REST backend and the database authorize requests using JWTs issued by Supabase Auth.
+The FastAPI worker process runs `agent/scheduler.py` driven by `APScheduler`:
 
-- **`users`**:
-  - `SELECT / UPDATE`: `auth.uid() = id` (Users can only read/update their own profile data).
-- **`paper_trades`**:
-  - `SELECT / INSERT / UPDATE / DELETE`: `auth.uid() = user_id` (Trades are private to the simulating user).
-- **`alert_preferences`**:
-  - `SELECT / INSERT / UPDATE`: `auth.uid() = user_id` (Alert thresholds are user-specific).
-- **`chat_memory`**:
-  - `SELECT / INSERT`: `auth.uid() = user_id` OR `telegram_chat_id` match.
-- **`yield_snapshots` & `recommendations`**:
-  - `SELECT`: `true` (Publicly readable to power the dashboard and history pages).
-  - `INSERT / UPDATE / DELETE`: `false` (Write access strictly restricted to the `service_role` administrator client).
+| Process | Interval | Sub-modules Triggered | Purpose |
+|---|---|---|---|
+| **Ingestion Pipeline** | `0 * * * *` (Hourly) | `fetcher.py` | Pulls yield data from Dune API, rotates keys, upserts database protocols and snapshots. |
+| **Scoring & Alerting** | `5 * * * *` (Hourly) | `scorer.py`, `ai_service.py` | Triggers LLM Cascade evaluation of yields, writes public picks, writes user alert queue entries. |
+| **Transaction Recovery** | `0 */6 * * *` (6-hourly) | `logger.py` | Scans recommendations for missing transaction hashes, commits them, updates DB. |
+| **Telegram Delivery** | Continuous | `bot.py` | Polls the `telegram_messages` queue, broadcasts alert messages with exponential-backoff retries. |

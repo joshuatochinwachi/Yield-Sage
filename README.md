@@ -160,13 +160,16 @@ graph TD
 | 🔄 **Autonomous Hourly Sync** | Dune Analytics query #7595582 executes and streams pool data every hour via APScheduler. No manual intervention required. |
 | 🔑 **Dune API Key Rotation** | A pool of comma-separated Dune API keys is validated for credit usage. Exhausted keys are automatically rotated so ingestion never misses a cycle. |
 | 🤖 **5-Provider LLM Cascade** | Cerebras → SambaNova → Groq → NVIDIA → Gemini. Falls back through each provider on rate-limit (HTTP 429) or failure. Serves cached responses if all fail. |
-| ⛓️ **On-Chain Proof-of-Recommendation** | Every AI scoring batch is SHA-256 hashed and logged as a 0-MNT transaction on the Mantle Network. Permanently auditable on Mantle Explorer. |
-| 📊 **Real-Time Yield Leaderboard** | Full-width filterable, searchable, sortable table with 1D / 7D / 30D trend pills, risk-tier badges, TVL, protocol logos, and on-chain links. |
-| 💬 **Conversational Telegram AI Agent** | Multi-turn memory, slash commands (`/yields`, `/top`, `/trade`, `/portfolio`, `/alerts`), and natural language DeFi advisory powered by the LLM cascade. |
-| 📈 **Paper Trading Simulator** | Open, monitor, and close simulated yield positions. Accrues P&L in real-time. Features zero-friction dashboard-to-Telegram simulation matching. |
-| 🧩 **Risk Tier Classification** | Pools are auto-classified as `stable` (stablecoin pairs) or `moderate` (volatile asset pairs) based on asset name analysis. |
-| 🔒 **Supabase RLS Security** | Row Level Security policies enforce that users can only read/write their own trades, alerts, and chat memory. Public yield data is read-only. |
-| 📡 **Personalized Hourly Alerts** | The scorer evaluates each user's active paper trades against live yields and pushes tailored Telegram alerts when significant drift is detected. |
+| ⛓️ **On-Chain Proof-of-Recommendation** | Every AI recommendation is SHA-256 hashed and logged as a 0-MNT transaction on Mantle. Permanently auditable. Includes 6-hourly background recovery for any missed transactions. |
+| 🔍 **Browser-Side Proof Verification** | The `/verify?tx=...` page independently recomputes the SHA-256 hash of any recommendation payload using the Web Crypto API — no server trust required. |
+| 📊 **Real-Time Yield Leaderboard** | Full-width filterable, searchable, sortable table with 1D / 7D / 30D trend pills, risk-tier badges, TVL, protocol logos, pool links, and on-chain verification links. |
+| 🕵️ **Historical On-Chain Proof Log** | `/#on-chain-proof` — searchable historical log of all blockchain-committed recommendations. Filter by protocol, pool, address, or TX hash. |
+| 💬 **Conversational Telegram AI Agent** | Multi-turn memory, slash commands (`/yields`, `/trade`, `/positions`, `/alerts`, `/risk`, `/prompts`), and natural language DeFi advisory. |
+| 📈 **Paper Trading Simulator** | Open, monitor, and close simulated yield positions. Accrues P&L in real-time. Zero-friction dashboard-to-Telegram deep-link simulation. |
+| 🧩 **Risk Tier Classification** | Pools are auto-classified as `stable`, `moderate`, or `aggressive` based on asset composition, TVL depth, and yield structure. AI may override initial classification. |
+| 🔒 **Supabase RLS Security** | Row Level Security policies enforce that users can only read/write their own trades, alerts, and profiles. Public yield and recommendation data is read-only. |
+| 📡 **Personalised Hourly Alerts** | The scorer evaluates each user's active paper trades against live yields using `asyncio.gather` (all users in parallel) and pushes tailored Telegram alerts when significant drift is detected. |
+| 📚 **GOD MODE Documentation** | `/docs` — 10-section comprehensive user documentation covering every metric, every feature, AI intelligence, on-chain proof mechanics, and the Telegram bot — in plain English. |
 
 ---
 
@@ -567,11 +570,49 @@ A full-screen, dark-mode yield intelligence cockpit with:
 
 `frontend/app/docs/page.tsx`
 
-A professional technical documentation experience:
-- **Scroll-spy navigation** — Active section highlights in the left sidebar as the user scrolls.
-- **Reading Progress Bar** — Thin top progress tracker.
-- **6 Documentation Sections**: Overview, Architecture, Database Schema, AI Engine, Security, API Reference — all with Mermaid diagrams rendered inline.
-- Fully responsive across mobile, tablet, and desktop.
+A professional, enterprise-grade documentation hub — the most comprehensive user-facing reference in the project:
+
+- **10 fully detailed sections** covering every aspect of YieldSage in plain, user-friendly English (no code shown to end users):
+  1. **What is YieldSage** — Mission, value proposition, and core pillars (hourly sync, AI scoring, on-chain verification)
+  2. **How It Works** — Step-by-step walkthrough of the full pipeline from on-chain data fetch to Telegram alert delivery
+  3. **Dashboard Guide** — Complete breakdown of every UI section: stats bar, AI pick cards, leaderboard, APY charts, on-chain proof log
+  4. **Every Metric Explained** — Expandable accordion cards for APY, Base APY, Reward APY, TVL, Reward Tokens, 1D/7D/30D trends, Risk Tiers, protocol images, pool links — all with real examples and detailed two-layer explanations
+  5. **Yield Intelligence** — How the AI cascade works, what each model contributes, what the AI considers when scoring, and the difference between dashboard picks vs personalised Telegram alerts
+  6. **On-Chain Proof** — Complete explanation of the SHA-256 fingerprinting process, canonical payload structure, Mantle commitment flow, browser-side verification, and why this matters for trust
+  7. **Telegram Bot** — All commands documented, paper trading flow explained, personalised alert content described
+  8. **Data Pipeline** — Where the data comes from (Dune), how the fetch cycle works, protocol auto-registration, and the Supabase database tables
+  9. **API Reference** — All REST endpoints with expandable parameter tables and example responses
+  10. **FAQ** — 12 comprehensive answers covering trust, methodology, risk, and usage
+
+- **Scroll-spy dual navigation** — Sticky header pill nav + left sidebar TOC with active section highlighting
+- **Reading progress bar** — Thin animated top bar
+- **Interactive components** — Expandable metric cards (accordion), collapsible FAQ, expandable API endpoint docs, pipeline step-by-step flow
+- **Quick links sidebar** — Direct jump to Telegram bot, Dashboard, On-Chain Proofs
+- **Fully responsive** — Mobile-first layout, sidebar collapses into header nav pills on mobile
+
+### 4. Proof Verification Page
+
+`frontend/app/verify/page.tsx`
+
+- Accepts any `?tx=<mantle_tx_hash>` parameter
+- Fetches the original recommendation from the database
+- Runs a 4-step animated verification pipeline in the browser:
+  1. Fetching recommendation from database
+  2. Reconstructing canonical JSON payload
+  3. Computing SHA-256 fingerprint (via Web Crypto API — server-independent)
+  4. Comparing against the on-chain record
+- Shows a **Perfect Match** ✅ or **Hash Mismatch — Tampered!** ❌ result
+- Field-by-field payload breakdown with hover descriptions
+- Direct **View on Mantlescan** CTA
+- **Take Action** card — Invest link + Simulate modal (connects to Telegram bot)
+- Navigation bar includes links to Dashboard and Docs pages
+- Fully responsive
+
+### 5. Privacy & Cookie Policies
+
+- **Privacy Policy Page** (`frontend/app/privacy/page.tsx`) — A comprehensive disclosure page that covers data minimization, RLS database guards, anonymous AI queries, and support contact details (`yieldsageai@gmail.com`).
+- **Cookie Policy Page** (`frontend/app/cookies/page.tsx`) — Explicitly declares browser Local Storage keys (`yieldsage_watchlist`, `yieldsage_storage_consent`) used strictly to persist local watchlists and preferences without cross-site tracking.
+- Fully styled with dark-mode glassmorphic theme and Mouse-Spotlight animations.
 
 ---
 
@@ -982,24 +1023,28 @@ python copy_banner.py
 
 | Document | Description |
 |---|---|
-| 📐 [System Architecture Blueprint](./docs/system_architecture.md) | Network topology, component decoupling, multi-provider LLM cascade flowchart, Mantle verifiability design |
-| 🗄️ [System Design Specification](./docs/system_design.md) | Full DB ERD, RLS policy table, paper trading math derivations, scoring pipeline state diagrams |
-| 🔌 [API Reference Documentation](./docs/api_documentation.md) | Every REST endpoint, request/response JSON schemas, query filter params, JWT lifecycle |
+| 📐 [System Architecture Blueprint](./docs/system_architecture.md) | Network topology, component decoupling, scheduler design, multi-provider LLM cascade, on-chain logging lifecycle, deployment topology |
+| 🗄️ [System Design Specification](./docs/system_design.md) | Full DB schema tables with columns and types, canonical payload schema, operational parameters, on-chain commitment lifecycle, frontend page inventory |
+| 🔌 [API Reference Documentation](./docs/api_documentation.md) | All REST endpoints with request/response schemas, query params, authenticated vs public routes, error format |
 | 🐍 [FastAPI Backend Walkthrough](./docs/FAST-API-Bcakend-Walkthrough.md) | Router map, endpoint list, Swagger interactive documentation setup |
 | 🧠 [AI Migration Walkthrough](./docs/YIELDSAGE_AI_MIGRATION.md) | Multi-provider LLM migration audit, backup cache design, provider reliability notes |
 | 🔄 [Dune Fetcher Retry Policies](./docs/dune_fetcher_retry.md) | Deep audit of the Dune CSV execution trigger, status polling, credit validation, error handling |
 | 📊 [Frontend UI/UX Architecture](./frontend/README.md) | Scrollytelling engine, progressive frame loading, cinematic loading screen, micro-interaction design |
+| 📚 [Live GOD MODE Docs](https://yieldsageai.xyz/docs) | User-facing comprehensive documentation with 10 sections covering every metric, feature, AI intelligence, on-chain proof mechanics — in plain English |
 
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] **Aggressive Risk Tier** — Auto-classify volatile asset pools (non-stablecoin, non-blue-chip) as `aggressive`
+- [x] **Aggressive Risk Tier** — Auto-classify volatile asset pools as `aggressive` (implemented via AI scorer)
+- [x] **Browser-Side Proof Verification** — `/verify?tx=...` page with client-side SHA-256 via Web Crypto API
+- [x] **Historical On-Chain Proof Log** — `/#on-chain-proof` searchable log with protocol images and Mantlescan links
+- [x] **GOD MODE Documentation** — `/docs` with 10-section comprehensive plain-English user guide
+- [x] **Proof Verification Nav** — Dashboard and Docs links on the verify page header
 - [ ] **Multi-Chain Expansion** — Extend Dune query coverage to Base, Arbitrum, and Optimism
 - [ ] **On-Chain Trade Settlement** — Move paper trades to actual smart contract execution on Mantle
 - [ ] **Social Leaderboard** — Public opt-in leaderboard for paper trading P&L rankings
 - [ ] **Alert Thresholds UI** — In-dashboard slider controls for per-risk-tier alert sensitivity
-- [ ] **Historical APY Charts** — Per-pool time-series chart on click-through from the leaderboard
 - [ ] **Push Notifications** — Web push (PWA) alongside Telegram for browser-native alerts
 - [ ] **Mobile App** — React Native / Expo wrapper for iOS and Android
 

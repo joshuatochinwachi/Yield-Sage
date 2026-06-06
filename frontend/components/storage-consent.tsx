@@ -49,7 +49,7 @@ export function StorageConsent() {
           <div className="space-y-2">
             <h4 className="text-sm font-semibold text-white tracking-wide uppercase">Local Storage Preference</h4>
             <p className="text-xs text-white/60 leading-relaxed font-mono">
-              We use local storage (like cookies) to store your watchlist and page preferences locally on your browser. No personal data is collected or sent to our servers.
+              We use local storage (like cookies) to store your watchlist and preferences. Learn more in our <a href="/cookies" className="text-[#00ff88] underline hover:text-[#00ff88]/80 transition-colors">Cookie Policy</a>.
             </p>
             <div className="flex gap-3 pt-2">
               <button

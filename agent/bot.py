@@ -171,6 +171,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/prompts - View intelligent questions to ask the bot\n"
         "/risk - View or modify your risk preference\n"
         "/alerts - Toggle hourly DeFi recommendations & alerts\n"
+        "/verify - Verify a recommendation proof by tx hash\n"
         "/help - Display this guide\n\n"
         "💬 **Ask me anything!** You can also chat with me like Claude or ChatGPT to get custom advice on DeFi, yields, or adjusting your portfolio."
     )
@@ -178,6 +179,144 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
     elif update.callback_query:
         await update.callback_query.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
+
+async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Verifies a recommendation by transaction hash."""
+    if not supabase:
+        await update.message.reply_text("❌ Database unavailable.")
+        return
+
+    # Check if arguments were provided
+    if not context.args:
+        help_text = (
+            "🔍 **How to Verify a YieldSage Proof**\n\n"
+            "Usage: `/verify <transaction_hash>`\n"
+            "Example: `/verify 0x82db0e4ab5c81de...`\n\n"
+            "Every recommendation is fingerprinted with SHA-256 and logged on the Mantle blockchain. "
+            "This command retrieves the original recommendation, computes its SHA-256 fingerprint, "
+            "and compares it to the on-chain logged hash to guarantee it has never been altered."
+        )
+        await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
+        return
+
+    tx_hash = context.args[0].strip()
+    # Check simple validity
+    if not (tx_hash.startswith("0x") and len(tx_hash) == 66):
+        await update.message.reply_text("❌ Invalid transaction hash format. It should start with `0x` and be 66 characters long.")
+        return
+
+    await context.bot.send_chat_action(chat_id=update.effective_chat.id, action="typing")
+    
+    try:
+        # Fetch from DB
+        rec_res = (
+            supabase.table("recommendations")
+            .select(
+                "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
+                "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
+                "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
+            )
+            .eq("on_chain_tx_hash", tx_hash)
+            .single()
+            .execute()
+        )
+
+        if not rec_res.data:
+            await update.message.reply_text(
+                "❌ Recommendation not found in database for this transaction hash. "
+                "Make sure you copied the correct Mantle transaction hash."
+            )
+            return
+
+        rec = rec_res.data
+
+        # Reconstruct canonical JSON payload
+        try:
+            from agent.logger import build_recommendation_payload
+        except ImportError:
+            from logger import build_recommendation_payload
+
+        import json
+        import hashlib
+
+        # Parse ISO datetime
+        created_at_str = rec["created_at"].replace("Z", "+00:00")
+        scored_at_dt = datetime.fromisoformat(created_at_str)
+
+        # Get TVL from snapshot at scoring time
+        snap_res = (
+            supabase.table("yield_snapshots")
+            .select("tvl_usd")
+            .eq("protocol_id", rec["protocols"]["id"])
+            .lte("fetched_at", rec["created_at"])
+            .order("fetched_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        real_tvl = snap_res.data[0]["tvl_usd"] if snap_res.data else 0.0
+
+        payload = build_recommendation_payload(
+            protocol_name=rec["protocols"]["name"],
+            pool_name=rec["protocols"]["pool_name"],
+            pool_address=rec["protocols"]["pool_address"],
+            risk_tag=rec["risk_tag"],
+            rank=rec["rank"],
+            apy_at_time=rec["apy_at_time"],
+            tvl_usd=real_tvl,
+            ai_reasoning=rec["ai_reasoning"],
+            ai_model=rec["ai_model"],
+            scored_at=scored_at_dt,
+        )
+
+        canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
+
+        # Backward compatibility check
+        if computed_hash != rec["recommendation_hash"]:
+            payload["tvl_usd"] = "0.00"
+            canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+            computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
+
+        is_valid = (computed_hash == rec["recommendation_hash"])
+
+        if is_valid:
+            verify_text = (
+                f"✅ **Cryptographic Proof Verified Successfully!**\n\n"
+                f"This recommendation matches the Mantle blockchain record and is 100% untampered.\n\n"
+                f"🏦 **Pool**: `{rec['protocols']['name']} ({rec['protocols']['pool_name']})`\n"
+                f"🏷️ **Risk Tier**: `{rec['risk_tag'].upper()}`\n"
+                f"📈 **APY**: **{rec['apy_at_time']}%**\n"
+                f"🧠 **AI Model**: `{rec['ai_model']}`\n\n"
+                f"🔗 **Computed Hash**:\n`{computed_hash}`\n"
+                f"🔗 **On-Chain Hash**:\n`{rec['recommendation_hash']}`\n\n"
+                f"💬 **AI Reasoning**:\n_{rec['ai_reasoning']}_\n"
+            )
+            # Add buttons to view on web verify page or Mantlescan
+            keyboard = [
+                [
+                    InlineKeyboardButton("🌐 Verify on Web", url=f"https://www.yieldsageai.xyz/verify?tx={tx_hash}"),
+                    InlineKeyboardButton("🔍 View on Mantlescan", url=f"https://mantlescan.xyz/tx/{tx_hash}")
+                ]
+            ]
+            await update.message.reply_text(
+                verify_text,
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.MARKDOWN,
+                disable_web_page_preview=True
+            )
+        else:
+            verify_text = (
+                f"❌ **PROOF VERIFICATION FAILED (TAMPERED!)**\n\n"
+                f"🚨 **Warning**: The computed SHA-256 hash does not match the logged on-chain fingerprint! "
+                f"The database copy of this recommendation has been modified or corrupted.\n\n"
+                f"🔗 **Computed Hash**:\n`{computed_hash}`\n"
+                f"🔗 **On-Chain Hash**:\n`{rec['recommendation_hash']}`"
+            )
+            await update.message.reply_text(verify_text, parse_mode=ParseMode.MARKDOWN)
+
+    except Exception as e:
+        logger.error(f"Error executing verification command: {e}")
+        await update.message.reply_text(f"❌ Verification failed: {str(e)}")
 
 async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Command to view and toggle alert settings."""
@@ -920,6 +1059,7 @@ def main():
             BotCommand("prompts", "Intelligent FAQs to ask the AI"),
             BotCommand("risk", "Manage your risk preferences"),
             BotCommand("alerts", "Toggle hourly DeFi recommendations & alerts"),
+            BotCommand("verify", "Verify a recommendation proof by tx hash"),
             BotCommand("help", "Show help and guide")
         ], scope=BotCommandScopeDefault())
 
@@ -936,6 +1076,7 @@ def main():
             app.add_handler(CommandHandler("prompts", prompts_command))
             app.add_handler(CommandHandler("risk", risk_command))
             app.add_handler(CommandHandler("alerts", alerts_command))
+            app.add_handler(CommandHandler("verify", verify_command))
             app.add_handler(CommandHandler("help", help_command))
             
             # Add Callback Router (Inline Keyboard clicks)
