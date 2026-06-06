@@ -217,20 +217,22 @@ async def verify_recommendation_by_tx(tx_hash: str):
             raise HTTPException(status_code=404, detail="Recommendation not found for this transaction hash.")
 
         rec = rec_res.data[0]
+        if not rec.get("protocols"):
+            rec["protocols"] = {
+                "id": "",
+                "name": "Unknown Protocol",
+                "pool_name": "Unknown Pool",
+                "pool_address": ""
+            }
         rec["explorer_url"] = _build_explorer_link(rec.get("on_chain_tx_hash"))
 
         # 2. Reconstruct the canonical JSON payload
-        # This must match EXACTLY what was hashed before on-chain logging.
-        try:
-            from agent.logger import build_recommendation_payload
-        except ImportError:
-            from logger import build_recommendation_payload
-            
+        # Try permutations to find the exact configuration matching the stored recommendation_hash
+        # (resolving issues from historic renames, TVL placeholders, or legacy formats)
         import json
+        import hashlib
         from datetime import datetime
         
-        # Supabase may return it with +00:00 timezone. Parse ISO format safely.
-        # Then the build_recommendation_payload will safely format it back to %Y-%m-%dT%H:%M:%SZ
         created_at_str = rec["created_at"].replace("Z", "+00:00")
         scored_at_dt = datetime.fromisoformat(created_at_str)
 
@@ -246,31 +248,91 @@ async def verify_recommendation_by_tx(tx_hash: str):
         )
         real_tvl = snap_res.data[0]["tvl_usd"] if snap_res.data else 0.0
 
-        payload = build_recommendation_payload(
-            protocol_name=rec["protocols"]["name"],
-            pool_name=rec["protocols"]["pool_name"],
-            pool_address=rec["protocols"]["pool_address"],
-            risk_tag=rec["risk_tag"],
-            rank=rec["rank"],
-            apy_at_time=rec["apy_at_time"],
-            tvl_usd=real_tvl,
-            ai_reasoning=rec["ai_reasoning"],
-            ai_model=rec["ai_model"],
-            scored_at=scored_at_dt,
-        )
+        target_hash = rec["recommendation_hash"]
+        matched_payload = None
+        found_match = False
 
-        import hashlib
-        canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-        computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
+        # Generate candidates for renames or formatting differences
+        proto_names = list(set([
+            rec["protocols"]["name"],
+            rec["protocols"]["name"].replace(" ", "-"),
+            rec["protocols"]["name"].replace("-", " "),
+            rec["protocols"]["name"].lower(),
+        ]))
+        
+        pool_names = list(set([
+            rec["protocols"]["pool_name"],
+            rec["protocols"]["pool_name"].replace("/", "-"),
+            rec["protocols"]["pool_name"].replace("-", "/"),
+        ]))
+        
+        tvls = [real_tvl, 0.0]
 
-        # Backward compatibility: older recommendations had tvl hardcoded to 0.0
-        if computed_hash != rec["recommendation_hash"]:
-            payload["tvl_usd"] = "0.00"
-            canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        for proto_n in proto_names:
+            for pool_n in pool_names:
+                for tvl_v in tvls:
+                    # Try current v1.0 schema with version/source/chain details
+                    payload = build_recommendation_payload(
+                        protocol_name=proto_n,
+                        pool_name=pool_n,
+                        pool_address=rec["protocols"]["pool_address"] or "",
+                        risk_tag=rec["risk_tag"],
+                        rank=rec["rank"],
+                        apy_at_time=rec["apy_at_time"],
+                        tvl_usd=tvl_v,
+                        ai_reasoning=rec["ai_reasoning"],
+                        ai_model=rec["ai_model"],
+                        scored_at=scored_at_dt,
+                    )
+                    canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                    computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
+                    
+                    if computed_hash == target_hash:
+                        matched_payload = canonical_json
+                        found_match = True
+                        break
+                    
+                    # Try legacy schema layout (pre-v1.0 schema structure)
+                    legacy_payload = {
+                        "scored_at": scored_at_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                        "risk_tag": rec["risk_tag"],
+                        "rank": rec["rank"],
+                        "protocol_name": proto_n,
+                        "pool_name": pool_n,
+                        "pool_address": (rec["protocols"]["pool_address"] or "").lower(),
+                        "apy_at_time": f"{float(rec['apy_at_time']):.4f}",
+                        "tvl_usd": f"{float(tvl_v):.2f}",
+                        "ai_reasoning": rec["ai_reasoning"].strip(),
+                        "ai_model": rec["ai_model"]
+                    }
+                    canonical_json = json.dumps(legacy_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                    computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
+                    if computed_hash == target_hash:
+                        matched_payload = canonical_json
+                        found_match = True
+                        break
+                if found_match: break
+            if found_match: break
+
+        # Fallback to standard payload if no permutation matches
+        if not found_match:
+            payload = build_recommendation_payload(
+                protocol_name=rec["protocols"]["name"],
+                pool_name=rec["protocols"]["pool_name"],
+                pool_address=rec["protocols"]["pool_address"] or "",
+                risk_tag=rec["risk_tag"],
+                rank=rec["rank"],
+                apy_at_time=rec["apy_at_time"],
+                tvl_usd=real_tvl,
+                ai_reasoning=rec["ai_reasoning"],
+                ai_model=rec["ai_model"],
+                scored_at=scored_at_dt,
+            )
+            matched_payload = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
         return {
             "data": rec,
-            "canonical_payload": canonical_json
+            "canonical_payload": matched_payload
         }
 
     except HTTPException:
