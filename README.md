@@ -1,8 +1,4 @@
 <p align="center">
-  <img src="./frontend/public/readme_banner.png" alt="YieldSage — Autonomous Yield Intelligence on the Mantle Network" width="100%" />
-</p>
-
-<p align="center">
   <img src="./frontend/public/logo.jpg" alt="YieldSage Logo" width="90" style="border-radius:18px;" />
 </p>
 
