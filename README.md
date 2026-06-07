@@ -471,14 +471,14 @@ stateDiagram-v2
 
 `agent/main.py` — Manages app lifespan, CORS, and router registration.
 
-| Router | Prefix | Purpose |
+| Router | Prefix | Endpoints |
 |---|---|---|
-| `stats.py` | `/api/stats` | Dashboard headline metrics (TVL, APY, protocol count, etc.) |
-| `yields.py` | `/api/yields` | Yield leaderboard, search, filters, historical chart data |
-| `protocols.py` | `/api/protocols` | Protocol registry, metadata, and individual pool detail |
-| `recommendations.py` | `/api/recommendations` | AI picks, on-chain tx hashes, recommendation history |
-| `user.py` | `/api/user` | User profile, risk preference, connection codes |
-| `paper_trades.py` | `/api/paper-trades` | Trade management: open, list, close |
+| `stats.py` | `/api/stats` | `GET /overview` — Dashboard headline metrics (TVL, APY, protocol count) |
+| `yields.py` | `/api/yields` | `GET /latest` · `/leaderboard` · `/history/{slug}` — Live yields, search, filters, historical chart data |
+| `protocols.py` | `/api/protocols` | `GET /` · `/{slug}` — Protocol registry, metadata, latest snapshot, sparkline history |
+| `recommendations.py` | `/api/recommendations` | `GET /latest` · `/history` · `/{rec_id}` · `/verify/{tx_hash}` — AI picks, on-chain proof verification |
+| `user.py` | `/api/user` | `GET/PUT /profile` · `GET/PUT /alerts` · `GET /activity` · `POST /telegram/connect` |
+| `paper_trades.py` | `/api/paper-trades` | `POST /` · `GET /` · `PUT /{id}/close` — Trade lifecycle management |
 
 **CORS policy** — Strictly allows only:
 - `http://localhost:3000` (local dev)
@@ -535,6 +535,7 @@ Built with **Next.js 16 App Router**, **React 19**, **TypeScript 5**, **Tailwind
 | `HeroSection` | `hero-section.tsx` | Above-the-fold identity and CTA |
 | `FeaturesSection` | `features-section.tsx` | 6-card Core Capabilities grid (3×2 even layout) |
 | `AgentSection` | `agent-section.tsx` | iOS phone bezel mockup with infinite typewriter chat animation |
+| `OnChainProofSection` | `on-chain-proof-section.tsx` | Historical on-chain proof log — searchable, filterable, with protocol images and Mantlescan links |
 | `StatsSection` | `stats-section.tsx` | Live aggregate stats from the API |
 | `Footer` | `footer.tsx` | Site links, socials, copyright |
 | `MouseGradientBackground` | `mouse-gradient-background.tsx` | Cursor-following radial glow spotlight |
@@ -723,10 +724,11 @@ Yield-Sage/
 │
 ├── agent/                              # Python Backend & Autonomous Agent
 │   ├── main.py                         # FastAPI app · lifespan · CORS · router registry · health endpoints
-│   ├── scheduler.py                    # APScheduler: hourly pipeline with exponential backoff retry
+│   ├── scheduler.py                    # APScheduler: hourly pipeline + 6-hourly on-chain recovery
 │   ├── fetcher.py                      # DuneFetcher: key rotation · execution polling · composite-key upserts
 │   ├── scorer.py                       # HourlyScorer: user scoring · personalized alert queuing · asyncio.gather
 │   ├── ai_service.py                   # AIService: 5-provider LLM cascade · chat memory · DDG search · picks gen
+│   ├── logger.py                       # On-chain verifiability: SHA-256 hashing · 0-MNT Mantle tx logging
 │   ├── bot.py                          # Telegram bot: command handlers · trade state machines · memory management
 │   ├── auth.py                         # JWT FastAPI dependency: Supabase token validation · get_current_user
 │   ├── ai_service_backup.py            # Backup AIService snapshot (pre-migration fallback)
@@ -734,14 +736,21 @@ Yield-Sage/
 │   ├── benchmark_models.py             # LLM provider benchmarking utility
 │   ├── seed.py                         # DB seeding script for initial protocol data
 │   ├── check_db.py                     # Quick DB inspection utility
+│   ├── copy_banner.py                  # Copies README banner image to frontend/public
+│   ├── diagnose_db.py                  # Diagnostic: inspects Supabase recommendation data formats
+│   ├── diagnose_hashes.py              # Diagnostic: validates on-chain hash consistency across records
+│   ├── query_db.py                     # Diagnostic: ad-hoc Supabase table queries
+│   ├── quick_rpc_check.py              # Diagnostic: tests Mantle RPC connectivity
+│   ├── .env.example                    # Environment variable template with placeholders
 │   ├── fetcher_state.json              # Persisted Dune API key index (auto-managed)
 │   ├── requirements.txt                # Python dependencies
 │   └── routers/
+│       ├── __init__.py                 # Package marker
 │       ├── stats.py                    # GET /api/stats/overview — dashboard headline metrics
-│       ├── yields.py                   # GET /api/yields/leaderboard · /chart — pool data with filters
-│       ├── protocols.py                # GET /api/protocols — registry · individual pool detail
-│       ├── recommendations.py          # GET /api/recommendations — AI picks · on-chain tx hashes
-│       ├── user.py                     # GET/PUT /api/user — profile · risk preference · connection codes
+│       ├── yields.py                   # GET /api/yields/latest · /leaderboard · /history/{slug}
+│       ├── protocols.py                # GET /api/protocols · /{slug} — registry & pool detail
+│       ├── recommendations.py          # GET /api/recommendations/latest · /history · /verify/{tx_hash} · /{rec_id}
+│       ├── user.py                     # GET/PUT /api/user/profile · /alerts · /activity · POST /telegram/connect
 │       └── paper_trades.py             # POST/GET/PUT /api/paper-trades — trade lifecycle management
 │
 ├── frontend/                           # Next.js 16 Web Client (App Router)
@@ -757,8 +766,14 @@ Yield-Sage/
 │   │   ├── page.tsx                    # Landing page: scrollytelling orchestrator
 │   │   ├── dashboard/
 │   │   │   └── page.tsx               # Pro Dashboard: full-width table · stats · insights · AI bubble
-│   │   └── docs/
-│   │       └── page.tsx               # Technical Docs: scroll-spy · progress · mermaid sections
+│   │   ├── docs/
+│   │   │   └── page.tsx               # Technical Docs: scroll-spy · progress · 10-section user guide
+│   │   ├── verify/
+│   │   │   └── page.tsx               # Proof Verification: 4-step SHA-256 browser verification pipeline
+│   │   ├── privacy/
+│   │   │   └── page.tsx               # Privacy Policy: data minimization · RLS · anonymous AI queries
+│   │   └── cookies/
+│   │       └── page.tsx               # Cookie Policy: localStorage keys · no cross-site tracking
 │   │
 │   ├── components/
 │   │   ├── loading-screen.tsx          # Cinematic loader: glitch text · laser scan · hex grid · progress
@@ -768,11 +783,17 @@ Yield-Sage/
 │   │   ├── hero-section.tsx            # Above-the-fold identity and primary CTA
 │   │   ├── features-section.tsx        # 6-card Core Capabilities (3×2 even grid)
 │   │   ├── agent-section.tsx           # iOS bezel mockup · infinite typewriter chat loop
+│   │   ├── on-chain-proof-section.tsx  # Historical on-chain proof log · search · filter · Mantlescan links
 │   │   ├── stats-section.tsx           # Live aggregate stats from /api/stats/overview
 │   │   ├── footer.tsx                  # Site footer with real anchor links
 │   │   ├── mouse-gradient-background.tsx  # Cursor-tracking radial glow spotlight
 │   │   ├── lenis-provider.tsx          # Lenis smooth scroll inertia wrapper
 │   │   ├── storage-consent.tsx         # GDPR cookie consent banner with localStorage
+│   │   ├── ui/                         # Reusable UI primitives (shadcn/ui)
+│   │   │   ├── accordion.tsx           # Expandable accordion component (Radix-based)
+│   │   │   ├── button.tsx              # Button component with variant system
+│   │   │   ├── card.tsx                # Card layout component
+│   │   │   └── slider.tsx              # Range slider component
 │   │   └── dashboard/
 │   │       ├── stats-cards.tsx         # Headline metric cards · DeFi TVL info tooltip
 │   │       ├── leaderboard-table.tsx   # Full-width table: search · filter · watchlist · trend pills
@@ -782,8 +803,12 @@ Yield-Sage/
 │   │       └── watchlist-provider.tsx  # React Context + localStorage watchlist hook
 │   │
 │   ├── contexts/                       # Global React context providers
+│   │   ├── loading-context.tsx         # Frame loading state context for scrollytelling gate
+│   │   └── query-provider.tsx          # TanStack React Query client provider wrapper
 │   ├── lib/
-│   │   └── api.ts                      # Axios API client: base URL · JWT inject · typed endpoints
+│   │   ├── api.ts                      # Axios API client: base URL · JWT inject · typed endpoints
+│   │   ├── supabase.ts                 # Supabase browser client: createClient with anon key
+│   │   └── utils.ts                    # Utility: cn() — Tailwind class merging via clsx + twMerge
 │   └── public/
 │       ├── logo.jpg                    # YieldSage brand logo
 │       ├── readme_banner.png           # README hero banner
@@ -798,9 +823,24 @@ Yield-Sage/
 │   └── dune_fetcher_retry.md          # Dune CSV execution trigger · status polling · credit audit
 │
 ├── supabase/                           # Supabase schema migrations
-├── data/                               # Raw seed or exported data files
-├── Procfile                            # Railway process definitions: web · worker
-├── railway.toml                        # Railway deployment configuration
+│   └── migrations/
+│       ├── 001_initial_schema.sql      # Core tables: users · protocols · yield_snapshots · telegram_messages
+│       ├── 002_expand_yield_snapshots.sql # Add trend fields: apy_1d · apy_7d · apy_30d
+│       ├── 003_fix_numeric_overflow.sql   # Widen numeric precision for large TVL values
+│       ├── 004_ai_and_paper_trading.sql   # Add recommendations · paper_trades · alert_preferences · chat_memory
+│       ├── 005_allow_pending_status.sql   # Relax status constraint for pending trade states
+│       ├── 006_remove_risk_constraint.sql # Drop strict risk_tag CHECK for flexible AI overrides
+│       └── 007_add_image_url_and_app_link.sql # Add protocol image_url and app_link columns
+│
+├── data/                               # Data utilities and seed scripts
+│   ├── delete_dune_table.py            # Utility: wipe Dune-sourced data for clean re-import
+│   └── mantle_pools_sync.py            # Bulk protocol sync from Mantle pool registry
+│
+├── Yieldsage_OnChain_Logging_Procedure.md  # Detailed on-chain logging procedure reference
+├── Yieldsage_Project_Documentation.md      # Extended project documentation & design notes
+├── token_optimization_rules.md             # LLM token usage optimization guidelines
+├── Procfile                            # Railway process definition: web
+├── railway.toml                        # Railway deployment config: Nixpacks · healthcheck · restart
 ├── requirements.txt                    # Root-level Python dependencies
 ├── .env                                # Local environment secrets (git-ignored)
 ├── .gitignore                          # Excludes .env, node_modules, .next, __pycache__
@@ -902,7 +942,20 @@ graph TD
 
 **Production Procfile (`Procfile`):**
 ```
-web: uvicorn agent.main:app --host 0.0.0.0 --port $PORT
+web: cd agent && python -m uvicorn main:app --host 0.0.0.0 --port $PORT
+```
+
+**Railway Deployment Config (`railway.toml`):**
+```toml
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "cd agent && python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5
 ```
 
 ---
@@ -1025,10 +1078,13 @@ python copy_banner.py
 |---|---|
 | 📐 [System Architecture Blueprint](./docs/system_architecture.md) | Network topology, component decoupling, scheduler design, multi-provider LLM cascade, on-chain logging lifecycle, deployment topology |
 | 🗄️ [System Design Specification](./docs/system_design.md) | Full DB schema tables with columns and types, canonical payload schema, operational parameters, on-chain commitment lifecycle, frontend page inventory |
-| 🔌 [API Reference Documentation](./docs/api_documentation.md) | All REST endpoints with request/response schemas, query params, authenticated vs public routes, error format |
+| 🔌 [API Reference Documentation](./docs/api_documentation.md) | All 21 REST endpoints with request/response schemas, query params, authenticated vs public routes, error format |
 | 🐍 [FastAPI Backend Walkthrough](./docs/FAST-API-Bcakend-Walkthrough.md) | Router map, endpoint list, Swagger interactive documentation setup |
 | 🧠 [AI Migration Walkthrough](./docs/YIELDSAGE_AI_MIGRATION.md) | Multi-provider LLM migration audit, backup cache design, provider reliability notes |
 | 🔄 [Dune Fetcher Retry Policies](./docs/dune_fetcher_retry.md) | Deep audit of the Dune CSV execution trigger, status polling, credit validation, error handling |
+| ⛓️ [On-Chain Logging Procedure](./Yieldsage_OnChain_Logging_Procedure.md) | Detailed step-by-step on-chain logging procedure reference, canonical payload format, Mantle transaction lifecycle |
+| 📝 [Extended Project Documentation](./Yieldsage_Project_Documentation.md) | Comprehensive project documentation and design notes covering all system components |
+| 🪙 [Token Optimization Rules](./token_optimization_rules.md) | LLM token usage optimization guidelines for cost-efficient AI inference |
 | 📊 [Frontend UI/UX Architecture](./frontend/README.md) | Scrollytelling engine, progressive frame loading, cinematic loading screen, micro-interaction design |
 | 📚 [Live GOD MODE Docs](https://yieldsageai.xyz/docs) | User-facing comprehensive documentation with 10 sections covering every metric, feature, AI intelligence, on-chain proof mechanics — in plain English |
 

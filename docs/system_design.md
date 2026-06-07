@@ -24,7 +24,7 @@ YieldSage decouples concerns into independent service boundaries interacting asy
 ├────────────────────────────┼──────────────────────────────────────────────────┤
 │ Gateway REST API           │ agent/main.py, agent/routers/                    │
 ├────────────────────────────┼──────────────────────────────────────────────────┤
-│ Client UI                  │ Next.js 14 Web App, Telegram Bot                 │
+│ Client UI                  │ Next.js 16 Web App, Telegram Bot                 │
 └────────────────────────────┴──────────────────────────────────────────────────┘
 ```
 

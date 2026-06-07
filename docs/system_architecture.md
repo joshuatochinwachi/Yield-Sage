@@ -39,7 +39,7 @@ graph TB
 
     subgraph ExternalServices ["5. Off-Chain & On-Chain Networks"]
         Dune["Dune Analytics API\n(Query #7595582)"]
-        AICascade["LLM cascade Providers\n(Cerebras / SambaNova / Groq)"]
+        AICascade["LLM cascade Providers\n(Cerebras / SambaNova / Groq / NVIDIA / Gemini)"]
         Mantle["Mantle L2 Network\n(RPC Node Chain 5000)"]
     end
 
