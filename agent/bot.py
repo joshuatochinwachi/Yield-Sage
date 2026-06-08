@@ -400,7 +400,7 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"📈 **APY**: **{rec['apy_at_time']}%**\n"
                 f"🧠 **AI Model**: `{rec['ai_model']}`\n\n"
                 f"🔗 **Computed Hash**:\n`{computed_hash}`\n"
-                f"🔗 **On-Chain Hash**:\n`{rec['recommendation_hash']}`\n\n"
+                f"🔗 **Input Data Hash**:\n`{rec['recommendation_hash']}`\n\n"
                 f"💬 **AI Reasoning**:\n_{rec['ai_reasoning']}_\n"
             )
             # Add buttons to view on web verify page or Mantlescan

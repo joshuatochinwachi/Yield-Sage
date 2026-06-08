@@ -79,18 +79,27 @@ export function OnChainProofSection() {
   const [lastFetched, setLastFetched] = useState<Date | null>(null)
   const [loading, setLoading]         = useState(false)
   const [search, setSearch]           = useState("")
+  const [debouncedSearch, setDebouncedSearch] = useState("")
 
-  const fetchPage = useCallback(async (p: number) => {
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(handler)
+  }, [search])
+
+  const fetchPage = useCallback(async (p: number, searchVal?: string) => {
     setLoading(true)
+    const activeSearch = typeof searchVal === "string" ? searchVal : debouncedSearch
     try {
       const res = await fetch(
-        `${API_URL}/api/recommendations/history?page=${p}&page_size=${PAGE_SIZE}`
+        `${API_URL}/api/recommendations/history?page=${p}&page_size=${PAGE_SIZE}&search=${encodeURIComponent(activeSearch)}`
       )
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const json = await res.json()
       const list: any[] = Array.isArray(json.data) ? json.data : []
-      const verified = list.filter((r: any) => !!r.on_chain_tx_hash)
-      setRecs(verified)
+      setRecs(list)
       setHasMore(json.has_more === true)
       setLastFetched(new Date())
       setPage(p)
@@ -99,15 +108,20 @@ export function OnChainProofSection() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [debouncedSearch])
 
   useEffect(() => {
-    fetchPage(1)
-    const id = setInterval(() => fetchPage(1), 5 * 60 * 1000)
-    return () => clearInterval(id)
-  }, [fetchPage])
+    fetchPage(1, debouncedSearch)
+  }, [fetchPage, debouncedSearch])
 
-  // ── Client-side search across all loaded records ──────────────────────────
+  useEffect(() => {
+    if (page === 1 && !debouncedSearch) {
+      const id = setInterval(() => fetchPage(1, ""), 5 * 60 * 1000)
+      return () => clearInterval(id)
+    }
+  }, [fetchPage, page, debouncedSearch])
+
+  // Client-side search fallback (ensures backward-compatibility with older backend deployments)
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return recs

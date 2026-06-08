@@ -995,7 +995,7 @@ REQUIRED JSON SCHEMA
                         tvl_str = f"${tvl_val:,.0f}" if tvl_val else "N/A"
                         pool_addr = p.get("pool_address") or ""
                         tx_hash = r.get("on_chain_tx_hash")
-                        tx_str = f" | [Verify Proof](https://yieldsageai.xyz/verify?tx={tx_hash})" if tx_hash else ""
+                        tx_str = f" | [Verify and take action](https://yieldsageai.xyz/verify?tx={tx_hash})" if tx_hash else ""
                         
                         if pool_addr:
                             url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
@@ -1077,10 +1077,10 @@ RIGHT →
 Never put two bullets on the same line. Each bullet gets its own line and a blank line above it.
 
 LAW 8 ── ALL SNAPSHOT RECOMMENDATIONS MUST INCLUDE THEIR EXACT PROOF LINK.
-You must include the exact Verify Proof link provided at the end of the pool details line.
-FORMAT → | [Verify Proof](https://yieldsageai.xyz/verify?tx=0x...)
+You must include the exact Verify and take action link provided at the end of the pool details line.
+FORMAT → | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x...)
 WRONG → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE
-RIGHT → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE | [Verify Proof](https://yieldsageai.xyz/verify?tx=0x10ad97e9...)
+RIGHT → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x10ad97e9...)
 
 ════════════════════════════════════════
 MANDATORY OUTPUT STRUCTURE — FOLLOW EXACTLY
@@ -1103,10 +1103,10 @@ FORMAT EXAMPLE — COPY THIS STRUCTURE EXACTLY
 
 📊 **Mantle Yield Snapshots & Recommendations**
 
-• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123): **17.50% APY** | TVL: $2,100,000 | STABLE | [Verify Proof](https://yieldsageai.xyz/verify?tx=0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f)
+• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123): **17.50% APY** | TVL: $2,100,000 | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f)
   Institutional private credit pool. Highest stable-tier yield right now.
 
-• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456): **7.03% APY** | TVL: $3,682,789 | STABLE | [Verify Proof](https://yieldsageai.xyz/verify?tx=0x672451fa76d787d52a23e59048a609d949d6b1ba543fc2c5e29dbc54577bd96f)
+• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456): **7.03% APY** | TVL: $3,682,789 | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x672451fa76d787d52a23e59048a609d949d6b1ba543fc2c5e29dbc54577bd96f)
   Battle-tested. Lowest counterparty risk on Mantle.
 
 💼 **Personalized Portfolio Analysis**
@@ -1138,8 +1138,8 @@ MANDATORY SELF-CHECK BEFORE RESPONDING
 6. No raw underscores
 7. Bold = **double asterisks**
 8. Every bullet on its own line with blank line before it
-9. Every recommendation includes the correct Verify Proof link format at the end
-10. Every APY, TVL, and Verify Proof value matches the context exactly — not invented
+9. Every recommendation includes the correct Verify and take action link format at the end
+10. Every APY, TVL, and Verify and take action value matches the context exactly — not invented
 
 Fix any failure before responding.
 """

@@ -97,6 +97,7 @@ async def get_latest_recommendations(
 @router.get("/history")
 async def get_recommendation_history(
     risk_tag: Optional[str] = Query(None, description="Filter by risk_tag"),
+    search: Optional[str] = Query(None, description="Filter by protocol, pool, address, or TX hash"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
 ):
@@ -107,31 +108,52 @@ async def get_recommendation_history(
     """
     db = _db_or_503()
     try:
+        # Fetch verified recommendations to filter and paginate
         q = db.table("recommendations").select(
             "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
             "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
             "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
-        ).order("created_at", desc=True)
-
-        if risk_tag:
-            q = q.eq("risk_tag", risk_tag.lower())
-
-        # Supabase doesn't support server-side count easily, so we fetch with range
-        offset = (page - 1) * page_size
-        q = q.range(offset, offset + page_size - 1)
+        ).not_.is_("on_chain_tx_hash", "null").order("created_at", desc=True)
 
         res = q.execute()
         data = res.data or []
 
-        # Attach explorer URL to each record
+        filtered_data = []
         for rec in data:
+            proto = rec.get("protocols") or {}
+
+            # Filter by risk_tag
+            if risk_tag and rec.get("risk_tag", "").lower() != risk_tag.lower():
+                continue
+
+            # Filter by search term
+            if search:
+                s_term = search.lower()
+                p_name = (proto.get("name") or "").lower()
+                p_pool = (proto.get("pool_name") or "").lower()
+                p_addr = (proto.get("pool_address") or "").lower()
+                tx_hash = (rec.get("on_chain_tx_hash") or "").lower()
+                
+                if (s_term not in p_name and 
+                    s_term not in p_pool and 
+                    s_term not in p_addr and 
+                    s_term not in tx_hash):
+                    continue
+
+            # Attach explorer URL to each record
             rec["explorer_url"] = _build_explorer_link(rec.get("on_chain_tx_hash"))
+            filtered_data.append(rec)
+
+        total = len(filtered_data)
+        offset = (page - 1) * page_size
+        paginated_data = filtered_data[offset:offset + page_size]
 
         return {
-            "data": data,
+            "data": paginated_data,
+            "total": total,
             "page": page,
             "page_size": page_size,
-            "has_more": len(data) == page_size,
+            "has_more": offset + page_size < total,
         }
 
     except HTTPException:

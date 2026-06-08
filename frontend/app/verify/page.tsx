@@ -540,7 +540,7 @@ function VerifyContent() {
                           >
                             <div>
                               <div className="text-[10px] font-mono uppercase tracking-wider mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
-                                Computed (Browser)
+                                Computed Hash (Browser)
                               </div>
                               <HashDisplay hash={computedHash} color="rgba(0,255,136,0.85)" />
                             </div>
@@ -572,7 +572,7 @@ function VerifyContent() {
 
                             <div>
                               <div className="text-[10px] font-mono uppercase tracking-wider mb-2" style={{ color: "rgba(255,255,255,0.3)" }}>
-                                On-Chain Target
+                                Input Data Hash
                               </div>
                               <HashDisplay hash={data.data.recommendation_hash} color="rgba(255,255,255,0.45)" />
                             </div>

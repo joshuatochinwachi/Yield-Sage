@@ -523,7 +523,7 @@ export default function DocsPage() {
 
             <div className="space-y-2">
               <Step n={1} title="On-Chain Data is Collected — Every Hour">
-                YieldSage runs a custom query against <strong>Dune Analytics</strong> — a powerful on-chain data platform — every single hour, 24 hours a day. This query pulls real, live data directly from Mantle's blockchain records: the APY of every major liquidity pool, how much money is locked in each pool (TVL), what the reward tokens are, and how each metric has changed over the past 1 day, 7 days, and 30 days. The system uses multiple API keys in rotation so the query never gets rate-limited or interrupted.
+                YieldSage runs a custom query against <strong>Dune Analytics</strong> — a powerful on-chain data platform — every single hour, 24 hours a day. This query pulls real, live data directly from Mantle's blockchain records: the APY of every major liquidity pool, how much money is locked in each pool (TVL), what the reward tokens are, and how each metric has changed over the past 1 day, 7 days, and 30 days. The system is engineered for high availability, with built-in rate-limit resilience ensuring data collection is never interrupted.
               </Step>
 
               <Step n={2} title="Protocols Are Auto-Registered in the Database">
@@ -1081,16 +1081,16 @@ export default function DocsPage() {
                   The fetching system is built for reliability. Every hour:
                 </p>
                 <ol className="list-decimal pl-5 space-y-2">
-                  <li>The scheduler checks which Dune API key has credits remaining (the system rotates through a pool of keys to avoid rate limits)</li>
+                  <li>The scheduler validates the active API key's credit balance and selects the next available key if needed</li>
                   <li>The query is executed on Dune — Dune runs the SQL against the latest blockchain data</li>
                   <li>The system monitors the execution status and waits for completion</li>
                   <li>The results are downloaded as a CSV file</li>
                   <li>The CSV is parsed and each row is matched to an existing protocol in the database (or a new protocol is created if it's new)</li>
                   <li>A new yield snapshot is inserted for each pool — a timestamped record of all metrics at this exact moment</li>
-                  <li>The used API key is rotated forward so the next run uses the next available key</li>
+                  <li>The active key is cycled forward to distribute load across the next scheduled run</li>
                 </ol>
                 <p className="mt-3">
-                  If the fetch fails (for example, due to a network outage), the system retries up to 3 times with exponential backoff — waiting 30 seconds, then 60 seconds, then 120 seconds. If all retries fail, the previous data remains visible on the dashboard (it's never wiped), and the next scheduled run will try again.
+                  If a query execution fails, the system does not give up. It retries the execution up to 30 times within the same trial, waiting 15 seconds between each attempt and continuously monitoring the query status until it either completes or exhausts all attempts. If all 30 attempts within a trial fail, the system resets and begins a fresh trial — up to 3 trials in total. This means the fetcher makes up to 90 total execution attempts before a fetch session is considered failed. At the start of each new trial, the system validates the active key's credit balance and rotates to the next available key if needed. If all 3 trials are exhausted, the previous data remains visible on the dashboard — it is never wiped — and the next scheduled hourly run starts the entire process fresh.
                 </p>
               </div>
 
