@@ -89,7 +89,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"👋 **Welcome to YieldSage, {name}!**\n\n"
         "I am your intelligent AI-powered DeFi yield assistant for the **Mantle Network**.\n\n"
         "Here is what I can do for you:\n"
-        "📈 **Paper Trading**: Simulate investing in live yield pools with zero capital risk.\n"
+        "📈 **Paper Trading**: Simulate investing in live yield pools with zero capital risk. Wanna make real investments? Check [yieldsageai.xyz/dashboard](https://www.yieldsageai.xyz/dashboard).\n"
         "🚨 **Hourly Scoring & Alerts**: Automatically analyze your positions and alert you if yields drop or if better options appear.\n"
         "🔍 **On-Chain Verification**: Check and cryptographically verify AI recommendations using on-chain SHA-256 hashes.\n"
         "💬 **DeFi Assistant & Insights**: Ask me any questions about yield strategies, pool risks, TVL drops, or portfolio optimization!\n\n"
@@ -729,6 +729,8 @@ async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text = update.message.text.strip()
             if len(text.split()) > 1:
                 import re
+                
+                # 1. Try parsing the structured key-value format first
                 address_match = re.search(r'address=(.*?)(?=\s+(?:amount|token)=|$)', text)
                 amount_match = re.search(r'amount=(.*?)(?=\s+(?:address|token)=|$)', text)
                 token_match = re.search(r'token=(.*?)(?=\s+(?:address|amount)=|$)', text)
@@ -736,6 +738,36 @@ async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 address = address_match.group(1).strip() if address_match else None
                 amount_str = amount_match.group(1).strip() if amount_match else None
                 token = token_match.group(1).strip() if token_match else None
+                
+                # 2. Fallback: If we don't have address or amount from structured format, try parsing space-separated arguments
+                # e.g., "/trade 0x3812a... 5000" or "/trade 0x3812a... 5000 token-name"
+                if not address and not token:
+                    parts = text.split()
+                    if len(parts) >= 3:
+                        first_arg = parts[1].strip()
+                        second_arg = parts[2].strip()
+                        
+                        # Check if first_arg is a hex address
+                        hex_match = re.search(r'0x[a-fA-F0-9]{40}', first_arg)
+                        if hex_match:
+                            address = hex_match.group(0)
+                            amount_str = second_arg
+                            if len(parts) >= 4:
+                                token = " ".join(parts[3:]).strip()
+                        else:
+                            # Maybe first_arg is token name and second_arg is amount
+                            try:
+                                float("".join(c for c in second_arg if c.isdigit() or c == "."))
+                                token = first_arg
+                                amount_str = second_arg
+                            except ValueError:
+                                # Or first_arg is amount and second_arg is token
+                                try:
+                                    float("".join(c for c in first_arg if c.isdigit() or c == "."))
+                                    amount_str = first_arg
+                                    token = second_arg
+                                except ValueError:
+                                    pass
                 
                 if address:
                     hex_match = re.search(r'0x[a-fA-F0-9]{40}', address)

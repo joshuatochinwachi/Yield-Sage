@@ -23,6 +23,7 @@ interface ChatStep {
   typeSpeed?: number   // ms per char, default 18
   pauseBefore?: number // ms to wait before showing (after prev finishes)
   isThinking?: boolean // show "…" before text appears
+  timestamp?: string   // display time for the message (e.g. "9:41")
 }
 
 const CONVERSATION: ChatStep[] = [
@@ -31,6 +32,7 @@ const CONVERSATION: ChatStep[] = [
     role: "system_event",
     commandLabel: "You sent /start",
     pauseBefore: 600,
+    timestamp: "9:41",
   },
   {
     id: "bot-welcome",
@@ -38,6 +40,7 @@ const CONVERSATION: ChatStep[] = [
     pauseBefore: 800,
     isThinking: true,
     typeSpeed: 10,
+    timestamp: "9:41",
     text: `👋 *Welcome to YieldSage, Alex!*\n\nI am your intelligent DeFi yield assistant for the *Mantle Network*.\n\nHere is what I can do for you:\n📈 *Paper Trading:* Simulate investing in live yield pools with zero capital risk.\n🚨 *Hourly Scoring & Alerts:* Automatically analyze your positions and alert you if yields drop or if better options appear.\n🔍 *On-Chain Verification:* Check and cryptographically verify AI recommendations using on-chain SHA-256 hashes.\n💬 *DeFi Assistant & Insights:* Ask me any questions about yield strategies, pool risks, TVL drops, or portfolio optimization!\n\nUse the buttons below to explore:`,
     rows: [
       { buttons: [{ label: "📊 View Yield Pools" }, { label: "💼 My Positions" }] },
@@ -50,6 +53,7 @@ const CONVERSATION: ChatStep[] = [
     id: "user-q1",
     role: "user",
     pauseBefore: 1800,
+    timestamp: "9:42",
     text: "What are the best stablecoin yields on Mantle right now?",
   },
   {
@@ -58,29 +62,97 @@ const CONVERSATION: ChatStep[] = [
     pauseBefore: 900,
     isThinking: true,
     typeSpeed: 11,
-    text: `*Top Stable Pools Right Now*\n\n• [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc) — *17.50% APY* | TVL: $2.1M | 🟢 STABLE\n  Institutional private-credit pool. Best stable-tier yield on Mantle.\n\n• [Aave V3 USDC](https://mantlescan.xyz/address/0x5c42bc61e1b12b2a64c5d564c76bca2b76bfa251) — *7.02% APY* | TVL: $3.68M | 🟢 STABLE\n  Most battle-tested protocol globally. Lowest counterparty risk.\n\n• [Lendle USDT](https://mantlescan.xyz/address/0x89ab1cd5e1db2cf648b76bca3821a76c8cba7df1) — *11.80% APY* | TVL: $890K | 🟢 STABLE\n  Lending market with solid utilisation rate.\n\n*My Recommendation*\n\nFor a $1,000 conservative entry: split 70/30 between Clearpool and Aave V3. Clearpool carries higher yield, Aave anchors your downside.\n\nUse /trade to simulate this allocation.`,
+    timestamp: "9:42",
+    text: `*Top Stable Pools Right Now*\n\n• [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc) — *17.50% APY* | TVL: $2.1M | 🟢 STABLE\n  Institutional private-credit pool. Best stable-tier yield on Mantle.\n\n• [Aave V3 USDC](https://mantlescan.xyz/address/0x5c42bc61e1b12b2a64c5d564c76bca2b76bfa251) — *7.02% APY* | TVL: $3.68M | 🟢 STABLE\n  Most battle-tested protocol globally. Lowest counterparty risk.\n\n• [Lendle USDT](https://mantlescan.xyz/address/0x89ab1cd5e1db2cf648b76bca3821a76c8cba7df1) — *11.80% APY* | TVL: $890K | 🟢 STABLE\n  Lending market with solid utilisation rate.\n\n*My Recommendation*\n\nFor a $1,000 conservative entry: split 70 / 30 between Clearpool and Aave V3. Clearpool carries higher yield, Aave anchors your downside.\n\nUse /trade to simulate this allocation.`,
   },
   {
     id: "user-q2",
     role: "user",
     pauseBefore: 2200,
-    text: "Simulate a $2,000 trade on Clearpool USDT",
+    timestamp: "9:43",
+    text: "How can I simulate a paper trade?",
   },
   {
-    id: "bot-trade",
+    id: "bot-trade-guide",
+    role: "bot",
+    pauseBefore: 1000,
+    isThinking: true,
+    typeSpeed: 10,
+    timestamp: "9:44",
+    text: `To simulate a paper trade, you can use any of these methods:\n\n1. Use the /trade command and simulate trade from the list of pools / yield opportunities. Follow the instructions from there.\n\n2. Use this format that the bot uses:\n/trade address=<pool_address> amount=<amount> token=<protocol and token_or_pool_name>\n\nExample:\n/trade address=0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc amount=2000 token=clearpool (USDT)\n\nNote: The pool address, token / pool name, and protocol name must match the live data exactly for this to work.\n\n3. Simulate a trade directly from the preferred pool / yield opportunity on the web dashboard at [yieldsageai.xyz/dashboard](https://www.yieldsageai.xyz/dashboard)`,
+  },
+  {
+    id: "user-trade-cmd",
+    role: "user",
+    pauseBefore: 2000,
+    timestamp: "9:45",
+    text: "/trade address=0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc amount=2000 token=clearpool (USDT)",
+  },
+  {
+    id: "bot-trade-success",
     role: "bot",
     pauseBefore: 1000,
     isThinking: true,
     typeSpeed: 12,
+    timestamp: "9:45",
     text: `✅ *Paper Trade Simulated Successfully!*\n\n💰 Invested: *$2,000.00*\n🏦 Pool: *Clearpool (USDT)*\n📈 Entry APY: *17.50%*\n\nI will now monitor this position hourly. You will receive alerts if the APY drops or if a better opportunity appears in the same risk tier!`,
     rows: [
       { buttons: [{ label: "💼 View My Positions" }] },
     ],
   },
   {
+    id: "user-monitor-q",
+    role: "user",
+    pauseBefore: 2000,
+    timestamp: "9:46",
+    text: "How often do you monitor my position and send updates?",
+  },
+  {
+    id: "bot-monitor-ans",
+    role: "bot",
+    pauseBefore: 1000,
+    isThinking: true,
+    typeSpeed: 11,
+    timestamp: "9:46",
+    text: `I run autonomous research every hour to analyze the yield landscape. If yields shift or better options open up, I will send you a personalized portfolio alert directly here. Here is what an hourly report looks like:`,
+  },
+  {
+    id: "evt-hourly-alert",
+    role: "system_event",
+    commandLabel: "Hourly Portfolio Alert Received",
+    pauseBefore: 900,
+    timestamp: "10:46",
+  },
+  {
+    id: "bot-hourly-report",
+    role: "bot",
+    pauseBefore: 1200,
+    isThinking: true,
+    typeSpeed: 9,
+    timestamp: "10:46",
+    text: `📊 *Mantle Yield Snapshots & Recommendations*\n\n• [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc): *15.20% APY* | TVL: $2.1M | Risk: STABLE | [Verify and take action](https://www.yieldsageai.xyz/verify?tx=0x82db0e4ab5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41f)\n\n• [Aave V3 USDC](https://mantlescan.xyz/address/0x5c42bc61e1b12b2a64c5d564c76bca2b76bfa251): *7.10% APY* | TVL: $3.7M | Risk: STABLE | [Verify and take action](https://www.yieldsageai.xyz/verify?tx=0x5c42bc61e1b12b2a64c5d564c76bca2b76bfa251)\n\n💼 *Personalized Portfolio Analysis*\n\n• [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc): Entry *17.50% APY* → Current *15.20% APY* — underperforming by *2.30%*. Hold position but monitor closely.\n\n💡 *Actionable DeFi Intelligence*\nClearpool USDT has dipped slightly due to an influx of deposit TVL. However, it remains the highest stable-tier yield on Mantle. No rebalancing is needed yet.\n\n🕒 *Data snapshot:* 10 Jun 2026, 10:45 UTC\n\n📋 View all live yield opportunities on Mantle → /yields or [yieldsageai.xyz/dashboard](https://www.yieldsageai.xyz/dashboard)`,
+  },
+  {
+    id: "user-risk-q",
+    role: "user",
+    pauseBefore: 2200,
+    timestamp: "10:47",
+    text: "What happens if the yield drops further?",
+  },
+  {
+    id: "bot-risk-ans",
+    role: "bot",
+    pauseBefore: 1000,
+    isThinking: true,
+    typeSpeed: 11,
+    timestamp: "10:48",
+    text: `If Clearpool's APY drops below *12.00%* (your safety threshold), I will trigger a high-priority alert recommending a portfolio rotation.\n\nFor instance, we can rotate 50% into [Aave V3 USDC](https://mantlescan.xyz/address/0x5c42bc61e1b12b2a64c5d564c76bca2b76bfa251) to lock in low-risk yields, or query emerging stablecoin pools on Mantle.`,
+  },
+  {
     id: "user-q3",
     role: "user",
     pauseBefore: 2000,
+    timestamp: "10:49",
     text: "/verify 0x82db0e4ab5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41f",
   },
   {
@@ -89,6 +161,7 @@ const CONVERSATION: ChatStep[] = [
     pauseBefore: 1200,
     isThinking: true,
     typeSpeed: 10,
+    timestamp: "10:49",
     text: `✅ *Cryptographic Proof Verified Successfully!*\n\nThis recommendation matches the Mantle blockchain record and is 100% untampered.\n\n🏦 *Pool*: [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc)\n🏷️ *Risk Tier*: *STABLE*\n📈 *APY*: *17.50%*\n🧠 *AI Model*: *llama-3.3-70b-versatile*\n\n🔗 *Computed Hash*:\n\`d5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41fd5e26b1fb\`\n🔗 *Input Data Hash*:\n\`d5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41fd5e26b1fb\`\n\n💬 *AI Reasoning*:\nClearpool USDT offers premium yields backed by institutional borrower pools, presenting an attractive risk-adjusted rate for stablecoin allocations on Mantle.`,
     rows: [
       { buttons: [{ label: "🌐 Verify on Web" }, { label: "🔍 View on Mantlescan" }] },
@@ -99,16 +172,22 @@ const CONVERSATION: ChatStep[] = [
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function parseBoldText(text: string): React.ReactNode[] {
-  // First split by markdown links: [text](url)
-  const linkRegex = /(\[[^\]]+\]\(https?:\/\/[^\s)]+\))/g
+  // First split by markdown links: [text](url) or [text]url
+  const linkRegex = /(\[[^\]]+\]\(?https?:\/\/[^\s)]+\)?)/g
   const parts = text.split(linkRegex)
   
   return parts.flatMap((part, i) => {
-    if (part.startsWith("[") && part.includes("](")) {
-      const match = part.match(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/)
-      if (match) {
-        const linkText = match[1]
-        const url = match[2]
+    if (part.startsWith("[")) {
+      const closeBracketIndex = part.indexOf("]")
+      if (closeBracketIndex !== -1) {
+        const linkText = part.slice(1, closeBracketIndex)
+        let url = part.slice(closeBracketIndex + 1).trim()
+        if (url.startsWith("(")) {
+          url = url.slice(1)
+        }
+        if (url.endsWith(")")) {
+          url = url.slice(0, -1)
+        }
         return [
           <a
             key={`link-${i}`}
@@ -150,17 +229,33 @@ function parseBoldText(text: string): React.ReactNode[] {
         ]
       }
       
-      // Now split by bold: *text*
-      const boldParts = cp.split(/(\*[^*]+\*)/g)
-      return boldParts.map((bp, k) => {
-        if (bp.startsWith("*") && bp.endsWith("*")) {
-          return (
-            <strong key={`bold-${i}-${j}-${k}`} style={{ color: "rgba(255,255,255,0.92)", fontWeight: 600 }}>
-              {bp.slice(1, -1)}
-            </strong>
-          )
+      // Now split by commands starting with a slash: /trade, /verify, /start
+      const commandParts = cp.split(/(\/\b[a-zA-Z0-9_]+)/g)
+      return commandParts.flatMap((comp, k) => {
+        if (comp.startsWith("/") && comp.length > 1 && !comp.includes(":") && !comp.includes(".")) {
+          return [
+            <span
+              key={`cmd-${i}-${j}-${k}`}
+              className="font-medium cursor-pointer hover:opacity-80 transition-opacity font-mono text-[11px]"
+              style={{ color: "#64c8ff" }}
+            >
+              {comp}
+            </span>
+          ]
         }
-        return <span key={`text-${i}-${j}-${k}`}>{bp}</span>
+        
+        // Now split by bold: *text*
+        const boldParts = comp.split(/(\*[^*]+\*)/g)
+        return boldParts.map((bp, l) => {
+          if (bp.startsWith("*") && bp.endsWith("*")) {
+            return (
+              <strong key={`bold-${i}-${j}-${k}-${l}`} style={{ color: "rgba(255,255,255,0.92)", fontWeight: 600 }}>
+                {bp.slice(1, -1)}
+              </strong>
+            )
+          }
+          return <span key={`text-${i}-${j}-${k}-${l}`}>{bp}</span>
+        })
       })
     })
   })
@@ -500,15 +595,11 @@ export function AgentSection() {
                   }}
                 >
                   {/* Avatar */}
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-base flex-shrink-0"
-                    style={{
-                      background: "linear-gradient(135deg, rgba(0,255,136,0.3) 0%, rgba(0,200,100,0.15) 100%)",
-                      border: "1.5px solid rgba(0,255,136,0.25)",
-                    }}
-                  >
-                    🤖
-                  </div>
+                  <img
+                    src="/logo.jpg"
+                    alt="YieldSage Avatar"
+                    className="w-9 h-9 rounded-full border border-white/10 object-cover flex-shrink-0"
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-semibold text-white/85 leading-tight">YieldSage</div>
                     <div className="flex items-center gap-1.5 mt-0.5">
@@ -605,6 +696,8 @@ export function AgentSection() {
                                 background: "#2b5278",
                                 borderRadius: "14px 14px 4px 14px",
                                 color: "rgba(255,255,255,0.88)",
+                                wordBreak: "break-word",
+                                overflowWrap: "anywhere",
                               }}
                             >
                               {displayText}
@@ -615,7 +708,7 @@ export function AgentSection() {
                                 className="block text-right text-[9px] mt-0.5 font-mono"
                                 style={{ color: "rgba(255,255,255,0.3)" }}
                               >
-                                {done ? "✓✓ 9:41" : ""}
+                                {done ? `✓✓ ${step.timestamp ?? "9:41"}` : ""}
                               </span>
                             </div>
                           </motion.div>
@@ -640,6 +733,8 @@ export function AgentSection() {
                                 color: "rgba(255,255,255,0.75)",
                                 border: "1px solid rgba(0,255,136,0.07)",
                                 lineHeight: 1.55,
+                                wordBreak: "break-word",
+                                overflowWrap: "anywhere",
                               }}
                             >
                               {displayText ? renderText(displayText) : null}
@@ -651,7 +746,7 @@ export function AgentSection() {
                                   className="block text-[9px] mt-1 font-mono"
                                   style={{ color: "rgba(255,255,255,0.25)" }}
                                 >
-                                  9:41
+                                  {step.timestamp ?? "9:41"}
                                 </span>
                               )}
                             </div>
