@@ -117,9 +117,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     if update.message:
-        await update.message.reply_text(greeting, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        await update.message.reply_text(greeting, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
     elif update.callback_query:
-        await update.callback_query.message.edit_text(greeting, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN)
+        await update.callback_query.message.edit_text(greeting, reply_markup=reply_markup, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
 
 async def prompts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Displays an intelligent prompt keyboard for quick questions."""
@@ -128,6 +128,7 @@ async def prompts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Which pools offer the highest APY, and why are they so high?",
         "Explain the risks of providing liquidity to high-APY pools.",
         "How do I balance my portfolio between stable and volatile assets?",
+        "How can I simulate a paper trade?",
         "What is impermanent loss and how can I avoid it?",
         "Can you recommend a low-risk strategy for a $1,000 portfolio?",
         "What happens if a protocol's TVL drops significantly?",

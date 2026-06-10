@@ -41,7 +41,7 @@ const CONVERSATION: ChatStep[] = [
     isThinking: true,
     typeSpeed: 10,
     timestamp: "9:41",
-    text: `👋 *Welcome to YieldSage, Alex!*\n\nI am your intelligent DeFi yield assistant for the *Mantle Network*.\n\nHere is what I can do for you:\n📈 *Paper Trading:* Simulate investing in live yield pools with zero capital risk.\n🚨 *Hourly Scoring & Alerts:* Automatically analyze your positions and alert you if yields drop or if better options appear.\n🔍 *On-Chain Verification:* Check and cryptographically verify AI recommendations using on-chain SHA-256 hashes.\n💬 *DeFi Assistant & Insights:* Ask me any questions about yield strategies, pool risks, TVL drops, or portfolio optimization!\n\nUse the buttons below to explore:`,
+    text: `👋 *Welcome to YieldSage, Alex!*\n\nI am your intelligent AI-powered DeFi yield assistant for the *Mantle Network*.\n\nHere is what I can do for you:\n📈 *Paper Trading:* Simulate investing in live yield pools with zero capital risk. Wanna make real investments? Check [yieldsageai.xyz/dashboard](https://www.yieldsageai.xyz/dashboard).\n🚨 *Hourly Scoring & Alerts:* Automatically analyze your positions and alert you if yields drop or if better options appear.\n🔍 *On-Chain Verification:* Check and cryptographically verify AI recommendations using on-chain SHA-256 hashes.\n💬 *DeFi Assistant & Insights:* Ask me any questions about yield strategies, pool risks, TVL drops, or portfolio optimization!\n\nUse the buttons below to explore:`,
     rows: [
       { buttons: [{ label: "📊 View Yield Pools" }, { label: "💼 My Positions" }] },
       { buttons: [{ label: "📈 Simulate Trade" }, { label: "⚙️ Risk Preference" }] },
