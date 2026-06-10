@@ -38,12 +38,12 @@ const CONVERSATION: ChatStep[] = [
     pauseBefore: 800,
     isThinking: true,
     typeSpeed: 10,
-    text: `👋 *Welcome to YieldSage, Alex!*\n\nI am your intelligent DeFi yield advisor for the *Mantle Network*.\n\nHere is what I can do for you:\n📈 *Paper Trading:* Simulate investing in yield pools and track APY changes.\n🚨 *Hourly Scoring:* Alert you if yields drop or better options appear.\n💬 *DeFi Assistant:* Ask me anything about yield opportunities!\n\nUse the buttons below to explore:`,
+    text: `👋 *Welcome to YieldSage, Alex!*\n\nI am your intelligent DeFi yield assistant for the *Mantle Network*.\n\nHere is what I can do for you:\n📈 *Paper Trading:* Simulate investing in live yield pools with zero capital risk.\n🚨 *Hourly Scoring & Alerts:* Automatically analyze your positions and alert you if yields drop or if better options appear.\n🔍 *On-Chain Verification:* Check and cryptographically verify AI recommendations using on-chain SHA-256 hashes.\n💬 *DeFi Assistant & Insights:* Ask me any questions about yield strategies, pool risks, TVL drops, or portfolio optimization!\n\nUse the buttons below to explore:`,
     rows: [
       { buttons: [{ label: "📊 View Yield Pools" }, { label: "💼 My Positions" }] },
       { buttons: [{ label: "📈 Simulate Trade" }, { label: "⚙️ Risk Preference" }] },
-      { buttons: [{ label: "🔔 Alert Settings" }, { label: "💡 Prompts" }] },
-      { buttons: [{ label: "❓ Help & Guide" }] },
+      { buttons: [{ label: "🔔 Alert Settings" }, { label: "💡 Prompts & FAQs" }] },
+      { buttons: [{ label: "🔍 Verify Proof" }, { label: "❓ Help & Guide" }] },
     ],
   },
   {
@@ -58,7 +58,7 @@ const CONVERSATION: ChatStep[] = [
     pauseBefore: 900,
     isThinking: true,
     typeSpeed: 11,
-    text: `*Top Stable Pools Right Now*\n\n• *Clearpool USDT* — *17.50% APY* | TVL: $2.1M | 🟢 STABLE\n  Institutional private-credit pool. Best stable-tier yield on Mantle.\n\n• *Aave V3 USDC* — *7.02% APY* | TVL: $3.68M | 🟢 STABLE\n  Most battle-tested protocol globally. Lowest counterparty risk.\n\n• *Lendle USDT* — *11.80% APY* | TVL: $890K | 🟢 STABLE\n  Lending market with solid utilisation rate.\n\n*My Recommendation*\n\nFor a $1,000 conservative entry: split 70/30 between Clearpool and Aave V3. Clearpool carries higher yield, Aave anchors your downside.\n\nUse /trade to simulate this allocation.`,
+    text: `*Top Stable Pools Right Now*\n\n• [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc) — *17.50% APY* | TVL: $2.1M | 🟢 STABLE\n  Institutional private-credit pool. Best stable-tier yield on Mantle.\n\n• [Aave V3 USDC](https://mantlescan.xyz/address/0x5c42bc61e1b12b2a64c5d564c76bca2b76bfa251) — *7.02% APY* | TVL: $3.68M | 🟢 STABLE\n  Most battle-tested protocol globally. Lowest counterparty risk.\n\n• [Lendle USDT](https://mantlescan.xyz/address/0x89ab1cd5e1db2cf648b76bca3821a76c8cba7df1) — *11.80% APY* | TVL: $890K | 🟢 STABLE\n  Lending market with solid utilisation rate.\n\n*My Recommendation*\n\nFor a $1,000 conservative entry: split 70/30 between Clearpool and Aave V3. Clearpool carries higher yield, Aave anchors your downside.\n\nUse /trade to simulate this allocation.`,
   },
   {
     id: "user-q2",
@@ -81,28 +81,88 @@ const CONVERSATION: ChatStep[] = [
     id: "user-q3",
     role: "user",
     pauseBefore: 2000,
-    text: "What's my projected return in 30 days?",
+    text: "/verify 0x82db0e4ab5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41f",
   },
   {
-    id: "bot-projection",
+    id: "bot-verification",
     role: "bot",
-    pauseBefore: 1100,
+    pauseBefore: 1200,
     isThinking: true,
-    typeSpeed: 11,
-    text: `*30-Day Projection — Clearpool USDT*\n\n• Principal: *$2,000.00*\n• APY: *17.50%*\n• Est. Return (30 days): *+$28.77*\n• Annualised: *+$350.00*\n\n*Risk Notes:*\n– Clearpool is institutional-grade but not overcollateralised.\n– Yield may fluctuate with credit market conditions.\n– I'll alert you if APY drops below *12%* — your safety threshold.\n\n💡 Tip: Use /alerts to configure your notification preferences.`,
+    typeSpeed: 10,
+    text: `✅ *Cryptographic Proof Verified Successfully!*\n\nThis recommendation matches the Mantle blockchain record and is 100% untampered.\n\n🏦 *Pool*: [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc)\n🏷️ *Risk Tier*: *STABLE*\n📈 *APY*: *17.50%*\n🧠 *AI Model*: *llama-3.3-70b-versatile*\n\n🔗 *Computed Hash*:\n\`d5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41fd5e26b1fb\`\n🔗 *Input Data Hash*:\n\`d5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41fd5e26b1fb\`\n\n💬 *AI Reasoning*:\nClearpool USDT offers premium yields backed by institutional borrower pools, presenting an attractive risk-adjusted rate for stablecoin allocations on Mantle.`,
+    rows: [
+      { buttons: [{ label: "🌐 Verify on Web" }, { label: "🔍 View on Mantlescan" }] },
+    ],
   },
 ]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function parseBoldText(text: string): React.ReactNode[] {
-  const parts = text.split(/(\*[^*]+\*)/g)
-  return parts.map((part, i) => {
-    if (part.startsWith("*") && part.endsWith("*")) {
-      return <strong key={i} style={{ color: "rgba(255,255,255,0.92)", fontWeight: 600 }}>{part.slice(1, -1)}</strong>
+  // First split by markdown links: [text](url)
+  const linkRegex = /(\[[^\]]+\]\(https?:\/\/[^\s)]+\))/g
+  const parts = text.split(linkRegex)
+  
+  return parts.flatMap((part, i) => {
+    if (part.startsWith("[") && part.includes("](")) {
+      const match = part.match(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/)
+      if (match) {
+        const linkText = match[1]
+        const url = match[2]
+        return [
+          <a
+            key={`link-${i}`}
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:opacity-85 transition-opacity font-semibold"
+            style={{ color: "#64c8ff" }}
+          >
+            {linkText.startsWith("*") && linkText.endsWith("*") ? (
+              <strong style={{ color: "rgba(255,255,255,0.92)", fontWeight: 600 }}>
+                {linkText.slice(1, -1)}
+              </strong>
+            ) : (
+              linkText
+            )}
+          </a>
+        ]
+      }
     }
-    // emoji bullet lines
-    return <span key={i}>{part}</span>
+    
+    // Now split by inline code: `code`
+    const codeParts = part.split(/(`[^`]+`)/g)
+    return codeParts.flatMap((cp, j) => {
+      if (cp.startsWith("`") && cp.endsWith("`")) {
+        return [
+          <code
+            key={`code-${i}-${j}`}
+            className="px-1.5 py-0.5 rounded font-mono text-[10px]"
+            style={{
+              background: "rgba(255,255,255,0.08)",
+              color: "rgba(255,255,255,0.9)",
+              border: "1px solid rgba(255,255,255,0.12)",
+              wordBreak: "break-all"
+            }}
+          >
+            {cp.slice(1, -1)}
+          </code>
+        ]
+      }
+      
+      // Now split by bold: *text*
+      const boldParts = cp.split(/(\*[^*]+\*)/g)
+      return boldParts.map((bp, k) => {
+        if (bp.startsWith("*") && bp.endsWith("*")) {
+          return (
+            <strong key={`bold-${i}-${j}-${k}`} style={{ color: "rgba(255,255,255,0.92)", fontWeight: 600 }}>
+              {bp.slice(1, -1)}
+            </strong>
+          )
+        }
+        return <span key={`text-${i}-${j}-${k}`}>{bp}</span>
+      })
+    })
   })
 }
 
@@ -732,6 +792,11 @@ export function AgentSection() {
                   title: "Autonomous Monitoring",
                   desc: "YieldSage runs in the background every hour. It finds better opportunities and pushes them to you before you miss them.",
                 },
+                {
+                  icon: "🔍",
+                  title: "On-Chain Proof Verification",
+                  desc: "Each recommendation is fingerprinted via SHA-256 and committed to the Mantle blockchain, allowing instant verification of data integrity.",
+                },  
                 {
                   icon: "💬",
                   title: "Conversational DeFi Advisor",

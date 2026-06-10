@@ -157,7 +157,7 @@ export default function DashboardPage() {
                 }`}
               >
                 <BarChart3 className="h-3.5 w-3.5" />
-                TVL Distribution
+                Protocol Metrics
               </button>
             </div>
 
