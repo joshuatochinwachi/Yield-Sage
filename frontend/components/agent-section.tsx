@@ -306,6 +306,15 @@ export function AgentSection() {
   const [rendered, setRendered] = useState<RenderedStep[]>([])
   const [typingIdx, setTypingIdx] = useState<number | null>(null)
 
+  // Derive the status-bar clock from the latest message that has a timestamp
+  const statusBarTime = (() => {
+    for (let i = rendered.length - 1; i >= 0; i--) {
+      const ts = rendered[i].step.timestamp
+      if (ts) return ts
+    }
+    return "9:41"
+  })()
+
   // auto-scroll
   useEffect(() => {
     if (chatRef.current) {
@@ -565,23 +574,28 @@ export function AgentSection() {
                     className="flex items-center justify-between px-6 pt-4 pb-2 relative z-40"
                     style={{ background: "#17212b" }}
                   >
-                    <span className="text-[10px] font-semibold text-white/80 font-mono leading-none">9:41</span>
+                    <span className="text-[10px] font-semibold text-white/80 font-mono leading-none">{statusBarTime}</span>
                     <div className="w-28 h-4" />
                     <div className="flex items-center gap-1.5 leading-none">
-                      {/* signal */}
+                      {/* 5G badge */}
+                      <span
+                        className="font-bold font-mono leading-none"
+                        style={{ fontSize: 9, color: "rgba(255,255,255,0.8)", letterSpacing: "-0.02em" }}
+                      >
+                        5G
+                      </span>
+                      {/* signal bars */}
                       <div className="flex items-end gap-[1px]">
                         {[3, 5, 7, 9].map((h) => (
                           <div key={h} className="bg-white/70" style={{ width: 1.5, height: h, borderRadius: 0.5 }} />
                         ))}
                       </div>
-                      {/* wifi */}
-                      <svg width="11" height="9" viewBox="0 0 13 10" fill="none" className="text-white/70">
-                        <path d="M6.5 8.5L8 7C7.4 6.4 6.6 6 6.5 6C6.4 6 5.6 6.4 5 7L6.5 8.5Z" fill="currentColor"/>
-                        <path d="M6.5 10L6.5 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                      </svg>
                       {/* battery */}
-                      <div className="border border-white/40 rounded-[3px] p-[1px] flex items-center" style={{ width: 18, height: 9.5 }}>
-                        <div className="h-full bg-white/80 rounded-[0.5px]" style={{ width: "70%" }} />
+                      <div className="flex items-center gap-[1px]">
+                        <div className="border border-white/40 rounded-[3px] p-[1px] flex items-center" style={{ width: 20, height: 10 }}>
+                          <div className="h-full bg-white/80 rounded-[0.5px]" style={{ width: "72%" }} />
+                        </div>
+                        <div className="rounded-r-[1px]" style={{ width: 1.5, height: 4, background: "rgba(255,255,255,0.4)" }} />
                       </div>
                     </div>
                   </div>
