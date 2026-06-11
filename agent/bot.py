@@ -1145,13 +1145,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cleaned_reply = clean_telegram_markdown(reply)
     await _safe_reply(update, context, cleaned_reply)
 
-TELEGRAM_MAX_LEN = 4096
+TELEGRAM_MAX_LEN = 3900
 
 
 def _split_message(text: str, limit: int = TELEGRAM_MAX_LEN) -> list:
     """
     Split a message into chunks that fit within Telegram's character limit.
     Splits on newlines to avoid cutting mid-sentence or mid-word.
+    If a single line is longer than the limit, it splits the line itself by space/character limit.
     """
     if len(text) <= limit:
         return [text]
@@ -1161,21 +1162,79 @@ def _split_message(text: str, limit: int = TELEGRAM_MAX_LEN) -> list:
     current_len = 0
 
     for line in text.split("\n"):
-        # +1 for the newline we'll re-join with
-        line_len = len(line) + 1
-        if current_len + line_len > limit:
+        if len(line) > limit:
+            # If current has content, flush it
             if current:
                 chunks.append("\n".join(current))
-            current = [line]
-            current_len = line_len
+                current = []
+                current_len = 0
+            # Split the ultra-long line
+            remaining = line
+            while len(remaining) > limit:
+                split_idx = remaining.rfind(" ", 0, limit)
+                if split_idx == -1:
+                    split_idx = limit
+                chunks.append(remaining[:split_idx])
+                remaining = remaining[split_idx:].lstrip()
+            if remaining:
+                current = [remaining]
+                current_len = len(remaining) + 1
         else:
-            current.append(line)
-            current_len += line_len
+            line_len = len(line) + 1
+            if current_len + line_len > limit:
+                if current:
+                    chunks.append("\n".join(current))
+                current = [line]
+                current_len = line_len
+            else:
+                current.append(line)
+                current_len += line_len
 
     if current:
         chunks.append("\n".join(current))
 
     return chunks
+
+
+
+async def _send_chunk_with_retry(send_func, kwargs, label="chunk", max_retries=3):
+    """
+    Attempt to send a message chunk, first with Markdown, falling back to plain text if needed.
+    Retries up to max_retries times on transient failures (network errors, rate limits).
+    """
+    # Create a copy of kwargs so modifications to parse_mode don't leak across retries
+    kwargs_copy = dict(kwargs)
+    for attempt in range(max_retries):
+        try:
+            # First attempt with Markdown (if parse_mode was set)
+            await send_func(**kwargs_copy)
+            return True
+        except Exception as err:
+            err_str = str(err).lower()
+            is_markdown_error = "can't parse" in err_str or "bad request" in err_str or "markdown" in err_str
+            
+            # If it's a Markdown parsing error, immediately retry as plain text on this attempt
+            if is_markdown_error and kwargs_copy.get("parse_mode") == ParseMode.MARKDOWN:
+                logger.warning(f"[{label}] Markdown parse failed: {err}. Retrying as plain text...")
+                kwargs_copy["parse_mode"] = None
+                try:
+                    await send_func(**kwargs_copy)
+                    return True
+                except Exception as plain_err:
+                    err = plain_err
+                    err_str = str(plain_err).lower()
+            
+            # Handle rate limit (429) specifically by sleeping longer
+            sleep_time = 1.0 * (attempt + 1)
+            if "too many requests" in err_str or "429" in err_str:
+                sleep_time = 3.0
+                logger.warning(f"[{label}] Rate limited (429) by Telegram. Sleeping {sleep_time}s before retry...")
+            
+            logger.warning(f"[{label}] Send attempt {attempt + 1}/{max_retries} failed: {err}")
+            if attempt < max_retries - 1:
+                await asyncio.sleep(sleep_time)
+                
+    return False
 
 
 async def _safe_reply(
@@ -1216,27 +1275,23 @@ async def _safe_reply(
         if is_last and reply_markup:
             kwargs["reply_markup"] = reply_markup
 
-        try:
-            if i == 0:
-                # First chunk: reply to the user's message (keeps thread)
-                await update.message.reply_text(**kwargs)
-            else:
-                # Continuation chunks: plain send_message (no reply threading)
-                await context.bot.send_message(chat_id=chat_id, **kwargs)
-        except Exception as md_err:
-            logger.warning(f"[_safe_reply] Markdown failed for chunk {i+1}/{total}: {md_err}. Retrying plain.")
-            kwargs["parse_mode"] = None
-            try:
-                if i == 0:
-                    await update.message.reply_text(**kwargs)
-                else:
-                    await context.bot.send_message(chat_id=chat_id, **kwargs)
-            except Exception as plain_err:
-                logger.error(f"[_safe_reply] Chunk {i+1}/{total} plain-text send also failed: {plain_err}")
+        if i == 0:
+            send_func = update.message.reply_text
+        else:
+            # Wrap context.bot.send_message to match expected signature
+            send_func = lambda **kw: context.bot.send_message(chat_id=chat_id, **kw)
+
+        success = await _send_chunk_with_retry(
+            send_func=send_func,
+            kwargs=kwargs,
+            label=f"reply_chunk {i+1}/{total}"
+        )
+        if not success:
+            logger.error(f"[_safe_reply] Failed to send chunk {i+1}/{total} after all retries.")
 
         # Small gap between chunks to respect Telegram rate limits
         if total > 1 and not is_last:
-            await asyncio.sleep(0.4)
+            await asyncio.sleep(0.5)
 
 
 async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
@@ -1265,38 +1320,26 @@ async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
                 # Prepend part header when split across multiple messages
                 part_text = f"_(Part {i+1}/{total})_\n\n{chunk}" if total > 1 else chunk
 
-                # ── Each chunk has its own independent try/except.
-                # A failure on chunk N never prevents chunks N+1, N+2… from being sent.
-                sent = False
-                try:
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=part_text,
-                        parse_mode=ParseMode.MARKDOWN,
-                        disable_web_page_preview=True
-                    )
-                    sent = True
-                except Exception as md_err:
-                    logger.warning(
-                        f"[alert {msg_id}] Chunk {i+1}/{total} Markdown send failed "
-                        f"({md_err}). Retrying as plain text..."
-                    )
-                    try:
-                        await context.bot.send_message(
-                            chat_id=chat_id,
-                            text=part_text,
-                            parse_mode=None,
-                            disable_web_page_preview=True
-                        )
-                        sent = True
-                    except Exception as plain_err:
-                        logger.error(
-                            f"[alert {msg_id}] Chunk {i+1}/{total} plain text send also failed: {plain_err}"
-                        )
-                        failed_chunks.append(i + 1)
+                kwargs = dict(
+                    chat_id=chat_id,
+                    text=part_text,
+                    parse_mode=ParseMode.MARKDOWN,
+                    disable_web_page_preview=True
+                )
+                
+                # Wrap context.bot.send_message
+                send_func = lambda **kw: context.bot.send_message(**kw)
+                
+                success = await _send_chunk_with_retry(
+                    send_func=send_func,
+                    kwargs=kwargs,
+                    label=f"alert {msg_id} chunk {i+1}/{total}"
+                )
 
-                if sent:
+                if success:
                     chunks_sent += 1
+                else:
+                    failed_chunks.append(i + 1)
 
                 # Small gap between parts so Telegram doesn't throttle
                 if total > 1 and i < total - 1:
@@ -1332,6 +1375,7 @@ async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
 
     except Exception as e:
         logger.error(f"Error polling alert queue: {e}")
+
 
 def main():
     """Start the Telegram bot."""

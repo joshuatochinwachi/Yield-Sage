@@ -1151,7 +1151,7 @@ Clearpool's private credit pools are outpacing Aave by 10-12%. Pools showing 0% 
 OUTPUT CONSTRAINTS
 ════════════════════════════════════════
 - Portfolio Analysis completeness: You MUST include every single active trade in the portfolio. Never summarize them into a single line or say "and others". Each trade gets its own bullet and its own dedicated paragraph of detailed analysis and reasons.
-- Length: MAXIMUM 350 words total. Be precise and direct — no padding. Every sentence must add information. No preamble. No sign-off. Start directly with 📊. Telegram has a 4096 character hard limit — staying under 350 words ensures the message always fits in one message.
+- Length: Be precise and direct — no padding. Every sentence must add information. No preamble. No sign-off. Start directly with 📊. Do not worry about Telegram's character limits as our delivery engine automatically handles splitting and paginating long messages cleanly.
 - Risk profile: {risk_preference.upper()} — only recommend matching pools.
 - ALL numerical values (APY, TVL, investment amounts) must come from LIVE DATA. Never invent.
 - ZERO HALLUCINATION OF EXAMPLE DATA: The pools, APYs, TVLs, transaction hashes (tx), and reasoning shown in the FORMAT EXAMPLE section are for structural reference only. Under NO circumstances should you output any details from the examples (such as Clearpool USDT at 17.50%, transaction hash 0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f, etc.) unless they are explicitly present in the live database context provided to you. If a pool or trade is not in the user's active trades or the live yield snapshot, you must never mention it.
@@ -1187,12 +1187,12 @@ Fix any failure before responding.
                         "Use the Selected On-chain Yield Recommendations list above for Section 1, including their Proof links exactly. "
                         "Use ONLY APY and TVL values from the live data above. "
                         "All pool links as [Name](url). Bold = **double asterisks**. No # headers. "
-                        "CRITICAL: Keep the entire message under 900 words. Be concise but complete."
+                        "CRITICAL: Be concise but complete. Analyze every active position."
                     ),
                 }],
                 system_prompt=system_prompt,
                 temperature=0.2,
-                max_tokens=950,
+                max_tokens=3000,
                 priority="background",
             )
 
