@@ -1260,7 +1260,10 @@ async def _safe_reply(
     - `reply_markup` (keyboard) is attached only to the LAST chunk so the
       buttons appear at the end of the full message.
     """
-    chunks = _split_message(text)
+    if "---MESSAGE_BREAK---" in text:
+        chunks = [c.strip() for c in text.split("---MESSAGE_BREAK---") if c.strip()]
+    else:
+        chunks = _split_message(text)
     total = len(chunks)
     chat_id = update.effective_chat.id
 
@@ -1310,7 +1313,10 @@ async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
             content = msg["content"]
 
             cleaned_content = clean_telegram_markdown(content)
-            chunks = _split_message(cleaned_content)
+            if "---MESSAGE_BREAK---" in cleaned_content:
+                chunks = [c.strip() for c in cleaned_content.split("---MESSAGE_BREAK---") if c.strip()]
+            else:
+                chunks = _split_message(cleaned_content)
             total = len(chunks)
 
             chunks_sent = 0

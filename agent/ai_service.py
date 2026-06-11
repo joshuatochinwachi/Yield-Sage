@@ -650,6 +650,9 @@ If a protocol or pool has no address in the live data, write its name plainly �
 WRONG → [Agni Finance](https://mantlescan.xyz/address/0xabc123) ← if 0xabc123 is not in the live data
 RIGHT → Agni Finance ← plain text when address is not in live data
 
+LAW 9 ── INTELLIGENT SPLITTING FOR LONG MESSAGES.
+If your response is going to be very long (e.g. listing many pools, or detailed analysis of 4+ positions), you MUST partition the response yourself into separate message parts. Place the separator '---MESSAGE_BREAK---' on its own line between these parts. Ensure each part has balanced Markdown tags (e.g. closed brackets, closed asterisks) and reads coherently on its own as a standalone message. Each part must have perfect reasoning.
+
 ════════════════════════════════════════
 FORMATTING EXAMPLE — MIRROR THIS EXACTLY
 ════════════════════════════════════════
@@ -727,7 +730,7 @@ LIVE DATA — USE ONLY THESE VALUES
                 system_prompt=system_prompt,
                 tools=[_SEARCH_TOOL],
                 temperature=0.3,
-                max_tokens=1500,
+                max_tokens=3500,
             )
             guard_task.cancel()  # response arrived — kill the thinking timer
 
@@ -788,7 +791,7 @@ LIVE DATA — USE ONLY THESE VALUES
                     system_prompt=system_prompt,
                     tools=[_SEARCH_TOOL],
                     temperature=0.3,
-                    max_tokens=1500,
+                    max_tokens=3500,
                 )
                 bot_reply = (final_response.choices[0].message.content or "").strip()
                 if not bot_reply:
@@ -1103,6 +1106,9 @@ You must include the exact Verify and take action link provided at the end of th
 FORMAT → | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x...)
 WRONG → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE
 RIGHT → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f)
+
+LAW 9 ── INTELLIGENT SPLITTING FOR LONG MESSAGES.
+If your report is going to be very long (e.g. detailed analysis of 4+ positions), you MUST partition the report yourself into separate message parts. Place the separator '---MESSAGE_BREAK---' on its own line between these parts. Ensure each part has balanced Markdown tags (e.g. closed brackets, closed asterisks) and reads coherently on its own as a standalone message. Each part must have perfect reasoning.
 
 ════════════════════════════════════════
 MANDATORY OUTPUT STRUCTURE — FOLLOW EXACTLY
