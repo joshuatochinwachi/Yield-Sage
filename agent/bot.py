@@ -1143,10 +1143,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         thinking_callback=_send_thinking,
     )
     cleaned_reply = clean_telegram_markdown(reply)
-    try:
-        await update.message.reply_text(cleaned_reply, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
-    except Exception:
-        await update.message.reply_text(cleaned_reply, parse_mode=None, disable_web_page_preview=True)
+    await _safe_reply(update, context, cleaned_reply)
 
 TELEGRAM_MAX_LEN = 4096
 
@@ -1181,6 +1178,67 @@ def _split_message(text: str, limit: int = TELEGRAM_MAX_LEN) -> list:
     return chunks
 
 
+async def _safe_reply(
+    update: Update,
+    context,
+    text: str,
+    reply_markup=None,
+    disable_web_page_preview: bool = True,
+):
+    """
+    Send a reply that is guaranteed to be delivered in full, even when the
+    message exceeds Telegram's 4096-character hard limit.
+
+    Behaviour:
+    - Single chunk  → reply_text on the original message (preserves the
+                      "reply" thread so the user sees it in context).
+    - Multiple chunks → first chunk is a reply; subsequent chunks are
+                        plain follow-up messages sent immediately after,
+                        labelled (Part N/Total) so the user knows they
+                        belong together.
+    - Per-chunk fallback: Markdown is attempted first; if Telegram rejects
+      the parse, the same chunk is re-sent as plain text so nothing is lost.
+    - `reply_markup` (keyboard) is attached only to the LAST chunk so the
+      buttons appear at the end of the full message.
+    """
+    chunks = _split_message(text)
+    total = len(chunks)
+    chat_id = update.effective_chat.id
+
+    for i, chunk in enumerate(chunks):
+        is_last = (i == total - 1)
+        part_text = f"_(Part {i+1}/{total})_\n\n{chunk}" if total > 1 else chunk
+        kwargs = dict(
+            text=part_text,
+            parse_mode=ParseMode.MARKDOWN,
+            disable_web_page_preview=disable_web_page_preview,
+        )
+        if is_last and reply_markup:
+            kwargs["reply_markup"] = reply_markup
+
+        try:
+            if i == 0:
+                # First chunk: reply to the user's message (keeps thread)
+                await update.message.reply_text(**kwargs)
+            else:
+                # Continuation chunks: plain send_message (no reply threading)
+                await context.bot.send_message(chat_id=chat_id, **kwargs)
+        except Exception as md_err:
+            logger.warning(f"[_safe_reply] Markdown failed for chunk {i+1}/{total}: {md_err}. Retrying plain.")
+            kwargs["parse_mode"] = None
+            try:
+                if i == 0:
+                    await update.message.reply_text(**kwargs)
+                else:
+                    await context.bot.send_message(chat_id=chat_id, **kwargs)
+            except Exception as plain_err:
+                logger.error(f"[_safe_reply] Chunk {i+1}/{total} plain-text send also failed: {plain_err}")
+
+        # Small gap between chunks to respect Telegram rate limits
+        if total > 1 and not is_last:
+            await asyncio.sleep(0.4)
+
+
 async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
     """Background repeating job that polls database for pending alerts and broadcasts them."""
     if not supabase:
@@ -1200,44 +1258,78 @@ async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
             chunks = _split_message(cleaned_content)
             total = len(chunks)
 
-            try:
-                for i, chunk in enumerate(chunks):
-                    # Prepend part header when split across multiple messages
-                    part_text = f"_(Part {i+1}/{total})_\n\n{chunk}" if total > 1 else chunk
+            chunks_sent = 0
+            failed_chunks = []
+
+            for i, chunk in enumerate(chunks):
+                # Prepend part header when split across multiple messages
+                part_text = f"_(Part {i+1}/{total})_\n\n{chunk}" if total > 1 else chunk
+
+                # ── Each chunk has its own independent try/except.
+                # A failure on chunk N never prevents chunks N+1, N+2… from being sent.
+                sent = False
+                try:
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=part_text,
+                        parse_mode=ParseMode.MARKDOWN,
+                        disable_web_page_preview=True
+                    )
+                    sent = True
+                except Exception as md_err:
+                    logger.warning(
+                        f"[alert {msg_id}] Chunk {i+1}/{total} Markdown send failed "
+                        f"({md_err}). Retrying as plain text..."
+                    )
                     try:
-                        await context.bot.send_message(
-                            chat_id=chat_id,
-                            text=part_text,
-                            parse_mode=ParseMode.MARKDOWN,
-                            disable_web_page_preview=True
-                        )
-                    except Exception:
-                        # Fallback: strip markdown and retry plain
                         await context.bot.send_message(
                             chat_id=chat_id,
                             text=part_text,
                             parse_mode=None,
                             disable_web_page_preview=True
                         )
+                        sent = True
+                    except Exception as plain_err:
+                        logger.error(
+                            f"[alert {msg_id}] Chunk {i+1}/{total} plain text send also failed: {plain_err}"
+                        )
+                        failed_chunks.append(i + 1)
 
-                    if total > 1 and i < total - 1:
-                        import asyncio as _asyncio
-                        await _asyncio.sleep(0.5)  # small gap between parts
+                if sent:
+                    chunks_sent += 1
 
+                # Small gap between parts so Telegram doesn't throttle
+                if total > 1 and i < total - 1:
+                    await asyncio.sleep(0.5)
+
+            # Update DB status based on delivery outcome
+            if chunks_sent > 0:
+                # At least something was delivered — mark sent so already-sent parts
+                # are never re-delivered on the next poll cycle.
                 supabase.table("telegram_messages").update({
                     "status": "sent",
                     "sent_at": datetime.utcnow().isoformat()
                 }).eq("id", msg_id).execute()
-                logger.info(
-                    f"Broadcasted alert {msg_id} to chat {chat_id}"
-                    + (f" ({total} parts)" if total > 1 else "")
-                )
-            except Exception as send_err:
-                logger.error(f"Failed to send queued alert {msg_id} to chat {chat_id}: {send_err}")
+                if failed_chunks:
+                    logger.warning(
+                        f"[alert {msg_id}] Partially delivered to chat {chat_id}. "
+                        f"Sent {chunks_sent}/{total} chunks. Failed chunks: {failed_chunks}"
+                    )
+                else:
+                    logger.info(
+                        f"Broadcasted alert {msg_id} to chat {chat_id}"
+                        + (f" ({total} parts)" if total > 1 else "")
+                    )
+            else:
+                # Every single chunk failed — keep status=failed so it is retried next cycle
                 supabase.table("telegram_messages").update({
                     "status": "failed",
-                    "error_message": str(send_err)
+                    "error_message": f"All {total} chunks failed to send."
                 }).eq("id", msg_id).execute()
+                logger.error(
+                    f"[alert {msg_id}] ALL {total} chunks failed for chat {chat_id}. Marked for retry."
+                )
+
     except Exception as e:
         logger.error(f"Error polling alert queue: {e}")
 
