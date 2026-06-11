@@ -79,9 +79,9 @@ _PROVIDERS: list = _init_providers()
 # ─── Last-known-good response cache ─────────────────────────────────────────
 # Served when ALL providers are unavailable so judges never see a dead wall.
 _response_cache: dict = {
-    "conversational": None,   # str  — last bot reply
-    "hourly_analysis": None,  # list — last JSON analysis array
-    "hourly_update":   None,  # str  — last personalised hourly message
+    "conversational": None,    # str  — last bot reply
+    "hourly_analysis": None,   # list — last JSON analysis array
+    "hourly_updates":  {},     # dict[user_id -> str] — per-user last message (NEVER share across users)
 }
 
 # ─── Tool definition — OpenAI function-call format ──────────────────────────
@@ -936,6 +936,7 @@ REQUIRED JSON SCHEMA
         risk_preference: str,
         user_trades: list,
         yields: list,
+        user_id: str = None,
     ) -> str:
         """
         Generates a personalised hourly Telegram message for a user.
@@ -1150,7 +1151,7 @@ Clearpool's private credit pools are outpacing Aave by 10-12%. Pools showing 0% 
 OUTPUT CONSTRAINTS
 ════════════════════════════════════════
 - Portfolio Analysis completeness: You MUST include every single active trade in the portfolio. Never summarize them into a single line or say "and others". Each trade gets its own bullet and its own dedicated paragraph of detailed analysis and reasons.
-- Length: Approximately 200-400 words (more if the user has multiple active trades). Keep it concise but ensure absolute completeness and detail. No preamble. No sign-off. Start directly with 📊.
+- Length: MAXIMUM 350 words total. Be precise and direct — no padding. Every sentence must add information. No preamble. No sign-off. Start directly with 📊. Telegram has a 4096 character hard limit — staying under 350 words ensures the message always fits in one message.
 - Risk profile: {risk_preference.upper()} — only recommend matching pools.
 - ALL numerical values (APY, TVL, investment amounts) must come from LIVE DATA. Never invent.
 - ZERO HALLUCINATION OF EXAMPLE DATA: The pools, APYs, TVLs, transaction hashes (tx), and reasoning shown in the FORMAT EXAMPLE section are for structural reference only. Under NO circumstances should you output any details from the examples (such as Clearpool USDT at 17.50%, transaction hash 0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f, etc.) unless they are explicitly present in the live database context provided to you. If a pool or trade is not in the user's active trades or the live yield snapshot, you must never mention it.
@@ -1185,12 +1186,13 @@ Fix any failure before responding.
                         "no introduction, no preamble. "
                         "Use the Selected On-chain Yield Recommendations list above for Section 1, including their Proof links exactly. "
                         "Use ONLY APY and TVL values from the live data above. "
-                        "All pool links as [Name](url). Bold = **double asterisks**. No # headers."
+                        "All pool links as [Name](url). Bold = **double asterisks**. No # headers. "
+                        "CRITICAL: Keep the entire message under 900 words. Be concise but complete."
                     ),
                 }],
                 system_prompt=system_prompt,
                 temperature=0.2,
-                max_tokens=1800,
+                max_tokens=950,
                 priority="background",
             )
 
@@ -1208,14 +1210,18 @@ Fix any failure before responding.
             cta_line = "\n\n📋 View all live yield opportunities on Mantle → /yields or [yieldsageai.xyz/dashboard](https://yieldsageai.xyz/dashboard)"
             result = result + timestamp_line + cta_line
 
-            _response_cache["hourly_update"] = result
+            # Cache per-user — never leak User A's private data to User B
+            if user_id:
+                _response_cache["hourly_updates"][user_id] = result
             return result
 
         except Exception as e:
             logger.error(f"[LLM] All providers failed for hourly update: {e}")
-            if _response_cache["hourly_update"]:
+            # Serve THIS user's own cached message only — never another user's
+            cached = _response_cache["hourly_updates"].get(user_id) if user_id else None
+            if cached:
                 return (
-                    _response_cache["hourly_update"]
+                    cached
                     + "\n\n_⚠️ Cached — AI busy. Fresh update coming next hour._"
                 )
             return (

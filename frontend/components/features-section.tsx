@@ -54,7 +54,7 @@ const features = [
     icon: Layers,
     label: "Multi-Protocol Coverage",
     description:
-      "Tracks every major DeFi protocol deployed on Mantle — including Merchant Moe, Lendle, Aurelius, Cleo, Pendle, and more — all in a single unified dashboard.",
+      "Tracks every major DeFi protocol deployed on Mantle — including Merchant Moe, Aave, Agni Finance, Fluxion Network, Ondo, Clearpool, and more — all in a single unified dashboard.",
     stat: "All",
     statLabel: "Mantle protocols",
     color: "rgba(251,113,133,",

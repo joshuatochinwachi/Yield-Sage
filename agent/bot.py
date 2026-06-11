@@ -1148,6 +1148,39 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception:
         await update.message.reply_text(cleaned_reply, parse_mode=None, disable_web_page_preview=True)
 
+TELEGRAM_MAX_LEN = 4096
+
+
+def _split_message(text: str, limit: int = TELEGRAM_MAX_LEN) -> list:
+    """
+    Split a message into chunks that fit within Telegram's character limit.
+    Splits on newlines to avoid cutting mid-sentence or mid-word.
+    """
+    if len(text) <= limit:
+        return [text]
+
+    chunks = []
+    current = []
+    current_len = 0
+
+    for line in text.split("\n"):
+        # +1 for the newline we'll re-join with
+        line_len = len(line) + 1
+        if current_len + line_len > limit:
+            if current:
+                chunks.append("\n".join(current))
+            current = [line]
+            current_len = line_len
+        else:
+            current.append(line)
+            current_len += line_len
+
+    if current:
+        chunks.append("\n".join(current))
+
+    return chunks
+
+
 async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
     """Background repeating job that polls database for pending alerts and broadcasts them."""
     if not supabase:
@@ -1164,27 +1197,41 @@ async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
             content = msg["content"]
 
             cleaned_content = clean_telegram_markdown(content)
+            chunks = _split_message(cleaned_content)
+            total = len(chunks)
+
             try:
-                try:
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=cleaned_content,
-                        parse_mode=ParseMode.MARKDOWN,
-                        disable_web_page_preview=True
-                    )
-                except Exception:
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=cleaned_content,
-                        parse_mode=None,
-                        disable_web_page_preview=True
-                    )
+                for i, chunk in enumerate(chunks):
+                    # Prepend part header when split across multiple messages
+                    part_text = f"_(Part {i+1}/{total})_\n\n{chunk}" if total > 1 else chunk
+                    try:
+                        await context.bot.send_message(
+                            chat_id=chat_id,
+                            text=part_text,
+                            parse_mode=ParseMode.MARKDOWN,
+                            disable_web_page_preview=True
+                        )
+                    except Exception:
+                        # Fallback: strip markdown and retry plain
+                        await context.bot.send_message(
+                            chat_id=chat_id,
+                            text=part_text,
+                            parse_mode=None,
+                            disable_web_page_preview=True
+                        )
+
+                    if total > 1 and i < total - 1:
+                        import asyncio as _asyncio
+                        await _asyncio.sleep(0.5)  # small gap between parts
 
                 supabase.table("telegram_messages").update({
                     "status": "sent",
                     "sent_at": datetime.utcnow().isoformat()
                 }).eq("id", msg_id).execute()
-                logger.info(f"Broadcasted alert {msg_id} to chat {chat_id}")
+                logger.info(
+                    f"Broadcasted alert {msg_id} to chat {chat_id}"
+                    + (f" ({total} parts)" if total > 1 else "")
+                )
             except Exception as send_err:
                 logger.error(f"Failed to send queued alert {msg_id} to chat {chat_id}: {send_err}")
                 supabase.table("telegram_messages").update({

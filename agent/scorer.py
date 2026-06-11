@@ -90,7 +90,8 @@ class HourlyScorer:
                 update_msg = await self.ai.generate_personalized_hourly_update(
                     risk_preference=risk_preference,
                     user_trades=user_trades,
-                    yields=yields
+                    yields=yields,
+                    user_id=user_id,
                 )
 
                 payload = {
@@ -105,8 +106,13 @@ class HourlyScorer:
             except Exception as e:
                 logger.error(f"Failed to generate/queue update for user {user_id}: {e}")
 
-        # Fire all users simultaneously — pipeline time = time for ONE user, not N users
-        await asyncio.gather(*[process_user(user) for user in users])
+        # Process users sequentially with a short pause between each.
+        # This prevents all users hammering NVIDIA/Groq at once and triggering
+        # cascading 504/429 errors that can stall the entire pipeline for 10+ minutes.
+        for i, user in enumerate(users):
+            await process_user(user)
+            if i < len(users) - 1:
+                await asyncio.sleep(3)  # 3s gap prevents rate-limit pile-ups
 
 if __name__ == "__main__":
     scorer = HourlyScorer()
