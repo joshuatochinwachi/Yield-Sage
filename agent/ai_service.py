@@ -1022,19 +1022,34 @@ REQUIRED JSON SCHEMA
         if user_trades:
             trade_context = "User's Active Paper Trades:\n"
             for t in user_trades:
-                p = t.get("protocols", {})
+                p = t.get("protocols", {}) or {}
+                # Find current APY from yields list
+                current_apy = None
+                if yields:
+                    for y in yields:
+                        if y.get("protocol_id") == t.get("protocol_id"):
+                            current_apy = y.get("apy")
+                            break
+                
+                # Fallback to entry APY if current APY is not in the recent yields snapshot
+                if current_apy is None:
+                    current_apy = t.get("entry_apy")
+                
+                apy_str = f"{current_apy:.2f}%" if current_apy is not None else "N/A"
                 pool_addr = p.get("pool_address")
                 if pool_addr:
                     url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
                     trade_context += (
                         f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}) | "
-                        f"Entry APY: {t['entry_apy']}% | "
+                        f"Entry APY: {t['entry_apy']:.2f}% | "
+                        f"Current APY: {apy_str} | "
                         f"Current Investment: ${t['simulated_investment_usd']:.2f}\n"
                     )
                 else:
                     trade_context += (
                         f"- Protocol: {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) | "
-                        f"Entry APY: {t['entry_apy']}% | "
+                        f"Entry APY: {t['entry_apy']:.2f}% | "
+                        f"Current APY: {apy_str} | "
                         f"Current Investment: ${t['simulated_investment_usd']:.2f}\n"
                     )
         else:
@@ -1086,7 +1101,7 @@ LAW 8 ── ALL SNAPSHOT RECOMMENDATIONS MUST INCLUDE THEIR EXACT PROOF LINK.
 You must include the exact Verify and take action link provided at the end of the pool details line.
 FORMAT → | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x...)
 WRONG → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE
-RIGHT → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x10ad97e9...)
+RIGHT → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f)
 
 ════════════════════════════════════════
 MANDATORY OUTPUT STRUCTURE — FOLLOW EXACTLY
@@ -1094,11 +1109,19 @@ MANDATORY OUTPUT STRUCTURE — FOLLOW EXACTLY
 
 📊 **Mantle Yield Snapshots & Recommendations**
 [2-3 bullets of selected yield recommendations matching the user's risk preference — each on its OWN line]
-[Each bullet MUST match the pool link, APY, TVL, and proof link from Selected On-chain Yield Recommendations context. Do not invent any values!]
+[Each bullet MUST include the pool link, APY, TVL, risk, and proof link from Selected On-chain Yield Recommendations context. Do not invent any values!]
+[Consistently append "Reason: [AI Reasoning from context]" at the end of each bullet on the same line, exactly as shown in the example.]
 
 💼 **Personalized Portfolio Analysis**
-[Active trades: review every one — Entry APY → Current APY — alert if underperforming by 2%+]
-[No trades: suggest paper trading benefits + one specific pool to start with]
+[You MUST analyze and list EVERY SINGLE trade in the User's Active Paper Trades context. Do not omit, group, or skip any of them. For EACH trade, output exactly one bullet point formatted as follows:
+• [Protocol Name (Pool Name)](https://mantlescan.xyz/address/0xADDRESS): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Detailed personalized analysis of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
+
+For status symbols/text:
+- If underperforming by 2%+: ⚠️ Underperforming by Z.ZZ%
+- If performing normally or close (within 2%): 🟢 Steady
+- If outperforming: ✅ Outperforming
+
+If the user has NO active trades (User has NO active paper trades right now), suggest paper trading benefits and recommend one specific pool matching their risk preference to start with.]
 
 💡 **Actionable DeFi Intelligence**
 [One senior-engineer-level Mantle DeFi insight from the live data]
@@ -1109,18 +1132,15 @@ FORMAT EXAMPLE — COPY THIS STRUCTURE EXACTLY
 
 📊 **Mantle Yield Snapshots & Recommendations**
 
-• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123): **17.50% APY** | TVL: $2,100,000 | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f)
-  Institutional private credit pool. Highest stable-tier yield right now.
+• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123): **17.50% APY** | TVL: $2,100,000 | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f) Reason: Institutional private credit pool. Highest stable-tier yield right now.
 
-• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456): **7.03% APY** | TVL: $3,682,789 | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x672451fa76d787d52a23e59048a609d949d6b1ba543fc2c5e29dbc54577bd96f)
-  Battle-tested. Lowest counterparty risk on Mantle.
+• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456): **7.03% APY** | TVL: $3,682,789 | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x672451fa76d787d52a23e59048a609d949d6b1ba543fc2c5e29dbc54577bd96f) Reason: Battle-tested. Lowest counterparty risk on Mantle.
 
 💼 **Personalized Portfolio Analysis**
 
-• [Fluxion USDT0-BSB](https://mantlescan.xyz/address/0x999): Entry 23.51% → Current 26.45% ✅ Outperforming — hold position.
+• [Fluxion USDT0-BSB](https://mantlescan.xyz/address/0x999): Entry 23.51% APY → Current 26.45% APY ✅ Outperforming — hold position.
 
-⚠️ **HIGH PRIORITY ALERT** — $15,000 Position:
-[Agni Finance WMNT-mETH](https://mantlescan.xyz/address/0x777): Entry 121.84% → Current 121.87% — marginal hold, but TVL is only $1,282. Extreme liquidity risk. Consider rotating 50% into [Clearpool USDT](https://mantlescan.xyz/address/0xabc123) at 17.50% to de-risk.
+• [Agni Finance WMNT-mETH](https://mantlescan.xyz/address/0x777): Entry 121.84% APY → Current 115.20% APY ⚠️ Underperforming by 6.64% — underperforming due to APY drop. Consider rotating 50% into [Clearpool USDT](https://mantlescan.xyz/address/0xabc123) at 17.50% to de-risk.
 
 💡 **Actionable DeFi Intelligence**
 
@@ -1129,9 +1149,11 @@ Clearpool's private credit pools are outpacing Aave by 10-12%. Pools showing 0% 
 ════════════════════════════════════════
 OUTPUT CONSTRAINTS
 ════════════════════════════════════════
-- Length: 200-250 words. No preamble. No sign-off. Start directly with 📊.
+- Portfolio Analysis completeness: You MUST include every single active trade in the portfolio. Never summarize them into a single line or say "and others". Each trade gets its own bullet and its own dedicated paragraph of detailed analysis and reasons.
+- Length: Approximately 200-400 words (more if the user has multiple active trades). Keep it concise but ensure absolute completeness and detail. No preamble. No sign-off. Start directly with 📊.
 - Risk profile: {risk_preference.upper()} — only recommend matching pools.
 - ALL numerical values (APY, TVL, investment amounts) must come from LIVE DATA. Never invent.
+- ZERO HALLUCINATION OF EXAMPLE DATA: The pools, APYs, TVLs, transaction hashes (tx), and reasoning shown in the FORMAT EXAMPLE section are for structural reference only. Under NO circumstances should you output any details from the examples (such as Clearpool USDT at 17.50%, transaction hash 0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f, etc.) unless they are explicitly present in the live database context provided to you. If a pool or trade is not in the user's active trades or the live yield snapshot, you must never mention it.
 
 ════════════════════════════════════════
 MANDATORY SELF-CHECK BEFORE RESPONDING

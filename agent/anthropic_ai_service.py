@@ -505,13 +505,26 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
         if user_trades:
             trade_context = "User's Active Paper Trades:\n"
             for t in user_trades:
-                p = t.get("protocols", {})
+                p = t.get("protocols", {}) or {}
+                # Find current APY from yields list
+                current_apy = None
+                if yields:
+                    for y in yields:
+                        if y.get("protocol_id") == t.get("protocol_id"):
+                            current_apy = y.get("apy")
+                            break
+                
+                # Fallback to entry APY if current APY is not in the recent yields snapshot
+                if current_apy is None:
+                    current_apy = t.get("entry_apy")
+                
+                apy_str = f"{current_apy:.2f}%" if current_apy is not None else "N/A"
                 pool_address = p.get("pool_address")
                 if pool_address:
                     url = pool_address if pool_address.startswith('http') else f"https://mantlescan.xyz/address/{pool_address}"
-                    trade_context += f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}) | Entry APY: {t['entry_apy']}% | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
+                    trade_context += f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}) | Entry APY: {t['entry_apy']:.2f}% | Current APY: {apy_str} | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
                 else:
-                    trade_context += f"- Protocol: {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) | Entry APY: {t['entry_apy']}% | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
+                    trade_context += f"- Protocol: {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) | Entry APY: {t['entry_apy']:.2f}% | Current APY: {apy_str} | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
         else:
             trade_context = "User has NO active paper trades right now.\n"
 
@@ -522,9 +535,14 @@ User Settings:
 - Target Risk Profile: {risk_preference.upper()}
 
 The message MUST contain ALL of the following distinct sections, clearly formatted with headers and emojis:
-1. 📊 **Mantle Yield Snapshots & Recommendations**: Highlight the top-performing yield pools matching their risk tier. Provide 2-3 specific pool names with current APYs and TVLs. IMPORTANT: If a pool has an Address provided, you MUST wrap the pool name in a Markdown link to the Mantle Explorer (e.g. `[Pool Name](https://mantlescan.xyz/address/THE_ADDRESS)`).
+1. 📊 **Mantle Yield Snapshots & Recommendations**: Highlight the top-performing yield pools matching their risk tier. Provide 2-3 specific pool names with current APYs, TVLs, and verify links. Consistently append "Reason: [AI Reasoning from context]" at the end of each bullet on the same line. IMPORTANT: If a pool has an Address provided, you MUST wrap the pool name in a Markdown link to the Mantle Explorer (e.g. `[Pool Name](https://mantlescan.xyz/address/THE_ADDRESS)`).
 2. 💼 **Personalized Portfolio Analysis**:
-   - If the user has active simulated paper trades (listed below): Review EVERY single trade. Highlight its entry APY and current APY. If any trade is underperforming by >= 2% APY compared to another pool in the SAME risk tier, generate a specific, high-priority alert advising them exactly how to shift their position to make the most money. Include Mantle Explorer links for any pools mentioned if their address is available.
+   - You MUST analyze and list EVERY SINGLE trade in the User's Active Paper Trades context. Do not omit, group, or skip any of them. For EACH trade, output exactly one bullet point formatted as follows:
+     • [Protocol Name (Pool Name)](https://mantlescan.xyz/address/0xADDRESS): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Detailed personalized analysis of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
+     For status symbols/text:
+     - If underperforming by 2%+: ⚠️ Underperforming by Z.ZZ%
+     - If performing normally or close (within 2%): 🟢 Steady
+     - If outperforming: ✅ Outperforming
    - If the user does not have active paper trades: Explain the benefits of simulating trades to track yields, and suggest a specific pool to simulate first.
 3. 💡 **Actionable DeFi Intelligence**: Provide a short, senior-engineer level market insight specific to Mantle DeFi (e.g. stablecoin yields, LST yields, gas costs, pool TVL inflows, etc.).
 
@@ -534,7 +552,9 @@ Strict Formatting Rules:
 3. NO TABLES: Do not use Markdown tables (e.g. | column | column |). Instead, use bullet points.
 4. NO DIVIDERS: Do not use horizontal rules (---). Use blank lines to separate sections.
 5. FORMATTING: Use double asterisks for bolding: **bold text**.
-6. LENGTH: Keep it professional, data-dense, and direct (200-250 words). No preamble. Only output the final text.
+6. PORTFOLIO ANALYSIS COMPLETENESS: You MUST include every single active trade in the portfolio. Never summarize them into a single line or say "and others". Each trade gets its own bullet and its own dedicated paragraph of detailed analysis and reasons.
+7. LENGTH: Keep it professional, data-dense, and direct. Approximately 200-400 words (more if the user has multiple active trades). Keep it concise but ensure absolute completeness and detail. No preamble. Only output the final text.
+8. ZERO HALLUCINATION OF EXAMPLE DATA: The pools, APYs, TVLs, transaction hashes (tx), and reasoning shown in the examples are for structural reference only. Under NO circumstances should you output any details from the examples (such as Clearpool USDT at 17.50%, transaction hash 0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f, etc.) unless they are explicitly present in the live database context provided to you. If a pool or trade is not in the user's active trades or the live yield snapshot, you must never mention it.
 """
 
         try:
