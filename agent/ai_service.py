@@ -228,16 +228,18 @@ async def _llm_call(
       2. Fallback model
     Then moves to the next provider on any 429 or error.
 
-    Full sequence — realtime (all keys set):
+    Full cascade sequence (both realtime and background):
       Cerebras/gpt-oss-120b → Cerebras/zai-glm-4.7 →
       SambaNova/Meta-Llama-3.3-70B → SambaNova/gemma-3-12b →
       Groq/llama-3.3-70b-versatile →
       NVIDIA/llama-3.3-70b → NVIDIA/llama-3.1-70b →
       Gemini/gemini-2.5-flash-lite → Gemini/gemini-2.5-flash
 
-    Background priority skips Cerebras and SambaNova, falls back to them only if all else fails.
+    Background jobs use the same full cascade starting from Cerebras —
+    fastest and most reliable. Falls through to NVIDIA/Gemini only if
+    Cerebras/SambaNova/Groq are rate-limited or unavailable.
 
-    Raises RuntimeError only after all 6 slots are exhausted.
+    Raises RuntimeError only after all slots are exhausted.
     """
     if not _PROVIDERS:
         raise RuntimeError("No LLM providers configured. Check API keys.")
@@ -245,13 +247,11 @@ async def _llm_call(
     full_messages = [{"role": "system", "content": system_prompt}] + messages
     last_exc = None
 
-    if priority == "background":
-        # Reserve Cerebras and SambaNova RPM for real users
-        # NVIDIA handles background jobs — reliable, no RPM pressure
-        provider_order = [p for p in _PROVIDERS if p["name"] not in ("Cerebras", "SambaNova")] + \
-                         [p for p in _PROVIDERS if p["name"] in ("Cerebras", "SambaNova")]
-    else:
-        provider_order = _PROVIDERS
+    # Both realtime and background use the same full provider cascade.
+    # Cerebras is always first — it is the fastest and most reliable.
+    # NVIDIA is slower and prone to 504s; it is tried only after faster
+    # providers (Cerebras, SambaNova, Groq) have been exhausted.
+    provider_order = _PROVIDERS
 
     for provider in provider_order:
         for model in [provider["primary"], provider["fallback"]]:

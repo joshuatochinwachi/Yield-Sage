@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # Import job logic and bot startup
-from scheduler import run_pipeline
+from scheduler import run_pipeline, retry_failed_onchain_logs
 from bot import main as run_telegram_bot
 
 # Import all API routers
@@ -52,6 +52,13 @@ async def lifespan(app: FastAPI):
             hours=1,
             id="pipeline_job",
             next_run_time=datetime.now(),
+        )
+        _scheduler.add_job(
+            retry_failed_onchain_logs,
+            "interval",
+            hours=6,
+            id="retry_onchain_logs",
+            replace_existing=True,
         )
         _scheduler.start()
         logger.info("APScheduler background tasks started successfully.")
