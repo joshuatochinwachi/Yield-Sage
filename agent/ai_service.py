@@ -651,7 +651,12 @@ WRONG → [Agni Finance](https://mantlescan.xyz/address/0xabc123) ← if 0xabc12
 RIGHT → Agni Finance ← plain text when address is not in live data
 
 LAW 9 ── INTELLIGENT SPLITTING FOR LONG MESSAGES.
-If your response is going to be very long (e.g. listing many pools, or detailed analysis of 4+ positions), you MUST partition the response yourself into separate message parts. Place the separator '---MESSAGE_BREAK---' on its own line between these parts. Ensure each part has balanced Markdown tags (e.g. closed brackets, closed asterisks) and reads coherently on its own as a standalone message. Each part must have perfect reasoning.
+If your response will be very long (e.g. listing many pools, or analyzing 4+ positions), you MUST intelligently split the response into separate message parts. Between each part, place the exact separator token: <<<PART_BREAK>>> on its own line. Rules for splitting:
+- Each part must be independently readable, complete sentences, and perfectly formatted.
+- Every Markdown link [text](url) must be fully closed within the same part — never split a link across parts.
+- Every bold **text** must be opened and closed within the same part.
+- Place the break at a natural boundary (end of a section or between bullet points).
+- NEVER place the break mid-sentence, mid-link, or mid-bullet.
 
 ════════════════════════════════════════
 FORMATTING EXAMPLE — MIRROR THIS EXACTLY
@@ -801,7 +806,8 @@ LIVE DATA — USE ONLY THESE VALUES
                 if not bot_reply:
                     bot_reply = "⚠️ I didn't quite catch that — could you rephrase or try again?"
 
-            bot_reply = clean_telegram_markdown(bot_reply)
+            # Do NOT call clean_telegram_markdown here — bot.py does exactly one clean pass
+            # per chunk after splitting, preventing double-escaping of underscores in links.
             await self.push_to_memory("assistant", bot_reply, user_id, telegram_chat_id)
             _response_cache["conversational"] = bot_reply
             return bot_reply
@@ -1108,7 +1114,13 @@ WRONG → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE
 RIGHT → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f)
 
 LAW 9 ── INTELLIGENT SPLITTING FOR LONG MESSAGES.
-If your report is going to be very long (e.g. detailed analysis of 4+ positions), you MUST partition the report yourself into separate message parts. Place the separator '---MESSAGE_BREAK---' on its own line between these parts. Ensure each part has balanced Markdown tags (e.g. closed brackets, closed asterisks) and reads coherently on its own as a standalone message. Each part must have perfect reasoning.
+If your report will be very long (e.g. analyzing 4+ active positions), you MUST intelligently split the report into separate message parts. Between each part, place the exact separator token: <<<PART_BREAK>>> on its own line. Rules for splitting:
+- Each part must be independently readable, complete sentences, and perfectly formatted.
+- Every Markdown link [text](url) must be fully closed within the same part — never split a link across parts.
+- Every bold **text** must be opened and closed within the same part.
+- Place the break at a natural boundary (end of a section or between bullet points).
+- NEVER place the break mid-sentence, mid-link, or mid-bullet.
+- The timestamp and CTA footer will be automatically appended to your last part — do NOT add it yourself.
 
 ════════════════════════════════════════
 MANDATORY OUTPUT STRUCTURE — FOLLOW EXACTLY
@@ -1198,22 +1210,22 @@ Fix any failure before responding.
                 }],
                 system_prompt=system_prompt,
                 temperature=0.2,
-                max_tokens=3000,
+                max_tokens=6000,
                 priority="background",
             )
 
-            result = clean_telegram_markdown(
-                (response.choices[0].message.content or "").strip()
-            )
+            # Return RAW LLM content — do NOT call clean_telegram_markdown here.
+            # broadcast_alerts_job splits on <<<PART_BREAK>>> first, then cleans each
+            # chunk individually to prevent double-escaping of underscores in links.
+            result = (response.choices[0].message.content or "").strip()
 
-            # ── Append UTC timestamp ──────────────────────────────────────────
-            # Shows the exact moment this data was generated and queued.
+            # ── Append UTC timestamp and CTA (will land on the last split chunk) ──
             utc_now = datetime.utcnow()
             timestamp_line = (
-                f"\n\n🕐 Data snapshot: "
-                f"{utc_now.strftime('%d %b %Y · %H:%M UTC')}"
+                f"\n\n\U0001f550 Data snapshot: "
+                f"{utc_now.strftime('%d %b %Y \u00b7 %H:%M UTC')}"
             )
-            cta_line = "\n\n📋 View all live yield opportunities on Mantle → /yields or [yieldsageai.xyz/dashboard](https://yieldsageai.xyz/dashboard)"
+            cta_line = "\n\n\U0001f4cb View all live yield opportunities on Mantle \u2192 /yields or [yieldsageai.xyz/dashboard](https://yieldsageai.xyz/dashboard)"
             result = result + timestamp_line + cta_line
 
             # Cache per-user — never leak User A's private data to User B

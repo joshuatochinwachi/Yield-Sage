@@ -1136,14 +1136,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="🤔 YieldSage Agent is thinking... one moment please.",
         )
 
-    # Get conversational reply
+    # Get conversational reply (raw — cleaning done per-chunk inside _safe_reply)
     reply = await ai.handle_conversational_query(
         user_msg,
         telegram_chat_id=chat_id,
         thinking_callback=_send_thinking,
     )
-    cleaned_reply = clean_telegram_markdown(reply)
-    await _safe_reply(update, context, cleaned_reply)
+    # Do NOT pre-clean here — _safe_reply splits on <<<PART_BREAK>>> and cleans each chunk
+    await _safe_reply(update, context, reply)
 
 TELEGRAM_MAX_LEN = 3900
 
@@ -1260,10 +1260,27 @@ async def _safe_reply(
     - `reply_markup` (keyboard) is attached only to the LAST chunk so the
       buttons appear at the end of the full message.
     """
-    if "---MESSAGE_BREAK---" in text:
-        chunks = [c.strip() for c in text.split("---MESSAGE_BREAK---") if c.strip()]
+    # ---- Split on LLM-provided separator (no underscores — safe from markdown escaping) ----
+    PART_SEP = "<<<PART_BREAK>>>"
+    # Also accept old separator forms in case of cached/legacy content
+    OLD_SEPS = ["---MESSAGE_BREAK---", "---MESSAGE\\_BREAK---", "---MESSAGE\\\\_BREAK---"]
+    normalized_text = text
+    for old_sep in OLD_SEPS:
+        normalized_text = normalized_text.replace(old_sep, PART_SEP)
+
+    if PART_SEP in normalized_text:
+        raw_chunks = [c.strip() for c in normalized_text.split(PART_SEP) if c.strip()]
     else:
-        chunks = _split_message(text)
+        raw_chunks = None  # will use _split_message after cleaning below
+
+    if raw_chunks is not None:
+        # Clean each LLM-defined chunk individually to avoid double-escaping
+        chunks = [clean_telegram_markdown(c) for c in raw_chunks]
+    else:
+        # No LLM separator — clean the whole text once and split by length
+        cleaned = clean_telegram_markdown(text)
+        chunks = _split_message(cleaned)
+
     total = len(chunks)
     chat_id = update.effective_chat.id
 
@@ -1312,11 +1329,23 @@ async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
             chat_id = msg["chat_id"]
             content = msg["content"]
 
-            cleaned_content = clean_telegram_markdown(content)
-            if "---MESSAGE_BREAK---" in cleaned_content:
-                chunks = [c.strip() for c in cleaned_content.split("---MESSAGE_BREAK---") if c.strip()]
+            # ---- Split on LLM-provided separator, then clean each chunk individually ----
+            # Content from DB is RAW (ai_service no longer pre-cleans hourly updates).
+            # We split FIRST on the separator, then clean per-chunk to prevent double-escaping.
+            PART_SEP = "<<<PART_BREAK>>>"
+            OLD_SEPS = ["---MESSAGE_BREAK---", "---MESSAGE\\_BREAK---", "---MESSAGE\\\\_BREAK---"]
+            normalized = content
+            for old_sep in OLD_SEPS:
+                normalized = normalized.replace(old_sep, PART_SEP)
+
+            if PART_SEP in normalized:
+                raw_chunks = [c.strip() for c in normalized.split(PART_SEP) if c.strip()]
+                chunks = [clean_telegram_markdown(c) for c in raw_chunks]
             else:
+                # No LLM separator — clean whole content then split by Telegram limit
+                cleaned_content = clean_telegram_markdown(content)
                 chunks = _split_message(cleaned_content)
+
             total = len(chunks)
 
             chunks_sent = 0
