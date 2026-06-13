@@ -658,6 +658,14 @@ export function LeaderboardTable() {
             </div>
           </div>
         )}
+
+        {/* Price Data Disclaimer */}
+        <div className="flex items-start gap-2 px-6 py-3.5 bg-white/[0.01] border-t border-white/5 relative z-10">
+          <ShieldAlert className="h-3.5 w-3.5 text-white/30 shrink-0 mt-0.5" />
+          <p className="text-[10px] text-white/30 leading-relaxed font-mono">
+            *Disclaimer: These TVL and APY metrics represent active on-chain indexes integrated with YieldSage. Values may slightly differ from the official protocol applications due to differences in pricing sources, data collection frequencies, or aggregation methodologies.
+          </p>
+        </div>
       </CardContent>
       {simModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 transition-all duration-300">

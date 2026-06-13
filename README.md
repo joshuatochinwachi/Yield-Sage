@@ -1093,6 +1093,7 @@ python copy_banner.py
 - [x] **Proof Verification Nav** — Dashboard and Docs links on the verify page header
 - [ ] **Multi-Chain Expansion** — Extend Dune query coverage to Base, Arbitrum, and Optimism
 - [ ] **On-Chain Trade Settlement** — Move paper trades to actual smart contract execution on Mantle
+- [ ] **Predictive Yield Forecasting** — Implement ML-driven time-series forecasting to predict long-term APY trends, yield sustainability, and growth/decay rates across pools and protocols
 - [ ] **Social Leaderboard** — Public opt-in leaderboard for paper trading P&L rankings
 - [ ] **Alert Thresholds UI** — In-dashboard slider controls for per-risk-tier alert sensitivity
 - [ ] **Push Notifications** — Web push (PWA) alongside Telegram for browser-native alerts
@@ -1114,19 +1115,29 @@ Contributions, bug reports, and feature ideas are welcome.
 
 ## 📄 License
 
-This project is open-source under the **MIT License** — Copyright © 2026 [Joshua Nwachukwu (Jo$h)](https://x.com/defi__josh). See [`LICENSE`](./LICENSE) for details.
+This project is open-source under the **MIT License** — Copyright © 2026 [Jo$h](https://x.com/defi__josh) & [Tobey](https://x.com/0xTobey). See [`LICENSE`](./LICENSE) for details.
 
 ---
 
-## 👨‍💻 Developer
+## 👥 Developers
 
-Built by **[Jo$h — Joshua Nwachukwu](https://x.com/defi__josh)**
+### 💻 Software Developer
+**[Jo$h](https://x.com/defi__josh)**
 
 | Channel | Link |
 |---|---|
 | 𝕏 Twitter | [@defi__josh](https://x.com/defi__josh) |
 | Telegram | [@joshuatochinwachi](https://t.me/joshuatochinwachi) |
 | Email | [joshuatochinwachi@gmail.com](mailto:joshuatochinwachi@gmail.com) |
+
+### 🧙‍♂️ Data Wizard
+**[Tobey](https://x.com/0xTobey)**
+
+| Channel | Link |
+|---|---|
+| 𝕏 Twitter | [@0xTobey](https://x.com/0xTobey) |
+| Telegram | [@tobeonchain](https://t.me/tobeonchain) |
+| Email | [tobeonchain@gmail.com](mailto:tobeonchain@gmail.com) |
 
 ---
 
@@ -1141,7 +1152,7 @@ Built by **[Jo$h — Joshua Nwachukwu](https://x.com/defi__josh)**
 ---
 
 <p align="center">
-  Built with 🌿 by <strong><a href="https://x.com/defi__josh">Jo$h</a></strong> on the <strong>Mantle Network</strong>
+  Built with 🌿 by <strong><a href="https://x.com/defi__josh">Jo$h</a></strong> &amp; <strong><a href="https://x.com/0xTobey">Tobey</a></strong> on the <strong>Mantle Network</strong>
   <br/>
   <a href="https://yieldsageai.xyz">yieldsageai.xyz</a> &nbsp;·&nbsp;
   <a href="https://t.me/YieldSageBot">@YieldSageBot</a> &nbsp;·&nbsp;
