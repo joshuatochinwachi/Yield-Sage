@@ -1141,7 +1141,7 @@ This project is open-source under the **MIT License** — Copyright © 2026 [Jo$
 
 ---
 
-## 🌿 YieldSage Socials
+## 🌱 YieldSage Socials
 
 | Channel | Link |
 |---|---|
@@ -1152,7 +1152,7 @@ This project is open-source under the **MIT License** — Copyright © 2026 [Jo$
 ---
 
 <p align="center">
-  Built with 🌿 by <strong><a href="https://x.com/defi__josh">Jo$h</a></strong> &amp; <strong><a href="https://x.com/0xTobey">Tobey</a></strong> on the <strong>Mantle Network</strong>
+  Built with 🌱 by <strong><a href="https://x.com/defi__josh">Jo$h</a></strong> &amp; <strong><a href="https://x.com/0xTobey">Tobey</a></strong> on the <strong>Mantle Network</strong>
   <br/>
   <a href="https://yieldsageai.xyz">yieldsageai.xyz</a> &nbsp;·&nbsp;
   <a href="https://t.me/YieldSageBot">@YieldSageBot</a> &nbsp;·&nbsp;
