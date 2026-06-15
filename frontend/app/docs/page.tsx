@@ -21,6 +21,7 @@ import {
   ExternalLink,
   Shield,
   Cookie,
+  Video,
 } from "lucide-react";
 
 // ── Sections list ─────────────────────────────────────────────────────────────
@@ -444,6 +445,9 @@ export default function DocsPage() {
             <a href="https://t.me/YieldSageBot" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-mono text-white/50 hover:text-[#00ff88] transition-colors">
               <Bot className="w-3.5 h-3.5" /> Open Telegram Bot
             </a>
+            <a href="https://www.youtube.com/watch?v=aUnmj3e3mjA" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-xs font-mono text-white/50 hover:text-[#00ff88] transition-colors">
+              <Video className="w-3.5 h-3.5" /> YouTube Video Demo
+            </a>
             <a href="/dashboard" className="flex items-center gap-2 text-xs font-mono text-white/50 hover:text-[#00ff88] transition-colors">
               <BarChart2 className="w-3.5 h-3.5" /> Live Dashboard
             </a>
@@ -485,6 +489,10 @@ export default function DocsPage() {
               <p>
                 And because trust matters in DeFi, every single recommendation YieldSage produces is <strong className="text-white">permanently recorded on the Mantle blockchain</strong> with a cryptographic fingerprint. Anyone can verify, at any time, that the recommendation was real and was never edited after the fact.
               </p>
+
+              <Callout type="tip" title="Watch the Video Demo">
+                Prefer a visual walkthrough? Watch our 13-minute <a href="https://www.youtube.com/watch?v=aUnmj3e3mjA" target="_blank" rel="noopener noreferrer" className="text-[#00ff88] hover:underline font-semibold">YieldSage Video Demo on YouTube</a> to see the scrollytelling interface, dashboard analytics, on-chain proof verification, and Telegram bot in action.
+              </Callout>
             </div>
 
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 mt-8">
@@ -1344,6 +1352,8 @@ export default function DocsPage() {
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
             <span>·</span>
             <Link href="/dashboard" className="hover:text-white transition-colors">Dashboard</Link>
+            <span>·</span>
+            <a href="https://www.youtube.com/watch?v=aUnmj3e3mjA" target="_blank" rel="noopener noreferrer" className="hover:text-[#00ff88] transition-colors">Video Demo</a>
             <span>·</span>
             <a href="https://t.me/YieldSageBot" target="_blank" rel="noopener noreferrer" className="hover:text-[#00ff88] transition-colors">Telegram Bot</a>
             <span>·</span>

@@ -8,6 +8,7 @@
 
 <p align="center">
   <a href="https://yieldsageai.xyz"><img src="https://img.shields.io/badge/🌐%20Website-yieldsageai.xyz-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Website" /></a>&nbsp;
+  <a href="https://www.youtube.com/watch?v=aUnmj3e3mjA"><img src="https://img.shields.io/badge/🎬%20Video%20Demo-YouTube-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Video Demo" /></a>&nbsp;
   <a href="https://t.me/YieldSageBot"><img src="https://img.shields.io/badge/🤖%20AI%20Bot-%40YieldSageBot-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Telegram Bot" /></a>&nbsp;
   <a href="https://x.com/yieldsageai"><img src="https://img.shields.io/badge/𝕏%20Twitter-%40yieldsageai-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Twitter" /></a>&nbsp;
   <a href="./docs/system_architecture.md"><img src="https://img.shields.io/badge/📐%20Architecture-Docs-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Architecture" /></a>&nbsp;
@@ -151,7 +152,7 @@ graph TD
 
 | Feature | Description |
 |---|---|
-| 🔄 **Autonomous Hourly Sync** | Dune Analytics query #7595582 executes and streams pool data every hour via APScheduler. No manual intervention required. |
+| 🔄 **Autonomous Hourly Sync** | Dune Analytics [query #7595582](https://dune.com/queries/7595582) executes and streams pool data every hour via APScheduler. No manual intervention required. |
 | 🔑 **Dune API Key Rotation** | A pool of comma-separated Dune API keys is validated for credit usage. Exhausted keys are automatically rotated so ingestion never misses a cycle. |
 | 🤖 **5-Provider LLM Cascade** | Cerebras → SambaNova → Groq → NVIDIA → Gemini. Falls back through each provider on rate-limit (HTTP 429) or failure. Serves cached responses if all fail. |
 | ⛓️ **On-Chain Proof-of-Recommendation** | Every AI recommendation is SHA-256 hashed and logged as a 0-MNT transaction on Mantle. Permanently auditable. Includes 6-hourly background recovery for any missed transactions. |
@@ -264,7 +265,7 @@ The entire backend is a Python monorepo under `agent/`. It runs three concurrent
 
 `agent/fetcher.py` — `DuneFetcher` class.
 
-The fetcher pulls structured pool data from **Dune Analytics Query #7595582**, which aggregates all active Mantle DeFi protocol pools with APY, TVL, Base APY, Reward APY, and 1D/7D/30D trend fields.
+The fetcher pulls structured pool data from **Dune Analytics [Query #7595582](https://dune.com/queries/7595582)**, which aggregates all active Mantle DeFi protocol pools with APY, TVL, Base APY, Reward APY, and 1D/7D/30D trend fields.
 
 **Key rotation algorithm:**
 1. On startup, loads the last-used API key index from `fetcher_state.json`.
