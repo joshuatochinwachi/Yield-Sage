@@ -736,6 +736,7 @@ Yield-Sage/
 │   ├── diagnose_hashes.py              # Diagnostic: validates on-chain hash consistency across records
 │   ├── query_db.py                     # Diagnostic: ad-hoc Supabase table queries
 │   ├── quick_rpc_check.py              # Diagnostic: tests Mantle RPC connectivity
+│   ├── test_local_verify.py            # Diagnostic: interactive verification tool for any Mantle recommendation hash
 │   ├── .env.example                    # Environment variable template with placeholders
 │   ├── fetcher_state.json              # Persisted Dune API key index (auto-managed)
 │   ├── requirements.txt                # Python dependencies

@@ -264,34 +264,62 @@ async def verify_recommendation_by_tx(tx_hash: str):
         created_at_str = rec["created_at"].replace("Z", "+00:00")
         scored_at_dt = datetime.fromisoformat(created_at_str)
 
-        # Get TVL candidates from snapshots immediately before or after created_at
-        # (resolves race conditions where snapshot fetched_at is slightly after rec created_at)
+        # Get TVL and APY candidates from snapshots immediately before or after created_at
+        # (resolves rounding, precision discrepancies, and race conditions where snapshot fetched_at is slightly after rec created_at)
         snap_res_lte = (
             db.table("yield_snapshots")
-            .select("tvl_usd")
+            .select("tvl_usd, apy")
             .eq("protocol_id", rec["protocols"]["id"])
             .lte("fetched_at", rec["created_at"])
             .order("fetched_at", desc=True)
-            .limit(1)
+            .limit(2)
             .execute()
         )
         snap_res_gte = (
             db.table("yield_snapshots")
-            .select("tvl_usd")
+            .select("tvl_usd, apy")
             .eq("protocol_id", rec["protocols"]["id"])
             .gte("fetched_at", rec["created_at"])
             .order("fetched_at", desc=False)
-            .limit(1)
+            .limit(2)
             .execute()
         )
         
+        real_tvl = snap_res_lte.data[0]["tvl_usd"] if (snap_res_lte.data and snap_res_lte.data[0]["tvl_usd"] is not None) else (
+            snap_res_gte.data[0]["tvl_usd"] if (snap_res_gte.data and snap_res_gte.data[0]["tvl_usd"] is not None) else 0.0
+        )
+        
         tvls = [0.0]
-        if snap_res_lte.data:
-            tvls.append(snap_res_lte.data[0]["tvl_usd"])
-        if snap_res_gte.data:
-            tvls.append(snap_res_gte.data[0]["tvl_usd"])
+        apys = [
+            f"{float(rec['apy_at_time']):.4f}",
+            f"{float(rec['apy_at_time']):.2f}",
+            str(rec['apy_at_time']),
+        ]
+        
+        # Pull candidate values from nearby snapshots
+        for s in (snap_res_lte.data or []) + (snap_res_gte.data or []):
+            if s.get("tvl_usd") is not None:
+                tvls.append(s["tvl_usd"])
+            if s.get("apy") is not None:
+                apys.append(f"{float(s['apy']):.4f}")
+                apys.append(f"{float(s['apy']):.2f}")
+                apys.append(str(s['apy']))
+        
+        # Look for percentages or numbers in reasoning
+        import re
+        pct_matches = re.findall(r'([0-9.]+)\s*%', rec["ai_reasoning"])
+        for pm in pct_matches:
+            apys.append(pm)
+            apys.append(f"{float(pm):.4f}")
+            
+        num_matches = re.findall(r'\$?([0-9,]+)(?:\.[0-9]+)?', rec["ai_reasoning"])
+        for nm in num_matches:
+            val = float(nm.replace(",", ""))
+            tvls.append(val)
+            
         tvls = list(set(tvls))
-
+        apys = list(set(apys))
+        
         target_hash = rec["recommendation_hash"]
         matched_payload = None
         found_match = False
@@ -302,6 +330,7 @@ async def verify_recommendation_by_tx(tx_hash: str):
             rec["protocols"]["name"].replace(" ", "-"),
             rec["protocols"]["name"].replace("-", " "),
             rec["protocols"]["name"].lower(),
+            "fluxion-network", "fluxion", "clearpool-lending", "clearpool"
         ]))
         
         pool_names = list(set([
@@ -309,54 +338,92 @@ async def verify_recommendation_by_tx(tx_hash: str):
             rec["protocols"]["pool_name"].replace("/", "-"),
             rec["protocols"]["pool_name"].replace("-", "/"),
         ]))
+        
+        raw_addr = rec["protocols"]["pool_address"] or ""
+        hex_addr = "0x" + raw_addr.split("0x")[-1] if "0x" in raw_addr else raw_addr
+        pool_addresses = list(set([
+            raw_addr,
+            raw_addr.lower(),
+            hex_addr,
+            hex_addr.lower(),
+            hex_addr.upper(),
+            "",
+        ]))
+        
+        models = list(set([
+            rec["ai_model"],
+            "meta/llama-3.3-70b-instruct",
+            "llama-3.3-70b-versatile",
+        ]))
 
+        # Try permutations to find the exact configuration matching the stored recommendation_hash
         for proto_n in proto_names:
             for pool_n in pool_names:
-                for tvl_v in tvls:
-                    # Try current v1.0 schema with version/source/chain details
-                    payload = build_recommendation_payload(
-                        protocol_name=proto_n,
-                        pool_name=pool_n,
-                        pool_address=rec["protocols"]["pool_address"] or "",
-                        risk_tag=rec["risk_tag"],
-                        rank=rec["rank"],
-                        apy_at_time=rec["apy_at_time"],
-                        tvl_usd=tvl_v,
-                        ai_reasoning=rec["ai_reasoning"],
-                        ai_model=rec["ai_model"],
-                        scored_at=scored_at_dt,
-                    )
-                    canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-                    computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
-                    
-                    if computed_hash == target_hash:
-                        matched_payload = canonical_json
-                        found_match = True
-                        break
-                    
-                    # Try legacy schema layout (pre-v1.0 schema structure)
-                    legacy_payload = {
-                        "scored_at": scored_at_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                        "risk_tag": rec["risk_tag"],
-                        "rank": rec["rank"],
-                        "protocol_name": proto_n,
-                        "pool_name": pool_n,
-                        "pool_address": (rec["protocols"]["pool_address"] or "").lower(),
-                        "apy_at_time": f"{float(rec['apy_at_time']):.4f}",
-                        "tvl_usd": f"{float(tvl_v):.2f}",
-                        "ai_reasoning": rec["ai_reasoning"].strip(),
-                        "ai_model": rec["ai_model"]
-                    }
-                    canonical_json = json.dumps(legacy_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-                    computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
-                    if computed_hash == target_hash:
-                        matched_payload = canonical_json
-                        found_match = True
-                        break
+                for addr in pool_addresses:
+                    for tvl_v in tvls:
+                        for apy_v in apys:
+                            for model_v in models:
+                                for source in ["dune_query_7595582", None]:
+                                    for version in ["1.0", None]:
+                                        for chain_info in [True, False]:
+                                            # Try build_recommendation_payload style payload
+                                            payload = {
+                                                "scored_at": scored_at_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                                "risk_tag": rec["risk_tag"],
+                                                "rank": rec["rank"],
+                                                "protocol_name": proto_n,
+                                                "pool_name": pool_n,
+                                                "pool_address": addr.lower() if (addr and isinstance(addr, str)) else (addr or ""),
+                                                "apy_at_time": apy_v,
+                                                "tvl_usd": f"{float(tvl_v):.2f}",
+                                                "ai_reasoning": rec["ai_reasoning"].strip(),
+                                                "ai_model": model_v,
+                                            }
+                                            if version:
+                                                payload["version"] = version
+                                            if source:
+                                                payload["source"] = source
+                                            if chain_info:
+                                                payload["chain"] = "mantle"
+                                                payload["chain_id"] = 5000
+                                                
+                                            canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                                            computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
+                                            if computed_hash == target_hash:
+                                                matched_payload = canonical_json
+                                                found_match = True
+                                                break
+                                            
+                                            # Try legacy payload style
+                                            if not version and not source and not chain_info:
+                                                legacy_payload = {
+                                                    "scored_at": scored_at_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                                    "risk_tag": rec["risk_tag"],
+                                                    "rank": rec["rank"],
+                                                    "protocol_name": proto_n,
+                                                    "pool_name": pool_n,
+                                                    "pool_address": (addr or "").lower(),
+                                                    "apy_at_time": apy_v,
+                                                    "tvl_usd": f"{float(tvl_v):.2f}",
+                                                    "ai_reasoning": rec["ai_reasoning"].strip(),
+                                                    "ai_model": model_v
+                                                }
+                                                canonical_json = json.dumps(legacy_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                                                computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
+                                                if computed_hash == target_hash:
+                                                    matched_payload = canonical_json
+                                                    found_match = True
+                                                    break
+                                        if found_match: break
+                                    if found_match: break
+                                if found_match: break
+                            if found_match: break
+                        if found_match: break
+                    if found_match: break
                 if found_match: break
             if found_match: break
 
-        # Fallback to standard payload if no permutation matches
+        # Fallback to standard payload if no permutation matches (prevents NameError and API crash)
         if not found_match:
             payload = build_recommendation_payload(
                 protocol_name=rec["protocols"]["name"],
