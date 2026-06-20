@@ -128,36 +128,61 @@ def main():
         .execute()
     )
     
-    real_tvl = snap_res_lte.data[0]["tvl_usd"] if (snap_res_lte.data and snap_res_lte.data[0]["tvl_usd"] is not None) else (
-        snap_res_gte.data[0]["tvl_usd"] if (snap_res_gte.data and snap_res_gte.data[0]["tvl_usd"] is not None) else 0.0
-    )
+    real_tvl_val = 0.0
+    if snap_res_lte.data and snap_res_lte.data[0]["tvl_usd"] is not None:
+        try:
+            real_tvl_val = float(snap_res_lte.data[0]["tvl_usd"])
+        except (ValueError, TypeError):
+            pass
+    elif snap_res_gte.data and snap_res_gte.data[0]["tvl_usd"] is not None:
+        try:
+            real_tvl_val = float(snap_res_gte.data[0]["tvl_usd"])
+        except (ValueError, TypeError):
+            pass
+    real_tvl = real_tvl_val
     
     tvls = [0.0]
-    apys = [
-        f"{float(rec['apy_at_time']):.4f}",
-        f"{float(rec['apy_at_time']):.2f}",
-        str(rec['apy_at_time']),
-    ]
+    apys = []
+    try:
+        apys.append(f"{float(rec['apy_at_time']):.4f}")
+        apys.append(f"{float(rec['apy_at_time']):.2f}")
+    except (ValueError, TypeError):
+        pass
+    apys.append(str(rec['apy_at_time']))
     
     # Pull snapshot values
     for s in (snap_res_lte.data or []) + (snap_res_gte.data or []):
         if s.get("tvl_usd") is not None:
-            tvls.append(s["tvl_usd"])
+            try:
+                tvls.append(float(s["tvl_usd"]))
+            except (ValueError, TypeError):
+                pass
         if s.get("apy") is not None:
-            apys.append(f"{float(s['apy']):.4f}")
-            apys.append(f"{float(s['apy']):.2f}")
+            try:
+                apys.append(f"{float(s['apy']):.4f}")
+                apys.append(f"{float(s['apy']):.2f}")
+            except (ValueError, TypeError):
+                pass
             apys.append(str(s['apy']))
     
     # Reasoning numbers
     pct_matches = re.findall(r'([0-9.]+)\s*%', rec["ai_reasoning"])
     for pm in pct_matches:
         apys.append(pm)
-        apys.append(f"{float(pm):.4f}")
+        try:
+            apys.append(f"{float(pm):.4f}")
+        except (ValueError, TypeError):
+            pass
         
     num_matches = re.findall(r'\$?([0-9,]+)(?:\.[0-9]+)?', rec["ai_reasoning"])
     for nm in num_matches:
-        val = float(nm.replace(",", ""))
-        tvls.append(val)
+        clean_nm = nm.replace(",", "").strip()
+        if clean_nm:  # Ensure it's not an empty string (e.g. standalone commas)
+            try:
+                val = float(clean_nm)
+                tvls.append(val)
+            except (ValueError, TypeError):
+                pass
         
     tvls = list(set(tvls))
     apys = list(set(apys))
