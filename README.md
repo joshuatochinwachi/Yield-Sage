@@ -12,7 +12,8 @@
   <a href="https://t.me/YieldSageBot"><img src="https://img.shields.io/badge/🤖%20AI%20Bot-%40YieldSageBot-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Telegram Bot" /></a>&nbsp;
   <a href="https://x.com/yieldsageai"><img src="https://img.shields.io/badge/𝕏%20Twitter-%40yieldsageai-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Twitter" /></a>&nbsp;
   <a href="./docs/system_architecture.md"><img src="https://img.shields.io/badge/📐%20Architecture-Docs-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Architecture" /></a>&nbsp;
-  <a href="./docs/api_documentation.md"><img src="https://img.shields.io/badge/🔌%20API-Reference-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="API Docs" /></a>
+  <a href="./docs/api_documentation.md"><img src="https://img.shields.io/badge/🔌%20API-Reference-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="API Docs" /></a>&nbsp;
+  <a href="./skills/mantle-yieldsage-research/SKILL.md"><img src="https://img.shields.io/badge/🤖%20Mantle%20AI%20Skill-Agent%20Skills-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Mantle AI Agent Skill" /></a>
 </p>
 
 <p align="center">
@@ -59,6 +60,7 @@
 - [🚀 Setup & Running Locally](#-setup--running-locally)
 - [📚 Documentation Library](#-documentation-library)
 - [🗺️ Roadmap](#️-roadmap)
+- [🤖 Mantle AI Agent Skill](#-mantle-ai-agent-skill)
 
 ---
 
@@ -840,6 +842,16 @@ Yield-Sage/
 ├── requirements.txt                    # Root-level Python dependencies
 ├── .env                                # Local environment secrets (git-ignored)
 ├── .gitignore                          # Excludes .env, node_modules, .next, __pycache__
+├── skills/                             # Mantle AI Agent Skills (mantle-xyz/mantle-skills format)
+│   ├── README.md                       # Skill catalog index
+│   └── mantle-yieldsage-research/      # YieldSage yield intelligence skill
+│       ├── SKILL.md                    # Trigger conditions, workflow, guardrails, output format
+│       ├── agents/
+│       │   └── openai.yaml             # Runtime display metadata (display_name, default_prompt)
+│       └── references/
+│           ├── yieldsage-api-reference.md   # Full REST API endpoint schema
+│           ├── risk-tier-definitions.md     # stable / moderate / aggressive classification
+│           └── on-chain-proof-guide.md      # SHA-256 commitment mechanics + verification steps
 └── README.md                           # ← You are here
 ```
 
@@ -1093,6 +1105,7 @@ python copy_banner.py
 - [x] **Historical On-Chain Proof Log** — `/#on-chain-proof` searchable log with protocol images and Mantlescan links
 - [x] **GOD MODE Documentation** — `/docs` with 10-section comprehensive plain-English user guide
 - [x] **Proof Verification Nav** — Dashboard and Docs links on the verify page header
+- [x] **Mantle AI Agent Skill** — `skills/mantle-yieldsage-research/` packaged in the `mantle-xyz/mantle-skills` format for composable agentic ecosystem integration
 - [ ] **Multi-Chain Expansion** — Extend Dune query coverage to Base, Arbitrum, and Optimism
 - [ ] **On-Chain Trade Settlement** — Move paper trades to actual smart contract execution on Mantle
 - [ ] **Predictive Yield Forecasting** — Implement ML-driven time-series forecasting to predict long-term APY trends, yield sustainability, and growth/decay rates across pools and protocols
@@ -1100,6 +1113,63 @@ python copy_banner.py
 - [ ] **Alert Thresholds UI** — In-dashboard slider controls for per-risk-tier alert sensitivity
 - [ ] **Push Notifications** — Web push (PWA) alongside Telegram for browser-native alerts
 - [ ] **Mobile App** — React Native / Expo wrapper for iOS and Android
+
+---
+
+## 🤖 Mantle AI Agent Skill
+
+YieldSage ships a **native Mantle AI Agent Skill** packaged in the exact format of the official [`mantle-xyz/mantle-skills`](https://github.com/mantle-xyz/mantle-skills) repository, enabling any compatible AI agent runtime to load YieldSage's yield intelligence as a first-class, composable skill.
+
+### What the Skill Does
+
+The `mantle-yieldsage-research` skill teaches any AI agent how to:
+
+| Mode | Trigger Example | Action |
+|---|---|---|
+| **Yield Discovery** | *"What are the best stable yields on Mantle right now?"* | Calls `/api/yields/leaderboard`, ranks by APY grouped by risk tier |
+| **AI Recommendation Review** | *"What does YieldSage recommend?"* | Calls `/api/recommendations/latest`, presents AI reasoning + on-chain TX hash |
+| **On-Chain Proof Verification** | *"Verify Mantle TX `0xabc...`"* | Calls `/api/recommendations/verify/{tx}`, confirms SHA-256 match |
+| **Historical Research** | *"Show YieldSage's track record"* | Calls `/api/recommendations/history`, presents chronological log |
+
+### Skill Structure
+
+```
+skills/
+├── README.md                                      ← Skill catalog index
+└── mantle-yieldsage-research/
+    ├── SKILL.md                                   ← Core skill (frontmatter + workflow + guardrails)
+    ├── agents/
+    │   └── openai.yaml                            ← display_name, short_description, default_prompt
+    └── references/
+        ├── yieldsage-api-reference.md             ← Full REST API endpoint schema
+        ├── risk-tier-definitions.md               ← stable / moderate / aggressive classification
+        └── on-chain-proof-guide.md                ← SHA-256 anchoring mechanics + verification steps
+```
+
+### How to Load the Skill
+
+Any agent runtime that supports the `mantle-skills` filesystem format can load the skill directly:
+
+```
+skills/mantle-yieldsage-research/SKILL.md
+```
+
+The skill explicitly delegates non-research tasks to other Mantle skills:
+- Address lookup → `mantle-address-registry-navigator`
+- Risk preflight → `mantle-risk-evaluator`
+- Transaction execution → `mantle-defi-operator`
+
+This makes YieldSage a **composable node** in the Mantle agentic ecosystem, not a standalone silo.
+
+### Guardrails
+
+- ❌ No address guessing — all hex addresses deferred to the registry navigator
+- ❌ No fabricated data — every figure must come from a live API call
+- ❌ No execution — research-only skill, routes to `mantle-defi-operator` for tx building
+- ⚠️ Staleness warning if snapshot is > 2 hours old
+- ℹ️ Always appends risk disclaimer on every output
+
+> See [`skills/mantle-yieldsage-research/SKILL.md`](./skills/mantle-yieldsage-research/SKILL.md) for the full workflow specification.
 
 ---
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Mantle YieldSage Research"
+  short_description: "Discover, compare, and verify Mantle DeFi yield opportunities using live YieldSage intelligence with cryptographic on-chain proof"
+  default_prompt: "Use $mantle-yieldsage-research when a Mantle task requires discovering top yield pools, retrieving AI-ranked DeFi recommendations, or verifying a YieldSage recommendation against its SHA-256 commitment anchored on the Mantle blockchain."
