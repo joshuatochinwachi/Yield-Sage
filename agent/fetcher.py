@@ -136,6 +136,8 @@ class DuneFetcher:
             headers = {"X-DUNE-API-KEY": api_key}
             max_retries = 30
             completed = False
+            # Track keys that can't execute (free-tier keys return 400 "Deprecated query engine")
+            ineligible_executor_keys: set[int] = set()
 
             for attempt in range(1, max_retries + 1):
                 # 2. Trigger query execution
@@ -144,7 +146,43 @@ class DuneFetcher:
                 
                 exec_resp = await client.post(exec_url, headers=headers)
                 if exec_resp.status_code != 200:
-                    logger.error(f"Execution trigger failed: {exec_resp.text}")
+                    error_body = exec_resp.text
+                    logger.error(f"Execution trigger failed: {error_body}")
+                    
+                    # Free-tier keys can't execute queries — Dune returns a misleading
+                    # "Deprecated query engine" 400 error for them. Rotate immediately.
+                    if exec_resp.status_code == 400 and "Deprecated query engine" in error_body:
+                        logger.warning(
+                            f"Key index {self.current_key_idx} cannot execute queries "
+                            f"(free-tier plan). Rotating to next key..."
+                        )
+                        ineligible_executor_keys.add(self.current_key_idx)
+                        
+                        # Try every remaining key; skip known-ineligible ones
+                        rotated = False
+                        for _ in range(len(self.keys)):
+                            self.rotate_key()
+                            if self.current_key_idx not in ineligible_executor_keys:
+                                # Verify this key has credits before using it
+                                try:
+                                    has_credits = await self.check_key_credits(client, self.current_key)
+                                    if has_credits:
+                                        api_key = self.current_key
+                                        headers = {"X-DUNE-API-KEY": api_key}
+                                        logger.info(f"Switched to paid key index {self.current_key_idx}.")
+                                        rotated = True
+                                        break
+                                except Exception:
+                                    pass
+                        
+                        if not rotated:
+                            raise RuntimeError(
+                                "All API keys are either free-tier (cannot execute) or exhausted. "
+                                "Please add a paid Dune API key to DUNE_API_KEYS."
+                            )
+                        # Retry immediately with the new key — no sleep needed
+                        continue
+                    
                     if attempt < max_retries:
                         await asyncio.sleep(15)
                         continue
@@ -199,6 +237,7 @@ class DuneFetcher:
             # 5. Rotate key after successful session for the next session
             logger.info("Dune fetch session completed successfully. Advancing key for next hour.")
             self.rotate_key()
+
             
     async def ingest_data(self, csv_text: str):
         logger.info("Parsing CSV and ingesting into Supabase...")
