@@ -162,7 +162,7 @@ const CONVERSATION: ChatStep[] = [
     isThinking: true,
     typeSpeed: 10,
     timestamp: "10:49",
-    text: `✅ *Cryptographic Proof Verified Successfully!*\n\nThis recommendation matches the Mantle blockchain record and is 100% untampered.\n\n🏦 *Pool*: [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc)\n🏷️ *Risk Tier*: *STABLE*\n📈 *APY*: *17.50%*\n🧠 *AI Model*: *openai/gpt-oss-120b*\n\n🔗 *Computed Hash*:\n\`d5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41fd5e26b1fb\`\n🔗 *Input Data Hash*:\n\`d5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41fd5e26b1fb\`\n\n💬 *AI Reasoning*:\nClearpool USDT offers premium yields backed by institutional borrower pools, presenting an attractive risk-adjusted rate for stablecoin allocations on Mantle.`,
+    text: `✅ *Cryptographic Proof Verified Successfully!*\n\nThis recommendation matches the Mantle blockchain record and is 100% untampered.\n\n🏦 *Pool*: [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc)\n🏷️ *Risk Tier*: *STABLE*\n📈 *APY*: *17.50%*\n🧠 *AI Model*: *gpt-oss-120b*\n\n🔗 *Computed Hash*:\n\`d5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41fd5e26b1fb\`\n🔗 *Input Data Hash*:\n\`d5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41fd5e26b1fb\`\n\n💬 *AI Reasoning*:\nClearpool USDT offers premium yields backed by institutional borrower pools, presenting an attractive risk-adjusted rate for stablecoin allocations on Mantle.`,
     rows: [
       { buttons: [{ label: "🌐 Verify on Web" }, { label: "🔍 View on Mantlescan" }] },
     ],
