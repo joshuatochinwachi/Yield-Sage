@@ -36,8 +36,8 @@ _PROVIDER_CONFIGS = [
         "name":     "Groq",
         "env_key":  "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
-        "primary":  "llama-3.3-70b-versatile",
-        "fallback": "llama-3.3-70b-versatile",
+        "primary":  "openai/gpt-oss-120b",
+        "fallback": "qwen/qwen3.6-27b",
     },
     {
         "name":     "NVIDIA",
@@ -231,7 +231,7 @@ async def _llm_call(
     Full cascade sequence (both realtime and background):
       Cerebras/gpt-oss-120b → Cerebras/zai-glm-4.7 →
       SambaNova/Meta-Llama-3.3-70B → SambaNova/gemma-3-12b →
-      Groq/llama-3.3-70b-versatile →
+      Groq/openai/gpt-oss-120b → Groq/qwen/qwen3.6-27b →
       NVIDIA/llama-3.3-70b → NVIDIA/llama-3.1-70b →
       Gemini/gemini-2.5-flash-lite → Gemini/gemini-2.5-flash
 

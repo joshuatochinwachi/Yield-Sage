@@ -148,7 +148,7 @@ flowchart TD
     P1 -->|Success| Save[Return Response]
     P1 -->|Outage / Timeout| P2[Priority 2: SambaNova\nLlama-3.1-405B]
     P2 -->|Success| Save
-    P2 -->|Outage / Timeout| P3[Priority 3: Groq\nLlama-3.3-70B]
+    P2 -->|Outage / Timeout| P3[Priority 3: Groq\nGPT-OSS-120B]
     P3 -->|Success| Save
     P3 -->|Outage / Timeout| P4[Priority 4: NVIDIA NIM\nLlama-3-70B]
     P4 -->|Success| Save

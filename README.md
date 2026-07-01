@@ -332,7 +332,7 @@ Cerebras (gpt-oss-120b / zai-glm-4.7)
     ↓ on 429 / Exception
 SambaNova (Meta-Llama-3.3-70B-Instruct / gemma-3-12b-it)
     ↓ on 429 / Exception
-Groq (llama-3-3-70b-versatile)
+Groq (openai/gpt-oss-120b / qwen/qwen3.6-27b)
     ↓ on 429 / Exception
 NVIDIA NIM (meta/llama-3.3-70b-instruct / llama-3.1-70b-instruct)
     ↓ on 429 / Exception

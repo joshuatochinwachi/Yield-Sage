@@ -397,6 +397,8 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             rec["ai_model"],
             "meta/llama-3.3-70b-instruct",
             "llama-3.3-70b-versatile",
+            "openai/gpt-oss-120b",
+            "qwen/qwen3.6-27b",
         ]))
 
         # Try permutations to find the exact configuration matching the stored recommendation_hash

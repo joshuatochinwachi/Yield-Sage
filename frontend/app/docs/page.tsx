@@ -807,7 +807,7 @@ export default function DocsPage() {
                   {[
                     { n: "1", name: "Cerebras (Llama 3.1 70B)", color: "rgba(0,255,136,0.85)", why: "Primary pipeline — chosen for maximum speed, completing each scoring run in seconds." },
                     { n: "2", name: "SambaNova (Llama 3.1 405B)", color: "rgba(99,179,237,0.85)", why: "Fallback 1 — one of the largest open-source models available, with exceptional reasoning depth." },
-                    { n: "3", name: "Groq (Llama 3.3 70B)", color: "rgba(167,139,250,0.85)", why: "Fallback 2 — ultra-low latency inference with consistently reliable outputs." },
+                    { n: "3", name: "Groq (GPT-OSS 120B / Qwen 3.6 27B)", color: "rgba(167,139,250,0.85)", why: "Fallback 2 — ultra-low latency inference with consistently reliable outputs." },
                     { n: "4", name: "NVIDIA NIM (Llama 3 70B)", color: "rgba(246,173,85,0.85)", why: "Fallback 3 — enterprise-grade cloud compute with high reliability." },
                     { n: "5", name: "Google Gemini Flash 1.5", color: "rgba(236,72,153,0.85)", why: "Ultimate fallback — Google's proprietary model, always available as a last resort." },
                   ].map(({ n, name, color, why }) => (

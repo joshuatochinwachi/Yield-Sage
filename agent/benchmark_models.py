@@ -10,6 +10,7 @@ Output: ranked table by speed + reliability.
 import asyncio
 import time
 import os
+import sys
 from dotenv import load_dotenv
 from openai import AsyncOpenAI, RateLimitError
 
@@ -24,6 +25,20 @@ MODELS = [
         "label":    "Groq — llama-3.3-70b-versatile",
         "provider": "Groq",
         "model":    "llama-3.3-70b-versatile",
+        "env_key":  "GROQ_API_KEY",
+        "base_url": "https://api.groq.com/openai/v1",
+    },
+    {
+        "label":    "Groq — openai/gpt-oss-120b",
+        "provider": "Groq",
+        "model":    "openai/gpt-oss-120b",
+        "env_key":  "GROQ_API_KEY",
+        "base_url": "https://api.groq.com/openai/v1",
+    },
+    {
+        "label":    "Groq — qwen/qwen3.6-27b",
+        "provider": "Groq",
+        "model":    "qwen/qwen3.6-27b",
         "env_key":  "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
     },
@@ -290,14 +305,24 @@ async def test_model(model_cfg: dict, run_index: int) -> dict:
 
 
 async def run_benchmark():
+    filter_arg = sys.argv[1].lower() if len(sys.argv) > 1 else None
+    target_models = MODELS
+    if filter_arg:
+        target_models = [m for m in MODELS if filter_arg in m["label"].lower() or filter_arg in m["provider"].lower()]
+        if not target_models:
+            print(f"No models matched filter: {filter_arg}")
+            return
+
     print("\n" + "="*70)
     print("  YieldSage — Model Speed & Reliability Benchmark")
     print(f"  {RUNS_PER_MODEL} runs per model | Realistic ~8K token prompt")
+    if filter_arg:
+        print(f"  Filtered by: '{filter_arg}' ({len(target_models)} models)")
     print("="*70 + "\n")
 
     all_results = []
 
-    for model_cfg in MODELS:
+    for model_cfg in target_models:
         print(f"Testing: {model_cfg['label']}")
         for i in range(1, RUNS_PER_MODEL + 1):
             print(f"  Run {i}/{RUNS_PER_MODEL}...", end=" ", flush=True)
