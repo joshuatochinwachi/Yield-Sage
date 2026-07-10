@@ -102,6 +102,8 @@ _ALLOWED_ORIGINS = [
     "http://localhost:3001",
     "https://yieldsageai.xyz",
     "https://www.yieldsageai.xyz",
+    "https://yield.hollowscan.com",
+    "https://www.yield.hollowscan.com",
 ]
 
 app.add_middleware(
