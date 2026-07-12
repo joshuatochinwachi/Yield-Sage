@@ -98,8 +98,8 @@ app = FastAPI(
 # ── CORS ──────────────────────────────────────────────────────────────────────
 # Strictly allow ONLY our frontend and local dev. No other origin can call this API.
 _ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://localhost:3001",
+    # "http://localhost:3000",
+    # "http://localhost:3001",
     "https://yieldsageai.xyz",
     "https://www.yieldsageai.xyz",
     "https://yield.hollowscan.com",
