@@ -49,7 +49,7 @@ async def get_latest_yields(
             .select("*, protocols!inner(id, slug, name, pool_name, pool_address, risk_tag, chain, image_url, app_link, is_active)")
             .eq("protocols.is_active", True)
             .order("fetched_at", desc=True)
-            .limit(2000)
+            .limit(5000)
             .execute()
         )
 
@@ -109,7 +109,7 @@ async def get_leaderboard(
             .select("protocol_id, apy, base_apy, reward_apy, reward_tokens, apy_1d, apy_7d, apy_30d, tvl_usd, asset, fetched_at, protocols!inner(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link, is_active)")
             .eq("protocols.is_active", True)
             .order("fetched_at", desc=True)
-            .limit(2000)
+            .limit(5000)
             .execute()
         )
 

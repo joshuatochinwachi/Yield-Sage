@@ -457,10 +457,15 @@ export function LeaderboardTable() {
                   
                   const isRowWatched = isWatched(row.protocol_id);
 
-                  // Extract pool address for explorer links
-                  const poolAddr = protocol.program_address || protocol.pool_address || row.pool_address;
-                  const explorerLink = poolAddr 
-                    ? (poolAddr.startsWith("http") ? poolAddr : `https://solscan.io/account/${poolAddr}`)
+                  // Extract pool address for explorer links — guard against "nan"/"none" sentinel strings
+                  const rawPoolAddr = protocol.program_address || protocol.pool_address || row.pool_address;
+                  const _BAD_ADDR = new Set(["nan", "none", "null", "n/a", "", "undefined"]);
+                  const _isValidAddr = rawPoolAddr &&
+                    !_BAD_ADDR.has(String(rawPoolAddr).toLowerCase().trim()) &&
+                    !String(rawPoolAddr).toLowerCase().endsWith("/nan") &&
+                    !String(rawPoolAddr).toLowerCase().endsWith("/none");
+                  const explorerLink = _isValidAddr
+                    ? (rawPoolAddr.startsWith("http") ? rawPoolAddr : `https://solscan.io/account/${rawPoolAddr}`)
                     : null;
 
 

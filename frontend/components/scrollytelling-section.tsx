@@ -511,10 +511,10 @@ export function ScrollytellingSection({
         >
           <motion.div variants={diagnosticStagger} initial="hidden" animate="show" className="flex flex-col items-center gap-3">
             <motion.div variants={diagnosticItem} className="flex gap-4 font-sans text-[11px] font-semibold text-white/40 uppercase tracking-[0.25em]">
-              <span>mETH</span> <span className="text-white/20">·</span> <span>cmETH</span> <span className="text-white/20">·</span> <span>Agni</span>
+              <span>JitoSOL</span> <span className="text-white/20">·</span> <span>mSOL</span> <span className="text-white/20">·</span> <span>Kamino</span>
             </motion.div>
             <motion.div variants={diagnosticItem} className="flex gap-4 font-sans text-[11px] font-semibold text-white/40 uppercase tracking-[0.25em]">
-              <span>Merchant Moe</span> <span className="text-white/20">·</span> <span>Ondo USDY</span>
+              <span>MarginFi</span> <span className="text-white/20">·</span> <span>Raydium</span> <span className="text-white/20">·</span> <span>Orca</span>
             </motion.div>
             <motion.h3 variants={diagnosticItem} className="text-2xl sm:text-3xl md:text-4xl font-serif text-white/95 leading-snug font-light mt-3 max-w-lg">
               Which one is actually working for you?

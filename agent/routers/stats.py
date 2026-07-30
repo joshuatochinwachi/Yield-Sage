@@ -61,7 +61,7 @@ async def get_overview_stats():
             .select("protocol_id, apy, tvl_usd, fetched_at, protocols!inner(id, name, is_active)")
             .eq("protocols.is_active", True)
             .order("fetched_at", desc=True)
-            .limit(2000)
+            .limit(5000)
             .execute()
         )
 

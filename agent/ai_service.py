@@ -356,7 +356,7 @@ class AIService:
                 "*, protocols!inner(id, name, pool_name, pool_address, risk_tag, is_active)"
             ).eq("protocols.is_active", True).order(
                 "fetched_at", desc=True
-            ).limit(4000).execute()
+            ).limit(5000).execute()
 
             seen = set()
             latest_yields = []

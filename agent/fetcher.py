@@ -126,7 +126,12 @@ class SolanaFetcher:
         for row in records:
             protocol_name = str(row.get("Protocol") or "Unknown").strip()
             asset = str(row.get("Asset") or "Unknown").strip()
-            raw_address = str(row.get("Pool Address") or "").strip() or None
+            raw_address = str(row.get("Pool Address") or "").strip()
+            # Guard: pandas NaN serializes to "nan"; reject any invalid sentinel values
+            _INVALID_ADDR = {"nan", "none", "null", "n/a", "", "undefined"}
+            if raw_address.lower() in _INVALID_ADDR:
+                raw_address = None
+            
             pool_id = str(row.get("Pool ID") or "").strip()
             
             # Format non-null pool addresses with solscan URL

@@ -736,9 +736,9 @@ export default function DocsPage() {
               <MetricCard
                 label="Reward Tokens"
                 color="rgba(236,72,153,0.9)"
-                example="MNT, USDC"
+                example="SOL, JitoSOL"
                 description="This shows the specific token(s) you receive as rewards for providing liquidity to this pool. For example, 'SOL' means the protocol pays you in SOL. Some pools pay rewards in multiple tokens simultaneously."
-                detail="The identity of the reward token matters because you need to understand what you're receiving. Native tokens like MNT have established markets and liquidity. Newly launched protocol tokens may be harder to sell and more volatile. When evaluating a reward APY, always consider the market depth and price history of the reward token itself."
+                detail="The identity of the reward token matters because you need to understand what you're receiving. Native tokens like SOL and JitoSOL have established markets and deep liquidity. Newly launched protocol tokens may be harder to sell and more volatile. When evaluating a reward APY, always consider the market depth and price history of the reward token itself."
               />
               <MetricCard
                 label="APY 1D / APY 7D / APY 30D — Trend Indicators"
@@ -751,7 +751,7 @@ export default function DocsPage() {
                 label="Risk Tier — Stable / Moderate / Aggressive"
                 color="rgba(246,173,85,0.9)"
                 example="STABLE"
-                description="Risk Tier is YieldSage's AI-assigned classification of how much risk is associated with providing liquidity to this pool. Stable pools use fully collateralised stablecoins (like USDC or USDT pairs) with high TVL and low yield volatility. Moderate pools involve assets like ETH or MNT with meaningful liquidity but some price exposure. Aggressive pools offer the highest yields but come with significant price risk, lower liquidity, or newer protocol status."
+                description="Risk Tier is YieldSage's AI-assigned classification of how much risk is associated with providing liquidity to this pool. Stable pools use fully collateralised stablecoins (like USDC or USDT pairs) with high TVL and low yield volatility. Moderate pools involve assets like SOL, JitoSOL, or mSOL with meaningful liquidity but some price exposure. Aggressive pools offer the highest yields but come with significant price risk, lower liquidity, or newer protocol status."
                 detail="The risk tier is not just about the tokens in the pool — it also considers the pool's TVL, the protocol's track record, the ratio of base APY to reward APY, and any unusual trends in the data. A stablecoin pool with very low TVL might still be classified as Moderate rather than Stable due to liquidity risk."
               />
               <MetricCard
@@ -897,8 +897,8 @@ export default function DocsPage() {
                   {[
                     ["version", "The schema version (e.g. 1.0) to ensure future changes don't break verification"],
                     ["scored_at", "The exact UTC timestamp when the AI ran — set before the model is called"],
-                    ["protocol_name", "The DeFi protocol name (e.g. Merchant Moe)"],
-                    ["pool_name", "The specific pool (e.g. USDe-WMNT)"],
+                    ["protocol_name", "The DeFi protocol name (e.g. Kamino Finance)"],
+                    ["pool_name", "The specific pool (e.g. USDC-SOL)"],
                     ["pool_address", "The on-chain contract address in lowercase"],
                     ["risk_tag", "The AI-assigned tier: stable, moderate, or aggressive"],
                     ["rank", "The position within this risk tier (1 = top pick)"],
@@ -1038,7 +1038,7 @@ export default function DocsPage() {
                   Any pool visible on the YieldSage web dashboard has a <strong className="text-white">Simulate</strong> button. When you click it, a dialog appears asking how much USD you want to simulate investing. After you enter an amount and click Approve, your browser opens Telegram with a pre-filled command that looks like this:
                 </p>
                 <div className="p-4 rounded-xl font-mono text-xs" style={{ background: "rgba(0,0,0,0.5)", border: "1px solid rgba(0,255,136,0.15)", color: "rgba(0,255,136,0.85)" }}>
-                  /trade address=0x5d54d430d1fd9425976147318e6080479bffc16d amount=10000 token=merchant-moe (USDe-WMNT)
+                  /trade address=ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5 amount=10000 token=kamino-finance (USDC-SOL)
                 </div>
                 <p className="mt-3">
                   The bot reads the pool account address directly from this command, looks up its current APY, and records the paper trade instantly — no need to navigate any menus. The pool address is extracted from the command or from the full Solscan URL (either format works).
@@ -1161,26 +1161,26 @@ export default function DocsPage() {
   "data": [
     {
       "protocol_id": "uuid",
-      "asset": "USDe-WMNT",
+      "asset": "USDC-SOL",
       "apy": 18.42,
       "base_apy": 6.84,
       "reward_apy": 11.58,
       "tvl_usd": 4200000,
-      "reward_tokens": "MNT",
+      "reward_tokens": "SOL",
       "apy_1d": 0.23,
       "apy_7d": -0.11,
       "apy_30d": 5.80,
       "protocol": {
-        "name": "Merchant Moe",
-        "pool_name": "USDe-WMNT",
-        "pool_address": "0x5d54d...",
+        "name": "Kamino Finance",
+        "pool_name": "USDC-SOL",
+        "pool_address": "https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5",
         "risk_tag": "moderate",
         "image_url": "https://...",
-        "app_link": "https://..."
+        "app_link": "https://app.kamino.finance"
       }
     }
   ],
-  "total": 152,
+  "total": 2824,
   "page": 1,
   "page_size": 20,
   "has_more": true
@@ -1210,11 +1210,11 @@ export default function DocsPage() {
                 ]}
                 example={`{
   "stable": {
-    "protocol": { "name": "Agni Finance", "pool_name": "USDC-USDT" },
+    "protocol": { "name": "MarginFi", "pool_name": "USDC-USDT" },
     "apy_at_time": 8.41,
     "risk_tag": "stable",
     "ai_reasoning": "This USDC/USDT pool...",
-    "on_chain_tx_hash": "0xabc..."
+    "on_chain_tx_hash": "3xTfB9...K7mPqR"
   },
   "moderate": { ... },
   "aggressive": { ... }
@@ -1243,9 +1243,9 @@ export default function DocsPage() {
     "recommendation_hash": "a3f6d192...",
     "apy_at_time": 18.42,
     "risk_tag": "moderate",
-    "on_chain_tx_hash": "0xabc...",
-    "explorer_url": "https://solscan.io/tx/abc123...",
-    "protocols": { "name": "Merchant Moe", ... }
+    "on_chain_tx_hash": "3xTfB9vqDmZK7mPqRSoLana1ABcDeFgHiJkLmNoPqRs",
+    "explorer_url": "https://solscan.io/tx/3xTfB9vqDmZK7mPqRSoLana1...",
+    "protocols": { "name": "Kamino Finance", ... }
   },
   "canonical_payload": "{\"ai_model\":\"llama...\",\"ai_reasoning\":\"...\",..."
 }`}
@@ -1299,7 +1299,7 @@ export default function DocsPage() {
               </FAQ>
 
               <FAQ q="Why does the dashboard protocol count differ from the total number of rows?">
-                The "Protocols Tracked" metric counts unique <em>protocol names</em> (e.g. Merchant Moe, Agni Finance, mETH Protocol). The "Pools Tracked" metric counts every individual liquidity pool. A single protocol can run many pools simultaneously — for example, Merchant Moe may operate dozens of different token pair pools at the same time. So you might see 12 protocols but 152 pools.
+                The "Protocols Tracked" metric counts unique <em>protocol names</em> (e.g. Kamino Finance, MarginFi, Raydium). The "Pools Tracked" metric counts every individual liquidity pool. A single protocol can run many pools simultaneously — for example, Raydium operates hundreds of different token pair pools at the same time. So you might see 35 protocols but 2,800+ pools.
               </FAQ>
 
               <FAQ q="Why do TVL values sometimes differ from DefiLlama?">
@@ -1308,7 +1308,7 @@ export default function DocsPage() {
 
               <FAQ q="What does the Risk Tier classification actually mean in practice?">
                 <strong>Stable</strong> pools are almost entirely stablecoin-based (e.g. USDC/USDT). Price risk is minimal, TVL is usually high, and yield is modest but reliable. These are suitable for capital you can't afford to lose significant value on. <br /><br />
-                <strong>Moderate</strong> pools typically involve a mix of stablecoins and volatile assets (e.g. ETH, MNT) or are stablecoin pools with lower TVL. There's some price exposure and the yield can fluctuate more. <br /><br />
+                <strong>Moderate</strong> pools typically involve a mix of stablecoins and volatile assets (e.g. SOL, JitoSOL, mSOL) or are stablecoin pools with lower TVL. There's some price exposure and the yield can fluctuate more. <br /><br />
                 <strong>Aggressive</strong> pools have the highest potential yields but come with the most risk. They may involve newer tokens, lower liquidity, heavily reward-dependent yields, or protocols with shorter track records.
               </FAQ>
 

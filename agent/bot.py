@@ -682,6 +682,15 @@ async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
         emoji = risk_emoji.get(risk, "⚪")
         
         pool_address = p.get('pool_address')
+        # Guard against stored nan/none/null sentinel strings or malformed URLs
+        _BAD_ADDR = {"nan", "none", "null", "n/a", "", "undefined"}
+        if pool_address and (
+            str(pool_address).lower().strip() in _BAD_ADDR
+            or str(pool_address).lower().endswith("/nan")
+            or str(pool_address).lower().endswith("/none")
+        ):
+            pool_address = None
+            
         if pool_address:
             url = pool_address if pool_address.startswith('http') else f"https://solscan.io/account/{pool_address}"
             text += f"{i}. {emoji} **[{name}]({url})** ({pool})\n"
