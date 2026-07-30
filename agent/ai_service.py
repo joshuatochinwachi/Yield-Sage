@@ -348,32 +348,27 @@ class AIService:
     # ── DB helpers ────────────────────────────────────────────────────────────
 
     async def get_recent_yields(self):
-        """Fetch the latest snapshot for each active protocol."""
+        """Fetch the latest snapshot for each active protocol using joined query."""
         if not supabase:
             return []
         try:
-            protocols_res = supabase.table("protocols").select(
-                "id, name, pool_name, pool_address, risk_tag"
-            ).eq("is_active", True).execute()
-            protocols = protocols_res.data
-
-            snap_res = supabase.table("yield_snapshots").select("*").order(
+            snap_res = supabase.table("yield_snapshots").select(
+                "*, protocols!inner(id, name, pool_name, pool_address, risk_tag, is_active)"
+            ).eq("protocols.is_active", True).order(
                 "fetched_at", desc=True
-            ).limit(len(protocols) * 5).execute()
+            ).limit(4000).execute()
 
-            latest_snaps = {}
-            if snap_res.data:
-                for row in snap_res.data:
-                    pid = row["protocol_id"]
-                    if pid not in latest_snaps:
-                        latest_snaps[pid] = row
-
+            seen = set()
             latest_yields = []
-            for p in protocols:
-                if p["id"] in latest_snaps:
-                    yield_data = latest_snaps[p["id"]]
-                    yield_data["protocol"] = p
-                    latest_yields.append(yield_data)
+            for row in (snap_res.data or []):
+                proto = row.get("protocols") or {}
+                pid = row.get("protocol_id") or proto.get("id")
+                if pid and pid not in seen:
+                    seen.add(pid)
+                    latest_yields.append({
+                        **row,
+                        "protocol": proto,
+                    })
 
             return latest_yields
         except Exception as e:
