@@ -107,6 +107,21 @@ _SEARCH_TOOL = {
 }
 
 
+def clean_pool_url(pool_address) -> str | None:
+    if not pool_address:
+        return None
+    s = str(pool_address).strip()
+    s_lower = s.lower()
+    _BAD = {"nan", "none", "null", "n/a", "", "undefined"}
+    if s_lower in _BAD:
+        return None
+    if any(s_lower.endswith(f"/{b}") for b in _BAD):
+        return None
+    if s_lower.startswith("http://") or s_lower.startswith("https://"):
+        return s
+    return f"https://solscan.io/account/{s}"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # clean_telegram_markdown
 # Exported symbol — bot.py imports this directly. Keep the function name stable.
@@ -137,6 +152,26 @@ def clean_telegram_markdown(text: str) -> str:
     def to_yields_style_link(match):
         full_text = match.group(1).strip().strip("*")
         url = match.group(2).strip()
+
+        _BAD_ADDR = {"nan", "none", "null", "n/a", "", "undefined"}
+        u_lower = url.lower()
+        if (
+            any(u_lower.endswith(f"/{b}") for b in _BAD_ADDR)
+            or u_lower in _BAD_ADDR
+            or any(f"/{b}?" in u_lower for b in _BAD_ADDR)
+        ):
+            protocol = full_text
+            pool = ""
+            for sep in [" (", " -> ", " ➛ ", " - "]:
+                if sep in full_text:
+                    pts = full_text.split(sep, 1)
+                    protocol = pts[0].strip()
+                    pool = pts[1].strip()
+                    if pool.endswith(")"):
+                        pool = pool[:-1].strip()
+                    break
+            return f"{protocol} ({pool})" if pool else f"{protocol}"
+
         protocol = full_text
         pool = ""
         for sep in [" (", " -> ", " ➛ ", " - "]:
@@ -553,9 +588,8 @@ class AIService:
             apy_str   = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
             tvl_str   = f"${tvl_val:,.0f}" if tvl_val else "N/A"
             risk_tag  = p.get("risk_tag") or "unknown"
-            pool_addr = p.get("pool_address")
-            if pool_addr:
-                url = pool_addr if pool_addr.startswith("http") else f"https://solscan.io/account/{pool_addr}"
+            url       = clean_pool_url(p.get("pool_address"))
+            if url:
                 yield_context += (
                     f"- [{p['name']} ({p['pool_name']})]({url}): "
                     f"APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
@@ -571,9 +605,8 @@ class AIService:
         if paper_trades:
             for t in paper_trades:
                 p = t["protocols"]
-                pool_addr = p.get("pool_address")
-                if pool_addr:
-                    url = pool_addr if pool_addr.startswith("http") else f"https://solscan.io/account/{pool_addr}"
+                url = clean_pool_url(p.get("pool_address"))
+                if url:
                     trade_context += (
                         f"- [{p['name']} ({p['pool_name']})]({url}): "
                         f"${t['simulated_investment_usd']:,.2f} invested at {t['entry_apy']}% APY\n"
@@ -957,9 +990,8 @@ REQUIRED JSON SCHEMA
             apy_str   = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
             tvl_str   = f"${tvl_val:,.0f}" if tvl_val else "N/A"
             risk_tag  = p.get("risk_tag") or "unknown"
-            pool_addr = p.get("pool_address")
-            if pool_addr:
-                url = pool_addr if pool_addr.startswith("http") else f"https://solscan.io/account/{pool_addr}"
+            url       = clean_pool_url(p.get("pool_address"))
+            if url:
                 yield_context += (
                     f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}): "
                     f"APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
@@ -1004,12 +1036,11 @@ REQUIRED JSON SCHEMA
                                     break
                         apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
                         tvl_str = f"${tvl_val:,.0f}" if tvl_val else "N/A"
-                        pool_addr = p.get("pool_address") or ""
+                        url = clean_pool_url(p.get("pool_address"))
                         tx_hash = r.get("on_chain_tx_hash")
                         tx_str = f" | [Verify and take action](https://yieldsageai.xyz/verify?tx={tx_hash})" if tx_hash else ""
                         
-                        if pool_addr:
-                            url = pool_addr if pool_addr.startswith("http") else f"https://solscan.io/account/{pool_addr}"
+                        if url:
                             recs_context += (
                                 f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}): "
                                 f"APY: {apy_str} | TVL: {tvl_str} | Risk: {r['risk_tag'].upper()}{tx_str}\n"
@@ -1041,9 +1072,8 @@ REQUIRED JSON SCHEMA
                     current_apy = t.get("entry_apy")
                 
                 apy_str = f"{current_apy:.2f}%" if current_apy is not None else "N/A"
-                pool_addr = p.get("pool_address")
-                if pool_addr:
-                    url = pool_addr if pool_addr.startswith("http") else f"https://solscan.io/account/{pool_addr}"
+                url = clean_pool_url(p.get("pool_address"))
+                if url:
                     trade_context += (
                         f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}) | "
                         f"Entry APY: {t['entry_apy']:.2f}% | "

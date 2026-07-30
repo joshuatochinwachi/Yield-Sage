@@ -24,6 +24,20 @@ if ANTHROPIC_API_KEY:
 else:
     anthropic = None
 
+def clean_pool_url(pool_address) -> str | None:
+    if not pool_address:
+        return None
+    s = str(pool_address).strip()
+    s_lower = s.lower()
+    _BAD = {"nan", "none", "null", "n/a", "", "undefined"}
+    if s_lower in _BAD:
+        return None
+    if any(s_lower.endswith(f"/{b}") for b in _BAD):
+        return None
+    if s_lower.startswith("http://") or s_lower.startswith("https://"):
+        return s
+    return f"https://solscan.io/account/{s}"
+
 def clean_telegram_markdown(text: str) -> str:
     if not text:
         return ""
@@ -36,6 +50,42 @@ def clean_telegram_markdown(text: str) -> str:
     text = text.replace("/paper_trade", "/trade").replace("/paper\\_trade", "/trade").replace("/paper\\\\_trade", "/trade")
     
     # 0c. PERMANENT FIX: Transform [Protocol (Pool)](url) → [Protocol](url) (Pool)
+    def to_yields_style_link(match):
+        full_text = match.group(1).strip().strip("*")
+        url = match.group(2).strip()
+
+        _BAD_ADDR = {"nan", "none", "null", "n/a", "", "undefined"}
+        u_lower = url.lower()
+        if (
+            any(u_lower.endswith(f"/{b}") for b in _BAD_ADDR)
+            or u_lower in _BAD_ADDR
+            or any(f"/{b}?" in u_lower for b in _BAD_ADDR)
+        ):
+            protocol = full_text
+            pool = ""
+            for sep in [" (", " -> ", " ➛ ", " - "]:
+                if sep in full_text:
+                    pts = full_text.split(sep, 1)
+                    protocol = pts[0].strip()
+                    pool = pts[1].strip()
+                    if pool.endswith(")"):
+                        pool = pool[:-1].strip()
+                    break
+            return f"{protocol} ({pool})" if pool else f"{protocol}"
+
+        protocol = full_text
+        pool = ""
+        for sep in [" (", " -> ", " ➛ ", " - "]:
+            if sep in full_text:
+                pts = full_text.split(sep, 1)
+                protocol = pts[0].strip()
+                pool = pts[1].strip()
+                if pool.endswith(")"):
+                    pool = pool[:-1].strip()
+                break
+        return f"[{protocol}]({url}) ({pool})" if pool else f"[{protocol}]({url})"
+
+    text = re.sub(r'\[([^\]]+)\]\((https://[^)]+)\)', to_yields_style_link, text)
     # This EXACTLY mirrors the /yields command format which renders perfectly on all clients.
     # Link text is ONLY the protocol name (no special chars), pool name is plain text outside brackets.
     def to_yields_style_link(match):
@@ -276,10 +326,9 @@ class AIService:
             apy_val = y.get("apy")
             apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
             risk_tag = p.get('risk_tag') or 'unknown'
-            pool_address = p.get('pool_address')
-            if pool_address:
-                url = pool_address if pool_address.startswith('http') else f"https://solscan.io/account/{pool_address}"
-                yield_context += f"- [{p['name']} ({p['pool_name']})]({url}): {apy_str} APY (Risk: {risk_tag.upper()}) | Address: {pool_address}\n"
+            url = clean_pool_url(p.get('pool_address'))
+            if url:
+                yield_context += f"- [{p['name']} ({p['pool_name']})]({url}): {apy_str} APY (Risk: {risk_tag.upper()})\n"
             else:
                 yield_context += f"- {p['name']} ({p['pool_name']}): {apy_str} APY (Risk: {risk_tag.upper()})\n"
             
@@ -494,9 +543,8 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
             risk_tag = p.get('risk_tag') or 'unknown'
             tvl_val = y.get('tvl_usd') or 0
             tvl_str = f"${tvl_val:,.0f}" if tvl_val else "N/A"
-            pool_address = p.get('pool_address')
-            if pool_address:
-                url = pool_address if pool_address.startswith('http') else f"https://solscan.io/account/{pool_address}"
+            url = clean_pool_url(p.get('pool_address'))
+            if url:
                 yield_context += f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
             else:
                 yield_context += f"- {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
@@ -519,9 +567,8 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
                     current_apy = t.get("entry_apy")
                 
                 apy_str = f"{current_apy:.2f}%" if current_apy is not None else "N/A"
-                pool_address = p.get("pool_address")
-                if pool_address:
-                    url = pool_address if pool_address.startswith('http') else f"https://solscan.io/account/{pool_address}"
+                url = clean_pool_url(p.get("pool_address"))
+                if url:
                     trade_context += f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}) | Entry APY: {t['entry_apy']:.2f}% | Current APY: {apy_str} | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
                 else:
                     trade_context += f"- Protocol: {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) | Entry APY: {t['entry_apy']:.2f}% | Current APY: {apy_str} | Current Investment: ${t['simulated_investment_usd']:.2f}\n"

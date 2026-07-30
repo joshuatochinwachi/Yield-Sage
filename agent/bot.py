@@ -6,7 +6,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotComm
 from telegram.constants import ParseMode
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ContextTypes
 from dotenv import load_dotenv, find_dotenv
-from ai_service import AIService, supabase, clean_telegram_markdown
+from ai_service import AIService, supabase, clean_telegram_markdown, clean_pool_url
 
 # Load environment variables
 load_dotenv(find_dotenv())
@@ -682,17 +682,8 @@ async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
         emoji = risk_emoji.get(risk, "⚪")
         
         pool_address = p.get('pool_address')
-        # Guard against stored nan/none/null sentinel strings or malformed URLs
-        _BAD_ADDR = {"nan", "none", "null", "n/a", "", "undefined"}
-        if pool_address and (
-            str(pool_address).lower().strip() in _BAD_ADDR
-            or str(pool_address).lower().endswith("/nan")
-            or str(pool_address).lower().endswith("/none")
-        ):
-            pool_address = None
-            
-        if pool_address:
-            url = pool_address if pool_address.startswith('http') else f"https://solscan.io/account/{pool_address}"
+        url = clean_pool_url(pool_address)
+        if url:
             text += f"{i}. {emoji} **[{name}]({url})** ({pool})\n"
         else:
             text += f"{i}. {emoji} **{name}** ({pool})\n"
@@ -774,8 +765,8 @@ async def view_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         est_return = inv * (current_apy / 100) * (days_held_exact / 365)
         
         pool_address = t["protocols"].get("pool_address")
-        if pool_address:
-            url = pool_address if pool_address.startswith('http') else f"https://solscan.io/account/{pool_address}"
+        url = clean_pool_url(pool_address)
+        if url:
             text += f"🔹 **[{p_name}]({url}) ({p_pool})**\n"
         else:
             text += f"🔹 **{p_name} ({p_pool})**\n"
