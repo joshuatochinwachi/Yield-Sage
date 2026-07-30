@@ -105,6 +105,11 @@ class SolanaFetcher:
         }
         
         db_protocols_by_pair = {
+            (p["name"].lower(), p["pool_name"].lower(), (p.get("pool_address") or "").lower()): p["id"]
+            for p in resp.data
+        }
+        # Fallback map by name + pool_name for backward compatibility
+        db_protocols_fallback = {
             (p["name"].lower(), p["pool_name"].lower()): p["id"]
             for p in resp.data
         }
@@ -113,7 +118,7 @@ class SolanaFetcher:
 
         new_protocols = []
         protocols_to_update = []
-        seen_keys = set(db_protocols_ids.keys())
+        seen_keys = set()
         seen_pairs = set(db_protocols_by_pair.keys())
 
         records = df.to_dict(orient="records")
@@ -122,6 +127,7 @@ class SolanaFetcher:
             protocol_name = str(row.get("Protocol") or "Unknown").strip()
             asset = str(row.get("Asset") or "Unknown").strip()
             raw_address = str(row.get("Pool Address") or "").strip() or None
+            pool_id = str(row.get("Pool ID") or "").strip()
             
             # Format non-null pool addresses with solscan URL
             if raw_address:
@@ -136,14 +142,17 @@ class SolanaFetcher:
             app_link_val = row.get("App Link") or None
 
             composite_key = (protocol_name.lower(), (pool_address or "").lower(), asset.lower())
-            pair_key = (protocol_name.lower(), asset.lower())
+            # Use pool_id or pool_address so multiple pools for the same asset pair are tracked separately
+            unique_pool_ref = pool_id if pool_id else (raw_address or "")
+            pair_key = (protocol_name.lower(), asset.lower(), unique_pool_ref.lower())
+            fallback_key = (protocol_name.lower(), asset.lower())
 
             asset_lower = asset.lower()
             risk = "stable" if any(x in asset_lower for x in ["usd", "usdc", "usdt", "dai", "pyusd"]) else "moderate"
 
             if pair_key not in seen_pairs:
-                address_slug_part = f"-{raw_address[-6:]}" if raw_address else ""
-                slug = f"{protocol_name}-{asset}{address_slug_part}".lower().replace(" ", "-").replace("/", "-")
+                id_slug_part = f"-{unique_pool_ref[:8]}" if unique_pool_ref else ""
+                slug = f"{protocol_name}-{asset}{id_slug_part}".lower().replace(" ", "-").replace("/", "-")
                 
                 new_protocol_record = {
                     "slug": slug,
@@ -160,7 +169,7 @@ class SolanaFetcher:
                 seen_keys.add(composite_key)
                 seen_pairs.add(pair_key)
             else:
-                existing_id = db_protocols_by_pair.get(pair_key)
+                existing_id = db_protocols_by_pair.get(pair_key) or db_protocols_fallback.get(fallback_key)
                 if existing_id:
                     existing = next((p for p in resp.data if p["id"] == existing_id), None)
                     if existing:
@@ -230,9 +239,14 @@ class SolanaFetcher:
         for row in records:
             protocol_name = str(row.get("Protocol") or "Unknown").strip()
             asset = str(row.get("Asset") or "Unknown").strip()
-            pair_key = (protocol_name.lower(), asset.lower())
+            raw_address = str(row.get("Pool Address") or "").strip() or None
+            pool_id = str(row.get("Pool ID") or "").strip()
+            unique_pool_ref = pool_id if pool_id else (raw_address or "")
 
-            protocol_id = db_protocols_by_pair.get(pair_key)
+            pair_key = (protocol_name.lower(), asset.lower(), unique_pool_ref.lower())
+            fallback_key = (protocol_name.lower(), asset.lower())
+
+            protocol_id = db_protocols_by_pair.get(pair_key) or db_protocols_fallback.get(fallback_key)
             if protocol_id:
                 try:
                     snapshots_to_insert.append({
