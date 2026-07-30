@@ -55,44 +55,40 @@ async def get_overview_stats():
         protocol_count = 0
         last_fetched = None
 
-        if all_protos:
-            pids = [p["id"] for p in all_protos]
-            proto_map = {p["id"]: p for p in all_protos}
-            
-            # Fetch latest snapshots for active protocol IDs
-            snap_res = (
-                db.table("yield_snapshots")
-                .select("protocol_id, apy, tvl_usd, fetched_at")
-                .in_("protocol_id", pids)
-                .order("fetched_at", desc=True)
-                .limit(len(pids) * 5)
-                .execute()
-            )
+        # Fetch latest snapshots for active protocols using joined query (no URL param bloat)
+        snap_res = (
+            db.table("yield_snapshots")
+            .select("protocol_id, apy, tvl_usd, fetched_at, protocols!inner(id, name, is_active)")
+            .eq("protocols.is_active", True)
+            .order("fetched_at", desc=True)
+            .limit(2000)
+            .execute()
+        )
 
-            seen_pids = set()
-            seen_proto_names = set()
-            for row in snap_res.data:
-                pid = row["protocol_id"]
-                if pid not in seen_pids:
-                    seen_pids.add(pid)
-                    apy = row.get("apy") or 0.0
-                    tvl = row.get("tvl_usd") or 0.0
-                    
-                    total_tvl += float(tvl)
-                    apy_list.append(float(apy))
-                    
-                    if apy > best_apy:
-                        best_apy = float(apy)
-                    if last_fetched is None:
-                        last_fetched = row.get("fetched_at")
-                    
-                    # Track unique protocol names
-                    p_name = proto_map.get(pid, {}).get("name")
-                    if p_name:
-                        seen_proto_names.add(p_name)
+        seen_pids = set()
+        seen_proto_names = set()
+        for row in (snap_res.data or []):
+            proto = row.get("protocols") or {}
+            pid = row.get("protocol_id") or proto.get("id")
+            if pid and pid not in seen_pids:
+                seen_pids.add(pid)
+                apy = row.get("apy") or 0.0
+                tvl = row.get("tvl_usd") or 0.0
+                
+                total_tvl += float(tvl)
+                apy_list.append(float(apy))
+                
+                if apy > best_apy:
+                    best_apy = float(apy)
+                if last_fetched is None:
+                    last_fetched = row.get("fetched_at")
+                
+                p_name = proto.get("name")
+                if p_name:
+                    seen_proto_names.add(p_name)
 
-            pool_count = len(seen_pids)
-            protocol_count = len(seen_proto_names)
+        pool_count = len(seen_pids)
+        protocol_count = len(seen_proto_names)
 
         # 4. Calculate average and median APY
         average_apy = sum(apy_list) / len(apy_list) if apy_list else 0.0

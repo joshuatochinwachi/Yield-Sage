@@ -43,38 +43,31 @@ async def get_latest_yields(
     """
     db = _db_or_503()
     try:
-        # Fetch active protocols
-        # Fetch active protocols
-        proto_q = db.table("protocols").select("id, slug, name, pool_name, pool_address, risk_tag, chain, image_url, app_link").eq("is_active", True)
-        if risk_tag:
-            proto_q = proto_q.eq("risk_tag", risk_tag.lower())
-        protocols = proto_q.execute().data
-
-        if not protocols:
-            return {"data": [], "count": 0, "timestamp": datetime.utcnow().isoformat()}
-
-        protocol_ids = [p["id"] for p in protocols]
-        proto_map = {p["id"]: p for p in protocols}
-
-        # Latest snapshot per protocol — fetch recent batch and deduplicate in Python
+        # Query yield_snapshots directly with joined protocol info (avoids URL parameter overflow)
         snap_res = (
             db.table("yield_snapshots")
-            .select("*")
-            .in_("protocol_id", protocol_ids)
+            .select("*, protocols!inner(id, slug, name, pool_name, pool_address, risk_tag, chain, image_url, app_link, is_active)")
+            .eq("protocols.is_active", True)
             .order("fetched_at", desc=True)
-            .limit(len(protocol_ids) * 5)          # enough rows to find 1 per protocol
+            .limit(2000)
             .execute()
         )
 
         seen = set()
         latest = []
-        for row in snap_res.data:
-            pid = row["protocol_id"]
-            if pid not in seen:
+        for row in (snap_res.data or []):
+            proto = row.get("protocols") or {}
+            pid = row.get("protocol_id") or proto.get("id")
+            
+            # Apply risk_tag filter if requested
+            if risk_tag and (proto.get("risk_tag") or "").lower() != risk_tag.lower():
+                continue
+
+            if pid and pid not in seen:
                 seen.add(pid)
                 latest.append({
                     **row,
-                    "protocol": proto_map.get(pid, {}),
+                    "protocol": proto,
                 })
 
         # Sort by APY descending
@@ -110,35 +103,29 @@ async def get_leaderboard(
     """
     db = _db_or_503()
     try:
-        proto_q = db.table("protocols").select("id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link").eq("is_active", True)
-        if risk_tag:
-            proto_q = proto_q.eq("risk_tag", risk_tag.lower())
-        protocols = proto_q.execute().data
-
-        if not protocols:
-            return {"data": [], "total": 0, "page": page, "page_size": page_size, "total_pages": 0}
-
-        protocol_ids = [p["id"] for p in protocols]
-        proto_map = {p["id"]: p for p in protocols}
-
+        # Single joined query on yield_snapshots + protocols (no URL query param bloat)
         snap_res = (
             db.table("yield_snapshots")
-            .select("protocol_id, apy, base_apy, reward_apy, reward_tokens, apy_1d, apy_7d, apy_30d, tvl_usd, asset, fetched_at")
-            .in_("protocol_id", protocol_ids)
+            .select("protocol_id, apy, base_apy, reward_apy, reward_tokens, apy_1d, apy_7d, apy_30d, tvl_usd, asset, fetched_at, protocols!inner(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link, is_active)")
+            .eq("protocols.is_active", True)
             .order("fetched_at", desc=True)
-            .limit(len(protocol_ids) * 5)
+            .limit(2000)
             .execute()
         )
 
         seen = set()
         rows = []
-        for row in snap_res.data:
-            pid = row["protocol_id"]
-            if pid not in seen:
+        for row in (snap_res.data or []):
+            proto = row.get("protocols") or {}
+            pid = row.get("protocol_id") or proto.get("id")
+
+            if risk_tag and (proto.get("risk_tag") or "").lower() != risk_tag.lower():
+                continue
+
+            if pid and pid not in seen:
                 seen.add(pid)
-                proto = proto_map.get(pid, {})
-                
-                # Filter by search term (case-insensitive on name, pool_name, or asset)
+
+                # Filter by search term
                 if search:
                     search_term = search.lower()
                     p_name = (proto.get("name") or "").lower()
@@ -162,7 +149,7 @@ async def get_leaderboard(
                         continue
 
                 rows.append({
-                    "rank": 0,           # filled below
+                    "rank": 0,
                     "protocol_id": pid,
                     "slug": proto.get("slug"),
                     "name": proto.get("name"),
@@ -181,7 +168,7 @@ async def get_leaderboard(
                     "tvl_usd": tvl_val,
                     "asset": row.get("asset"),
                     "fetched_at": row.get("fetched_at"),
-                    "protocol": proto,   # Nested for full frontend compatibility!
+                    "protocol": proto,
                 })
 
         # Sort by TVL descending and assign ranks
