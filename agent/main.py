@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import threading
 import os
@@ -46,13 +47,16 @@ async def lifespan(app: FastAPI):
     # 1. Start APScheduler in the active event loop
     try:
         _scheduler = AsyncIOScheduler()
+        # Schedule hourly pipeline without blocking startup health check
         _scheduler.add_job(
             run_pipeline,
             "interval",
             hours=1,
             id="pipeline_job",
-            next_run_time=datetime.now(),
         )
+        # Trigger an initial background run 5 seconds after startup so healthcheck passes instantly
+        asyncio.create_task(asyncio.sleep(5)).add_done_callback(lambda _: asyncio.create_task(run_pipeline()))
+
         _scheduler.add_job(
             retry_failed_onchain_logs,
             "interval",
