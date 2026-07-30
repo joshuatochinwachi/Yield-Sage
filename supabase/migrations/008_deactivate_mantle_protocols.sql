@@ -11,6 +11,7 @@
 -- 3. Delete the Mantle protocol rows themselves
 -- ============================================================================
 
+
 -- Step 1: Delete all yield snapshots for Mantle protocols
 DELETE FROM yield_snapshots
 WHERE protocol_id IN (
