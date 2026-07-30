@@ -65,7 +65,7 @@ export default function PrivacyPage() {
                 <strong className="text-white">Personal Data:</strong> We do not collect names, emails, IP addresses, or location data. 
               </li>
               <li>
-                <strong className="text-white">Public Wallet Addresses:</strong> To manage simulated paper trades and alerts, we store public wallet addresses. Public addresses are entirely open and viewable on the Mantle blockchain ledger. We never request private keys or seed phrases.
+                <strong className="text-white">Public Wallet Addresses:</strong> To manage simulated paper trades and alerts, we store public wallet addresses. Public addresses are entirely open and viewable on the Solana blockchain ledger. We never request private keys or seed phrases.
               </li>
               <li>
                 <strong className="text-white">Telegram Integration Data:</strong> When using the YieldSage Bot, we securely store your Telegram numeric User ID and usernames to direct your customized hourly recommendations and watchlist status alerts.
@@ -95,7 +95,7 @@ export default function PrivacyPage() {
                 <strong className="text-white">Supabase / PostgreSQL:</strong> Stores protocol feeds, user preference states, and Telegram message queues. All database interactions utilize Row-Level Security (RLS) policies.
               </li>
               <li>
-                <strong className="text-white">Dune Analytics:</strong> Pulls public, raw historical blockchain statistics (TVL, APY) for Mantle contracts. No user identity details are ever shared with Dune.
+                <strong className="text-white">DefiLlama:</strong> Pulls public, aggregated DeFi statistics (TVL, APY) for Solana protocols. No user identity details are ever shared with DefiLlama.
               </li>
               <li>
                 <strong className="text-white">AI Inference Networks:</strong> Sends public yield feeds to Cerebras, SambaNova, Groq, NVIDIA, and Gemini. Queries are completely anonymized before transmission.
@@ -106,7 +106,7 @@ export default function PrivacyPage() {
           <section className="space-y-3">
             <h2 className="text-lg font-semibold text-white tracking-wide">4. On-Chain Commitments</h2>
             <p>
-              Every AI pick is hashed and written to the Mantle Layer-2 network as a 0-MNT metadata transaction. This transaction remains visible in the global public ledger permanently. Do not link personal identifying descriptions to public addresses used on the site.
+              Every AI pick is hashed and written to the Solana blockchain as an SPL Memo transaction. This transaction remains visible in the global public ledger permanently. Do not link personal identifying descriptions to public addresses used on the site.
             </p>
           </section>
 

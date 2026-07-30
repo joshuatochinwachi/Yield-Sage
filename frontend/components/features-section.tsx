@@ -9,7 +9,7 @@ const features = [
     icon: Brain,
     label: "AI Yield Ranking",
     description:
-      "A live leaderboard scoring every tracked Mantle pool by risk-adjusted APY, TVL depth, and protocol health — refreshed every hour via Dune Analytics.",
+      "A live leaderboard scoring every tracked Solana pool by risk-adjusted APY, TVL depth, and protocol health — refreshed every hour via DefiLlama.",
     stat: "Hourly",
     statLabel: "Scoring cadence",
     color: "rgba(0,255,136,",
@@ -27,7 +27,7 @@ const features = [
     icon: Activity,
     label: "On-Chain Verification",
     description:
-      "No black boxes. Every pool recommendation links directly to its on-chain address on MantleScan so you can verify the contract before you invest.",
+      "No black boxes. Every pool recommendation links directly to its on-chain address on Solscan so you can verify the program before you invest.",
     stat: "100%",
     statLabel: "On-chain verifiable",
     color: "rgba(0,255,136,",
@@ -45,7 +45,7 @@ const features = [
     icon: Bell,
     label: "Real-Time Telegram Alerts",
     description:
-      "Instant push notifications the moment a superior risk-adjusted pool opens up on Mantle. Never miss a yield shift while you are away from the screen.",
+      "Instant push notifications the moment a superior risk-adjusted pool opens up on Solana. Never miss a yield shift while you are away from the screen.",
     stat: "<1 min",
     statLabel: "Alert latency",
     color: "rgba(159,122,234,",
@@ -54,9 +54,9 @@ const features = [
     icon: Layers,
     label: "Multi-Protocol Coverage",
     description:
-      "Tracks every major DeFi protocol deployed on Mantle — including Merchant Moe, Aave, Agni Finance, Fluxion Network, Ondo, Clearpool, and more — all in a single unified dashboard.",
+      "Tracks every major DeFi protocol deployed on Solana — including Kamino, MarginFi, Jito, Orca, Raydium, Drift, Marinade, and more — all in a single unified dashboard.",
     stat: "All",
-    statLabel: "Mantle protocols",
+    statLabel: "Solana protocols",
     color: "rgba(251,113,133,",
   },
 ]

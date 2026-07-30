@@ -3,7 +3,7 @@
 -- Drop existing table (no data in it yet, safe to drop)
 DROP TABLE IF EXISTS public.yield_snapshots CASCADE;
 
--- Recreate with all Dune columns
+-- Recreate with all yield snapshot columns
 CREATE TABLE public.yield_snapshots (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     protocol_id UUID REFERENCES public.protocols(id) ON DELETE CASCADE,

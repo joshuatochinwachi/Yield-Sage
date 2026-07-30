@@ -1,19 +1,25 @@
 # quick_rpc_check.py — run once to verify wallet + RPC are working
 import os
-from web3 import Web3
+from solana.rpc.api import Client
+from solders.keypair import Keypair
 from dotenv import load_dotenv
 
 load_dotenv()
 
-w3 = Web3(Web3.HTTPProvider(os.environ.get("MANTLE_RPC_URL", "https://rpc.mantle.xyz")))
-print("Connected:", w3.is_connected())
-print("Chain ID:", w3.eth.chain_id)   # Should print 5000
+rpc_url = os.environ.get("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com")
+client = Client(rpc_url)
+print("Connected:", client.is_connected())
+print("Cluster:", rpc_url)
 
-priv_key = os.environ.get("YIELDSAGE_WALLET_PRIVATE_KEY")
+priv_key = os.environ.get("SOLANA_PRIVATE_KEY")
 if priv_key:
-    account = w3.eth.account.from_key(priv_key)
-    balance = w3.eth.get_balance(account.address)
-    print("Wallet:", account.address)
-    print("Balance (MNT):", w3.from_wei(balance, "ether"))
+    try:
+        keypair = Keypair.from_base58_string(priv_key)
+        balance_resp = client.get_balance(keypair.pubkey())
+        balance_sol = balance_resp.value / 10**9
+        print("Wallet:", keypair.pubkey())
+        print("Balance (SOL):", balance_sol)
+    except Exception as e:
+        print("Error reading keypair:", e)
 else:
-    print("YIELDSAGE_WALLET_PRIVATE_KEY not set in environment.")
+    print("SOLANA_PRIVATE_KEY not set in environment.")

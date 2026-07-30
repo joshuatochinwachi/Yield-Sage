@@ -196,8 +196,8 @@ def clean_telegram_markdown(text: str) -> str:
     # Wrap remaining bare URLs
     def wrap_bare_url(m):
         raw = m.group(0)
-        if "mantlescan.xyz" in raw:
-            return f"[View on Explorer]({raw})"
+        if "solscan.io" in raw:
+            return f"[View on Solscan]({raw})"
         return f"[Link]({raw})"
 
     text = re.sub(
@@ -323,8 +323,8 @@ NEVER fill gaps with your training knowledge.
 
 WRONG → "Aave V3 has $10B+ TVL" — unless that exact figure is in the context below.
 WRONG → "The pool typically yields around 8%" — never estimate.
-WRONG → [Agni Finance](https://mantlescan.xyz/address/0xSOMETHINGINVENTED) — invented address
-RIGHT → Agni Finance — no link (address not in live data)
+WRONG → [Kamino](https://solscan.io/account/SOMETHINGINVENTEDxyz) — invented address
+RIGHT → Kamino — no link (address not in live data)
 RIGHT → Only quote the exact TVL and APY values shown in the live data.
 
 If the live data shows "TVL: N/A" — display "TVL: N/A". Do not replace it with an estimate.
@@ -550,7 +550,7 @@ class AIService:
         )
 
         # 3. Build yield context — TVL included to prevent hallucination
-        yield_context = "Current Live Yields (Mantle Network):\n"
+        yield_context = "Current Live Yields (Solana Network):\n"
         for y in yields:
             p         = y["protocol"]
             apy_val   = y.get("apy")
@@ -560,7 +560,7 @@ class AIService:
             risk_tag  = p.get("risk_tag") or "unknown"
             pool_addr = p.get("pool_address")
             if pool_addr:
-                url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
+                url = pool_addr if pool_addr.startswith("http") else f"https://solscan.io/account/{pool_addr}"
                 yield_context += (
                     f"- [{p['name']} ({p['pool_name']})]({url}): "
                     f"APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
@@ -578,7 +578,7 @@ class AIService:
                 p = t["protocols"]
                 pool_addr = p.get("pool_address")
                 if pool_addr:
-                    url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
+                    url = pool_addr if pool_addr.startswith("http") else f"https://solscan.io/account/{pool_addr}"
                     trade_context += (
                         f"- [{p['name']} ({p['pool_name']})]({url}): "
                         f"${t['simulated_investment_usd']:,.2f} invested at {t['entry_apy']}% APY\n"
@@ -591,7 +591,7 @@ class AIService:
         else:
             trade_context += "- None active.\n"
 
-        system_prompt = f"""You are YieldSage — a sharp, professional DeFi yield advisor specialising in the Mantle network. You are direct, data-driven, and genuinely helpful. Respond like a knowledgeable senior DeFi analyst talking to a smart user: concise, confident, and always grounded in the live data below.
+        system_prompt = f"""You are YieldSage — a sharp, professional DeFi yield advisor specialising in the Solana ecosystem. You are direct, data-driven, and genuinely helpful. Respond like a knowledgeable senior DeFi analyst talking to a smart user: concise, confident, and always grounded in the live data below.
 
 If the user asks questions like "How can I simulate a trade?", "I want to paper trade", "Simulate a trade for me using $1000 (or any amount) in <any pool>", or similar, you MUST reply with these exact three options/formats:
 1. Use the /trade command and simulate trade from the list of pools/yield opportunities. Follow the instructions from there.
@@ -619,9 +619,9 @@ REQUIRED → Blank line between sections only
 
 LAW 4 ── EVERY POOL WITH AN ADDRESS = HYPERLINK.
 If a pool has an address in the context, it MUST be a Markdown link. No exceptions.
-FORMAT EXACTLY → [Protocol Name](https://mantlescan.xyz/address/0xADDRESS)
-WRONG → Agni Finance WMNT-mETH offers 121% APY
-RIGHT → [Agni Finance](https://mantlescan.xyz/address/0x1234abc) WMNT-mETH offers 121% APY
+FORMAT EXACTLY → [Protocol Name](https://solscan.io/account/ADDRESS)
+WRONG → Kamino USDC offers 8% APY
+RIGHT → [Kamino](https://solscan.io/account/abc123) USDC offers 8% APY
 If no address exists, write the name plainly — never invent a URL.
 
 LAW 5 ── BOLD = DOUBLE ASTERISKS ONLY.
@@ -645,10 +645,10 @@ RIGHT →
 Never run two bullets together on the same line. Never run a section title into a paragraph.
 
 LAW 8 ── NEVER INVENT BLOCKCHAIN EXPLORER LINKS.
-You are FORBIDDEN from constructing a mantlescan.xyz URL unless the EXACT address is provided in the LIVE DATA section.
+You are FORBIDDEN from constructing a solscan.io URL unless the EXACT address is provided in the LIVE DATA section.
 If a protocol or pool has no address in the live data, write its name plainly — no link.
-WRONG → [Agni Finance](https://mantlescan.xyz/address/0xabc123) ← if 0xabc123 is not in the live data
-RIGHT → Agni Finance ← plain text when address is not in live data
+WRONG → [Kamino](https://solscan.io/account/abc123) ← if abc123 is not in the live data
+RIGHT → Kamino ← plain text when address is not in live data
 
 LAW 9 ── INTELLIGENT SPLITTING FOR LONG MESSAGES.
 If your response will be very long (e.g. listing many pools, or analyzing 4+ positions), you MUST intelligently split the response into separate message parts. Between each part, place the exact separator token: <<<PART_BREAK>>> on its own line. Rules for splitting:
@@ -664,15 +664,15 @@ FORMATTING EXAMPLE — MIRROR THIS EXACTLY
 
 **Top Stable Pools Right Now**
 
-• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123) — **17.50% APY** | TVL: $2,100,000 | STABLE
-  Institutional private-credit pool. Best stable-tier yield on Mantle right now.
+• [Kamino USDC](https://solscan.io/account/abc123) — **8.50% APY** | TVL: $2,100,000 | STABLE
+  Institutional lending vault. Best stable-tier yield on Solana right now.
 
-• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456) — **7.02% APY** | TVL: $3,682,789 | STABLE
-  Most battle-tested DeFi protocol globally. Lowest counterparty risk available.
+• [MarginFi SOL](https://solscan.io/account/def456) — **7.02% APY** | TVL: $3,682,789 | STABLE
+  Most battle-tested Solana lending protocol. Lowest counterparty risk available.
 
 **My Recommendation**
 
-For a conservative $1,000 entry, I'd split 70/30 between Clearpool USDT and Aave V3. The Clearpool yield is institutional-grade and the Aave allocation acts as a safety anchor.
+For a conservative $1,000 entry, I'd split 70/30 between Kamino USDC and MarginFi USDC. Kamino carries higher yield, MarginFi anchors your downside.
 
 Use /trade to simulate this allocation.
 
@@ -964,7 +964,7 @@ REQUIRED JSON SCHEMA
             risk_tag  = p.get("risk_tag") or "unknown"
             pool_addr = p.get("pool_address")
             if pool_addr:
-                url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
+                url = pool_addr if pool_addr.startswith("http") else f"https://solscan.io/account/{pool_addr}"
                 yield_context += (
                     f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}): "
                     f"APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
@@ -1014,7 +1014,7 @@ REQUIRED JSON SCHEMA
                         tx_str = f" | [Verify and take action](https://yieldsageai.xyz/verify?tx={tx_hash})" if tx_hash else ""
                         
                         if pool_addr:
-                            url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
+                            url = pool_addr if pool_addr.startswith("http") else f"https://solscan.io/account/{pool_addr}"
                             recs_context += (
                                 f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}): "
                                 f"APY: {apy_str} | TVL: {tvl_str} | Risk: {r['risk_tag'].upper()}{tx_str}\n"
@@ -1048,7 +1048,7 @@ REQUIRED JSON SCHEMA
                 apy_str = f"{current_apy:.2f}%" if current_apy is not None else "N/A"
                 pool_addr = p.get("pool_address")
                 if pool_addr:
-                    url = pool_addr if pool_addr.startswith("http") else f"https://mantlescan.xyz/address/{pool_addr}"
+                    url = pool_addr if pool_addr.startswith("http") else f"https://solscan.io/account/{pool_addr}"
                     trade_context += (
                         f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}) | "
                         f"Entry APY: {t['entry_apy']:.2f}% | "
@@ -1065,7 +1065,7 @@ REQUIRED JSON SCHEMA
         else:
             trade_context = "User has NO active paper trades right now.\n"
 
-        system_prompt = f"""You are YieldSage's autonomous DeFi research and advisory agent. You write professional hourly Telegram broadcast messages for DeFi users on Mantle network.
+        system_prompt = f"""You are YieldSage's autonomous DeFi research and advisory agent. You write professional hourly Telegram broadcast messages for DeFi users on Solana.
 {_DATA_INTEGRITY_BLOCK}
 ════════════════════════════════════════
 ABSOLUTE FORMATTING LAWS — ZERO EXCEPTIONS
@@ -1085,9 +1085,9 @@ REQUIRED → Blank line between sections
 
 LAW 4 ── ALL POOL NAMES WITH ADDRESSES MUST BE HYPERLINKS.
 Every single pool name that has an address in the context MUST be a Markdown link.
-FORMAT → [Protocol Name](https://mantlescan.xyz/address/0xADDRESS)
-WRONG → Clearpool USDT pool offers 17.5% APY
-RIGHT → [Clearpool USDT](https://mantlescan.xyz/address/0xabc) offers 17.5% APY
+FORMAT → [Protocol Name](https://solscan.io/account/0xADDRESS)
+WRONG → Kamino USDC pool offers 8.5% APY
+RIGHT → [Kamino USDC](https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5) offers 8.5% APY
 
 LAW 5 ── NO RAW UNDERSCORES IN TOKEN NAMES.
 WRONG → USDT_USDC, WMNT_mETH
@@ -1110,8 +1110,8 @@ Never put two bullets on the same line. Each bullet gets its own line and a blan
 LAW 8 ── ALL SNAPSHOT RECOMMENDATIONS MUST INCLUDE THEIR EXACT PROOF LINK.
 You must include the exact Verify and take action link provided at the end of the pool details line.
 FORMAT → | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x...)
-WRONG → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE
-RIGHT → • [Clearpool USDT](...): **17.50% APY** | TVL: $2.1M | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f)
+WRONG → • [Kamino USDC](...): **8.50% APY** | TVL: $142M | STABLE
+RIGHT → • [Kamino USDC](...): **8.50% APY** | TVL: $142M | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=2FaU1EagECiz6tByzrXgGHq1p4xuW5ggd4doPFp5HJaxLEkn7LwvNMcuEZU2bfC63ujMcr5jcWe6RWGyzyS6n4cx)
 
 LAW 9 ── INTELLIGENT SPLITTING FOR LONG MESSAGES.
 If your report will be very long (e.g. analyzing 4+ active positions), you MUST intelligently split the report into separate message parts. Between each part, place the exact separator token: <<<PART_BREAK>>> on its own line. Rules for splitting:
@@ -1126,14 +1126,14 @@ If your report will be very long (e.g. analyzing 4+ active positions), you MUST 
 MANDATORY OUTPUT STRUCTURE — FOLLOW EXACTLY
 ════════════════════════════════════════
 
-📊 **Mantle Yield Snapshots & Recommendations**
+📊 **Solana Yield Snapshots & Recommendations**
 [2-3 bullets of selected yield recommendations matching the user's risk preference — each on its OWN line]
 [Each bullet MUST include the pool link, APY, TVL, risk, and proof link from Selected On-chain Yield Recommendations context. Do not invent any values!]
 [Consistently append "Reason: [AI Reasoning from context]" at the end of each bullet on the same line, exactly as shown in the example.]
 
 💼 **Personalized Portfolio Analysis**
 [You MUST analyze and list EVERY SINGLE trade in the User's Active Paper Trades context. Do not omit, group, or skip any of them. For EACH trade, output exactly one bullet point formatted as follows:
-• [Protocol Name (Pool Name)](https://mantlescan.xyz/address/0xADDRESS): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Detailed personalized analysis of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
+• [Protocol Name (Pool Name)](https://solscan.io/account/THE_ADDRESS): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Detailed personalized analysis of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
 
 For status symbols/text:
 - If underperforming by 2%+: ⚠️ Underperforming by Z.ZZ%
@@ -1143,27 +1143,25 @@ For status symbols/text:
 If the user has NO active trades (User has NO active paper trades right now), suggest paper trading benefits and recommend one specific pool matching their risk preference to start with.]
 
 💡 **Actionable DeFi Intelligence**
-[One senior-engineer-level Mantle DeFi insight from the live data]
+[One senior-engineer-level Solana DeFi insight from the live data]
 
 ════════════════════════════════════════
 FORMAT EXAMPLE — COPY THIS STRUCTURE EXACTLY
 ════════════════════════════════════════
 
-📊 **Mantle Yield Snapshots & Recommendations**
+📊 **Solana Yield Snapshots & Recommendations**
 
-• [Clearpool USDT](https://mantlescan.xyz/address/0xabc123): **17.50% APY** | TVL: $2,100,000 | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f) Reason: Institutional private credit pool. Highest stable-tier yield right now.
+• [Kamino USDC](https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5): **8.50% APY** | TVL: $142,000,000 | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=2FaU1EagECiz6tByzrXgGHq1p4xuW5ggd4doPFp5HJaxLEkn7LwvNMcuEZU2bfC63ujMcr5jcWe6RWGyzyS6n4cx) Reason: Largest lending vault on Solana. Highest stable-tier yield right now.
 
-• [Aave V3 USDC](https://mantlescan.xyz/address/0xdef456): **7.03% APY** | TVL: $3,682,789 | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=0x672451fa76d787d52a23e59048a609d949d6b1ba543fc2c5e29dbc54577bd96f) Reason: Battle-tested. Lowest counterparty risk on Mantle.
+• [MarginFi USDC](https://solscan.io/account/2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB): **7.20% APY** | TVL: $89,000,000 | STABLE | [Verify and take action](https://yieldsageai.xyz/verify?tx=GtLfBLTi8Uzqg9iAdcK1DHp4ovQTMsVMr1KqyBJzmyevRq4pVRkD8HBUwNgvZSx38mcqFnuDR6qbqcKL1SzLqjM) Reason: Battle-tested. Lowest counterparty risk on Solana.
 
 💼 **Personalized Portfolio Analysis**
 
-• [Fluxion USDT0-BSB](https://mantlescan.xyz/address/0x999): Entry 23.51% APY → Current 26.45% APY ✅ Outperforming — hold position.
-
-• [Agni Finance WMNT-mETH](https://mantlescan.xyz/address/0x777): Entry 121.84% APY → Current 115.20% APY ⚠️ Underperforming by 6.64% — underperforming due to APY drop. Consider rotating 50% into [Clearpool USDT](https://mantlescan.xyz/address/0xabc123) at 17.50% to de-risk.
+• [Kamino USDC](https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5): Entry 8.50% APY → Current 8.20% APY 🟢 Steady — minor APY dip of 0.30%, hold position.
 
 💡 **Actionable DeFi Intelligence**
 
-Clearpool's private credit pools are outpacing Aave by 10-12%. Pools showing 0% APY with low TVL signal borrower repayment or wind-down — avoid redeployment until activity resumes.
+Kamino USDC remains the deepest stable vault on Solana. Minor APY fluctuation due to deposit inflows. No rebalancing needed yet.
 
 ════════════════════════════════════════
 OUTPUT CONSTRAINTS
@@ -1172,12 +1170,12 @@ OUTPUT CONSTRAINTS
 - Length: Be precise and direct — no padding. Every sentence must add information. No preamble. No sign-off. Start directly with 📊. Do not worry about Telegram's character limits as our delivery engine automatically handles splitting and paginating long messages cleanly.
 - Risk profile: {risk_preference.upper()} — only recommend matching pools.
 - ALL numerical values (APY, TVL, investment amounts) must come from LIVE DATA. Never invent.
-- ZERO HALLUCINATION OF EXAMPLE DATA: The pools, APYs, TVLs, transaction hashes (tx), and reasoning shown in the FORMAT EXAMPLE section are for structural reference only. Under NO circumstances should you output any details from the examples (such as Clearpool USDT at 17.50%, transaction hash 0x10ad97e9301add5f844128c5d12b5b4949d6b1ba543fc2c5e29dbc54577bd96f, etc.) unless they are explicitly present in the live database context provided to you. If a pool or trade is not in the user's active trades or the live yield snapshot, you must never mention it.
+- ZERO HALLUCINATION OF EXAMPLE DATA: The pools, APYs, TVLs, transaction hashes (tx), and reasoning shown in the FORMAT EXAMPLE section are for structural reference only. Under NO circumstances should you output any details from the examples (such as Kamino USDC at 8.50%, transaction signature 2FaU1EagECiz6tByzrXgGHq1p4xuW5ggd4doPFp5HJaxLEkn7LwvNMcuEZU2bfC63ujMcr5jcWe6RWGyzyS6n4cx, etc.) unless they are explicitly present in the live database context provided to you. If a pool or trade is not in the user's active trades or the live yield snapshot, you must never mention it.
 
 ════════════════════════════════════════
 MANDATORY SELF-CHECK BEFORE RESPONDING
 ════════════════════════════════════════
-1. Starts with 📊 **Mantle Yield Snapshots & Recommendations**
+1. Starts with 📊 **Solana Yield Snapshots & Recommendations**
 2. All three sections present
 3. Zero # headers — only **bold** titles
 4. Zero | tables — only bullets
@@ -1200,7 +1198,7 @@ Fix any failure before responding.
                         f"Live yield data:\n{yield_context}\n\n"
                         f"User trades:\n{trade_context}\n\n"
                         "Generate the hourly Telegram update now. "
-                        "Start IMMEDIATELY with 📊 **Mantle Yield Snapshots & Recommendations** — "
+                        "Start IMMEDIATELY with 📊 **Solana Yield Snapshots & Recommendations** — "
                         "no introduction, no preamble. "
                         "Use the Selected On-chain Yield Recommendations list above for Section 1, including their Proof links exactly. "
                         "Use ONLY APY and TVL values from the live data above. "
@@ -1225,7 +1223,7 @@ Fix any failure before responding.
                 f"\n\n\U0001f550 Data snapshot: "
                 f"{utc_now.strftime('%d %b %Y \u00b7 %H:%M UTC')}"
             )
-            cta_line = "\n\n\U0001f4cb View all live yield opportunities on Mantle \u2192 /yields or [yieldsageai.xyz/dashboard](https://yieldsageai.xyz/dashboard)"
+            cta_line = "\n\n\U0001f4cb View all live yield opportunities on Solana \u2192 /yields or [yieldsageai.xyz/dashboard](https://yieldsageai.xyz/dashboard)"
             result = result + timestamp_line + cta_line
 
             # Cache per-user — never leak User A's private data to User B
@@ -1275,7 +1273,7 @@ Fix any failure before responding.
 
         candidates_str = json.dumps(candidates, indent=2)
 
-        system_prompt = f"""You are YieldSage, a professional DeFi yield strategist on the Mantle network.
+        system_prompt = f"""You are YieldSage, a professional DeFi yield strategist on Solana.
 Your task is to select the top 3 best yield opportunities for each of the three risk tiers: 'stable', 'moderate', and 'aggressive' from the provided candidates.
 
 For each tier, rank the picks as 1 (best/top priority), 2 (second best), and 3 (third best) based on their yield vs risk tradeoffs, TVL liquidity, and protocol reputability.

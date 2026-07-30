@@ -1,11 +1,9 @@
 import os
+import sys
 import asyncio
-import json
-import httpx
 import logging
-import csv
-from io import StringIO
-from datetime import datetime
+from datetime import datetime, timezone
+import pandas as pd
 from supabase import create_client, Client
 from dotenv import load_dotenv, find_dotenv
 
@@ -15,9 +13,6 @@ load_dotenv(find_dotenv())
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-DUNE_QUERY_ID = "7595582"
-DUNE_API_KEYS = [k.strip() for k in os.getenv("DUNE_API_KEYS", "").split(",") if k.strip()]
-
 url: str = os.environ.get("SUPABASE_URL")
 key: str = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 
@@ -26,314 +21,223 @@ if not url or not key:
 
 supabase: Client = create_client(url, key)
 
-class DuneFetcher:
-    def __init__(self):
-        self.keys = DUNE_API_KEYS
-        if not self.keys:
-            raise ValueError("No DUNE_API_KEYS found in env.")
-        self.current_key_idx = 0
-        self.load_state()
+# Import the live Solana fetch logic
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+try:
+    from solana_pools_live import build_enriched_view
+except ImportError:
+    from solana_pools_live import build_enriched_view
 
-    @property
-    def current_key(self):
-        return self.keys[self.current_key_idx]
+class SolanaFetcher:
+    def __init__(self, max_retries: int = 3, retry_delay: float = 5.0):
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
 
-    def load_state(self):
-        state_file = os.path.join(os.path.dirname(__file__), "fetcher_state.json")
-        if os.path.exists(state_file):
-            try:
-                with open(state_file, "r") as f:
-                    state = json.load(f)
-                    self.current_key_idx = state.get("current_key_idx", 0) % len(self.keys)
-                    logger.info(f"Loaded API key index {self.current_key_idx} from state file.")
-            except Exception as e:
-                logger.warning(f"Could not load state file: {e}")
-
-    def save_state(self):
-        state_file = os.path.join(os.path.dirname(__file__), "fetcher_state.json")
+    async def log_error(self, job_type: str, error_msg: str, stack_trace: str = None):
+        """Logs job failures to Supabase agent_errors table for admin diagnostics."""
         try:
-            with open(state_file, "w") as f:
-                json.dump({"current_key_idx": self.current_key_idx}, f)
+            supabase.table("agent_errors").insert({
+                "job_type": job_type,
+                "error_message": str(error_msg),
+                "stack_trace": str(stack_trace) if stack_trace else None,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }).execute()
         except Exception as e:
-            logger.warning(f"Could not save state file: {e}")
-
-    def rotate_key(self):
-        self.current_key_idx = (self.current_key_idx + 1) % len(self.keys)
-        logger.info(f"Rotated key. New index: {self.current_key_idx}")
-        self.save_state()
-
-    async def check_key_credits(self, client: httpx.AsyncClient, api_key: str) -> bool:
-        """Returns True if the key has available credits and is valid, False otherwise. Raises for network errors."""
-        today = datetime.utcnow().strftime("%Y-%m-%d")
-        headers = {"X-DUNE-API-KEY": api_key, "Content-Type": "application/json"}
-        payload = {"start_date": today, "end_date": today}
-        
-        try:
-            resp = await client.post("https://api.dune.com/api/v1/usage", json=payload, headers=headers)
-            if resp.status_code == 200:
-                data = resp.json()
-                periods = data.get("billing_periods", [])
-                if not periods:
-                    return True
-                current_period = periods[0]
-                used = current_period.get("credits_used", 0)
-                included = current_period.get("credits_included", 0)
-                logger.info(f"Key index {self.keys.index(api_key)} credit usage: {used}/{included}")
-                return used < included
-            elif resp.status_code in (401, 403):
-                logger.warning(f"Key index {self.keys.index(api_key)} is invalid or unauthorized: {resp.status_code}")
-                return False
-            else:
-                resp.raise_for_status()
-        except httpx.HTTPStatusError as e:
-            # HTTPStatusError always has .response
-            if e.response.status_code in (401, 403):
-                return False
-            raise
-        except (httpx.ConnectError, httpx.TimeoutException, httpx.ReadError) as e:
-            # Transient network errors — propagate so the caller can retry
-            logger.warning(f"Network error checking credits for key: {e}")
-            raise
-
-    async def select_valid_key(self, client: httpx.AsyncClient) -> str:
-        """Loops through keys starting from current index to find one with credits. Raises on connection issues."""
-        num_keys = len(self.keys)
-        for i in range(num_keys):
-            idx = (self.current_key_idx + i) % num_keys
-            api_key = self.keys[idx]
-            
-            logger.info(f"Checking credits for key index {idx}...")
-            try:
-                has_credits = await self.check_key_credits(client, api_key)
-                if has_credits:
-                    if idx != self.current_key_idx:
-                        logger.info(f"Switching active key index to {idx}")
-                        self.current_key_idx = idx
-                        self.save_state()
-                    return api_key
-                else:
-                    logger.warning(f"Key index {idx} is exhausted. Moving to next key...")
-            except httpx.HTTPStatusError as e:
-                # HTTP status errors with response codes
-                if e.response.status_code in (401, 403):
-                    logger.warning(f"Key index {idx} is invalid ({e.response.status_code}). Moving to next key...")
-                else:
-                    raise
-            except (httpx.ConnectError, httpx.TimeoutException, httpx.ReadError) as e:
-                # Transient network errors — can't check credits, propagate to trigger retry
-                logger.error(f"Network error while checking key index {idx}: {e}")
-                raise
-                    
-        logger.error("All Dune API keys are exhausted or invalid!")
-        return self.keys[self.current_key_idx]
+            logger.error(f"Failed to log error to agent_errors table: {e}")
 
     async def run(self):
-        logger.info("Starting Dune fetch session...")
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # 1. Select key with credits
-            api_key = await self.select_valid_key(client)
-            
-            headers = {"X-DUNE-API-KEY": api_key}
-            max_retries = 30
-            completed = False
-            # Track keys that can't execute (free-tier keys return 400 "Deprecated query engine")
-            ineligible_executor_keys: set[int] = set()
+        logger.info("Starting Solana pools live fetch session...")
+        loop = asyncio.get_event_loop()
+        enriched_df = None
 
-            for attempt in range(1, max_retries + 1):
-                # 2. Trigger query execution
-                logger.info(f"Triggering Dune query execution (Attempt {attempt}/{max_retries})...")
-                exec_url = f"https://api.dune.com/api/v1/query/{DUNE_QUERY_ID}/execute"
-                
-                exec_resp = await client.post(exec_url, headers=headers)
-                if exec_resp.status_code != 200:
-                    error_body = exec_resp.text
-                    logger.error(f"Execution trigger failed: {error_body}")
-                    
-                    # Free-tier keys can't execute queries — Dune returns a misleading
-                    # "Deprecated query engine" 400 error for them. Rotate immediately.
-                    if exec_resp.status_code == 400 and "Deprecated query engine" in error_body:
-                        logger.warning(
-                            f"Key index {self.current_key_idx} cannot execute queries "
-                            f"(free-tier plan). Rotating to next key..."
-                        )
-                        ineligible_executor_keys.add(self.current_key_idx)
-                        
-                        # Try every remaining key; skip known-ineligible ones
-                        rotated = False
-                        for _ in range(len(self.keys)):
-                            self.rotate_key()
-                            if self.current_key_idx not in ineligible_executor_keys:
-                                # Verify this key has credits before using it
-                                try:
-                                    has_credits = await self.check_key_credits(client, self.current_key)
-                                    if has_credits:
-                                        api_key = self.current_key
-                                        headers = {"X-DUNE-API-KEY": api_key}
-                                        logger.info(f"Switched to paid key index {self.current_key_idx}.")
-                                        rotated = True
-                                        break
-                                except Exception:
-                                    pass
-                        
-                        if not rotated:
-                            raise RuntimeError(
-                                "All API keys are either free-tier (cannot execute) or exhausted. "
-                                "Please add a paid Dune API key to DUNE_API_KEYS."
-                            )
-                        # Retry immediately with the new key — no sleep needed
-                        continue
-                    
-                    if attempt < max_retries:
-                        await asyncio.sleep(15)
-                        continue
-                    exec_resp.raise_for_status()
-                    
-                execution_id = exec_resp.json().get("execution_id")
-                logger.info(f"Execution started: {execution_id}")
-                
-                # 3. Monitor execution status
-                failed = False
-                while not completed and not failed:
-                    await asyncio.sleep(15)
-                    status_url = f"https://api.dune.com/api/v1/execution/{execution_id}/status"
-                    status_resp = await client.get(status_url, headers=headers)
-                    
-                    if status_resp.status_code != 200:
-                        logger.warning(f"Status check failed: {status_resp.text}, retrying in 15s...")
-                        continue
-                        
-                    state = status_resp.json().get("state")
-                    logger.info(f"Execution status: {state}")
-                    
-                    if state == "QUERY_STATE_COMPLETED":
-                        completed = True
-                    elif state == "QUERY_STATE_FAILED":
-                        logger.error(f"Query failed on Dune (Attempt {attempt}).")
-                        failed = True
-                
-                if completed:
+        # 1. Retry fetch with exponential backoff
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                logger.info(f"Fetching live Solana pool data (Attempt {attempt}/{self.max_retries})...")
+                enriched_df = await loop.run_in_executor(None, build_enriched_view)
+                if enriched_df is not None and not enriched_df.empty:
+                    logger.info(f"Successfully fetched {len(enriched_df)} Solana pools.")
                     break
-                    
-                if failed and attempt < max_retries:
-                    logger.info("Retrying execution after failure in 15 seconds...")
-                    await asyncio.sleep(15)
-                    continue
-                elif failed:
-                    raise RuntimeError("Dune query failed after maximum retries.")
-            
-            await asyncio.sleep(5)
-            
-            # 4. Fetch CSV results
-            logger.info("Fetching CSV results...")
-            res_url = f"https://api.dune.com/api/v1/query/{DUNE_QUERY_ID}/results/csv"
-            res_resp = await client.get(res_url, headers=headers)
-            if res_resp.status_code != 200:
-                logger.error(f"Failed to fetch results: {res_resp.text}")
-                res_resp.raise_for_status()
-                
-            csv_data = res_resp.text
-            await self.ingest_data(csv_data)
-            
-            # 5. Rotate key after successful session for the next session
-            logger.info("Dune fetch session completed successfully. Advancing key for next hour.")
-            self.rotate_key()
+            except Exception as e:
+                logger.warning(f"Attempt {attempt}/{self.max_retries} failed during fetch: {e}")
+                if attempt < self.max_retries:
+                    wait_time = self.retry_delay * (2 ** (attempt - 1))
+                    logger.info(f"Retrying fetch in {wait_time:.1f}s...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    err_msg = f"All {self.max_retries} attempts failed to fetch live Solana yield data: {e}"
+                    logger.error(err_msg)
+                    await self.log_error("fetch", err_msg)
+                    raise e
 
-            
-    async def ingest_data(self, csv_text: str):
-        logger.info("Parsing CSV and ingesting into Supabase...")
+        if enriched_df is not None and not enriched_df.empty:
+            await self.ingest_data(enriched_df)
+
+    async def ingest_data(self, df: pd.DataFrame):
+        logger.info("Parsing enriched dataframe and ingesting into Supabase...")
+
+        try:
+            # 1. Fetch existing protocols from Supabase safely
+            try:
+                resp = supabase.table("protocols").select("id, name, pool_name, pool_address, image_url, app_link").execute()
+            except Exception:
+                resp = supabase.table("protocols").select("id, name, pool_name, pool_address, image_url, app_link").execute()
+
+
+
+
+        except Exception as e:
+            err_msg = f"Failed to query existing protocols from Supabase: {e}"
+            logger.error(err_msg)
+            await self.log_error("fetch", err_msg)
+            raise e
+
+
+
         
-        # Use composite key: (protocol_name, pool_address) since multiple protocols share addresses
-        resp = supabase.table("protocols").select("id, name, pool_address, image_url, app_link").execute()
+        def get_address(p):
+            return p.get("program_address") or p.get("pool_address")
+
         db_protocols_full = {
-            (p["name"], p["pool_address"]): p 
-            for p in resp.data 
-            if p.get("pool_address")
+            (p["name"].lower(), (get_address(p) or "").lower(), p["pool_name"].lower()): p
+            for p in resp.data
         }
-        db_protocols = {k: v["id"] for k, v in db_protocols_full.items()}
         
-        reader = list(csv.DictReader(StringIO(csv_text)))
+        db_protocols_by_pair = {
+            (p["name"].lower(), p["pool_name"].lower()): p["id"]
+            for p in resp.data
+        }
+        
+        db_protocols_ids = {k: v["id"] for k, v in db_protocols_full.items()}
+
         new_protocols = []
         protocols_to_update = []
-        seen_keys = set(db_protocols.keys())
-        
-        for row in reader:
-            pool_address = row.get("Pool Address")
-            protocol_name = row.get("Protocol", "Unknown")
-            composite_key = (protocol_name, pool_address)
+        seen_keys = set(db_protocols_ids.keys())
+        seen_pairs = set(db_protocols_by_pair.keys())
+
+        records = df.to_dict(orient="records")
+
+        for row in records:
+            protocol_name = str(row.get("Protocol") or "Unknown").strip()
+            asset = str(row.get("Asset") or "Unknown").strip()
+            raw_address = str(row.get("Pool Address") or "").strip() or None
+            
+            # Format non-null pool addresses with solscan URL
+            if raw_address:
+                if raw_address.startswith("http://") or raw_address.startswith("https://"):
+                    pool_address = raw_address
+                else:
+                    pool_address = f"https://solscan.io/account/{raw_address}"
+            else:
+                pool_address = None
             
             image_val = row.get("Image") or None
             app_link_val = row.get("App Link") or None
-            
-            if pool_address:
-                if composite_key not in seen_keys:
-                    asset = row.get("Asset", "Unknown")
-                    asset_lower = asset.lower()
-                    risk = "stable" if any(x in asset_lower for x in ["usd", "dai"]) else "moderate"
-                    
-                    new_protocols.append({
-                        "slug": f"{protocol_name}-{asset}-{pool_address[-6:]}".lower().replace(" ", "-").replace("/", "-"),
-                        "name": protocol_name,
-                        "pool_name": asset,
-                        "pool_address": pool_address,
-                        "risk_tag": risk,
-                        "chain": "mantle",
-                        "image_url": image_val,
-                        "app_link": app_link_val
-                    })
-                    seen_keys.add(composite_key)
-                else:
-                    existing = db_protocols_full[composite_key]
-                    needs_update = False
-                    update_payload = {"id": existing["id"]}
-                    
-                    # Update if a non-null/empty image or app link is fetched but was null or different in the db
-                    if image_val and existing.get("image_url") != image_val:
-                        update_payload["image_url"] = image_val
-                        needs_update = True
-                    if app_link_val and existing.get("app_link") != app_link_val:
-                        update_payload["app_link"] = app_link_val
-                        needs_update = True
-                        
-                    if needs_update:
-                        protocols_to_update.append(update_payload)
-                        
+
+            composite_key = (protocol_name.lower(), (pool_address or "").lower(), asset.lower())
+            pair_key = (protocol_name.lower(), asset.lower())
+
+            asset_lower = asset.lower()
+            risk = "stable" if any(x in asset_lower for x in ["usd", "usdc", "usdt", "dai", "pyusd"]) else "moderate"
+
+            if pair_key not in seen_pairs:
+                address_slug_part = f"-{raw_address[-6:]}" if raw_address else ""
+                slug = f"{protocol_name}-{asset}{address_slug_part}".lower().replace(" ", "-").replace("/", "-")
+                
+                new_protocol_record = {
+                    "slug": slug,
+                    "name": protocol_name,
+                    "pool_name": asset,
+                    "risk_tag": risk,
+                    "chain": "solana",
+                    "image_url": image_val,
+                    "app_link": app_link_val,
+                    "pool_address": pool_address
+                }
+
+                new_protocols.append(new_protocol_record)
+                seen_keys.add(composite_key)
+                seen_pairs.add(pair_key)
+            else:
+                existing_id = db_protocols_by_pair.get(pair_key)
+                if existing_id:
+                    existing = next((p for p in resp.data if p["id"] == existing_id), None)
+                    if existing:
+                        needs_update = False
+                        update_payload = {"id": existing["id"]}
+
+                        if image_val and existing.get("image_url") != image_val:
+                            update_payload["image_url"] = image_val
+                            needs_update = True
+                        if app_link_val and existing.get("app_link") != app_link_val:
+                            update_payload["app_link"] = app_link_val
+                            needs_update = True
+                        if pool_address and not get_address(existing):
+                            update_payload["pool_address"] = pool_address
+                            needs_update = True
+
+                        if needs_update:
+                            protocols_to_update.append(update_payload)
+
+
+        # Insert new protocols
         if new_protocols:
-            logger.info(f"Auto-registering {len(new_protocols)} new protocols...")
-            supabase.table("protocols").insert(new_protocols).execute()
+            logger.info(f"Auto-registering {len(new_protocols)} new Solana protocols...")
+            try:
+                supabase.table("protocols").insert(new_protocols).execute()
+            except Exception as e:
+                logger.error(f"Error registering new protocols: {e}")
+                await self.log_error("fetch", f"Error inserting protocols: {e}")
+
             # Re-fetch database state
-            resp = supabase.table("protocols").select("id, name, pool_address, image_url, app_link").execute()
-            db_protocols_full = {
-                (p["name"], p["pool_address"]): p 
-                for p in resp.data 
-                if p.get("pool_address")
-            }
-            db_protocols = {k: v["id"] for k, v in db_protocols_full.items()}
-            
+            try:
+                try:
+                    resp = supabase.table("protocols").select("id, name, pool_name, pool_address, image_url, app_link").execute()
+                except Exception:
+                    resp = supabase.table("protocols").select("id, name, pool_name, pool_address, image_url, app_link").execute()
+
+                db_protocols_by_pair = {
+                    (p["name"].lower(), p["pool_name"].lower()): p["id"]
+                    for p in resp.data
+                }
+            except Exception as e:
+                logger.error(f"Error re-fetching protocols: {e}")
+
+
+        # Perform updates
         if protocols_to_update:
             logger.info(f"Updating metadata for {len(protocols_to_update)} protocols...")
             for update in protocols_to_update:
                 try:
-                    supabase.table("protocols").update({
-                        k: v for k, v in update.items() if k != "id"
-                    }).eq("id", update["id"]).execute()
+                    update_dict = {k: v for k, v in update.items() if k != "id"}
+                    supabase.table("protocols").update(update_dict).eq("id", update["id"]).execute()
                 except Exception as e:
                     logger.error(f"Error updating protocol {update['id']}: {e}")
 
+        # Insert Snapshots
         def safe_float(val):
-            if val is None or str(val).strip() in ("", "<nil>"):
+            if val is None or pd.isna(val) or str(val).strip() in ("", "<nil>", "nan"):
                 return None
-            return float(val)
+            try:
+                return float(val)
+            except (ValueError, TypeError):
+                return None
 
         snapshots_to_insert = []
-        for row in reader:
-            pool_address = row.get("Pool Address")
-            protocol_name = row.get("Protocol", "Unknown")
-            composite_key = (protocol_name, pool_address)
-            if composite_key in db_protocols and db_protocols[composite_key]:
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        for row in records:
+            protocol_name = str(row.get("Protocol") or "Unknown").strip()
+            asset = str(row.get("Asset") or "Unknown").strip()
+            pair_key = (protocol_name.lower(), asset.lower())
+
+            protocol_id = db_protocols_by_pair.get(pair_key)
+            if protocol_id:
                 try:
                     snapshots_to_insert.append({
-                        "protocol_id": db_protocols[composite_key],
-                        "asset": row.get("Asset", "Unknown"),
+                        "protocol_id": protocol_id,
+                        "asset": asset,
                         "apy": safe_float(row.get("APY")),
                         "base_apy": safe_float(row.get("Base APY")),
                         "reward_apy": safe_float(row.get("Reward APY")),
@@ -342,18 +246,32 @@ class DuneFetcher:
                         "apy_1d": safe_float(row.get("APY (1D)")),
                         "apy_7d": safe_float(row.get("APY (7D)")),
                         "apy_30d": safe_float(row.get("APY (30D)")),
-                        "raw_payload": row,
-                        "fetched_at": datetime.utcnow().isoformat()
+                        "raw_payload": {k: (None if pd.isna(v) else v) for k, v in row.items()},
+                        "fetched_at": now_iso
                     })
                 except Exception as e:
-                    logger.warning(f"Parse error for {pool_address}: {e}")
-                    
+                    logger.warning(f"Parse error for snapshot {protocol_name} - {asset}: {e}")
+
         if snapshots_to_insert:
-            supabase.table("yield_snapshots").insert(snapshots_to_insert).execute()
-            logger.info(f"Inserted {len(snapshots_to_insert)} snapshots.")
+            batch_size = 100
+            success_count = 0
+            for i in range(0, len(snapshots_to_insert), batch_size):
+                batch = snapshots_to_insert[i:i + batch_size]
+                try:
+                    supabase.table("yield_snapshots").insert(batch).execute()
+                    success_count += len(batch)
+                except Exception as e:
+                    err_msg = f"Batch snapshot insert failed (items {i} to {i+len(batch)}): {e}"
+                    logger.error(err_msg)
+                    await self.log_error("fetch", err_msg)
+            logger.info(f"Successfully inserted {success_count}/{len(snapshots_to_insert)} Solana yield snapshots.")
         else:
-            logger.info("No snapshots inserted.")
-            
+            logger.info("No yield snapshots to insert.")
+
+# SolanaFetcher is the live implementation. Legacy alias kept for scheduler backward compatibility.
+DuneFetcher = SolanaFetcher
+
 if __name__ == "__main__":
-    fetcher = DuneFetcher()
+    fetcher = SolanaFetcher()
     asyncio.run(fetcher.run())
+

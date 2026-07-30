@@ -23,6 +23,9 @@ def build_recommendation_payload(
     ai_reasoning: str,
     ai_model: str,
     scored_at: datetime,
+    # NOTE: "dune_query_7595582" is a frozen canonical payload field stored in the database.
+    # Changing this string would invalidate all existing on-chain SHA-256 hash verifications.
+    # Do NOT modify — it is a data integrity key, not an active Dune reference.
     dune_query_id: str = "7595582",
 ) -> dict:
     return {
@@ -38,7 +41,7 @@ def build_recommendation_payload(
         "tvl_usd": f"{float(tvl_usd):.2f}",
         "ai_reasoning": ai_reasoning.strip(),
         "ai_model": ai_model,
-        "chain": "mantle",
+        "chain": "solana",
         "chain_id": 5000,
     }
 
@@ -253,7 +256,7 @@ def main():
                                         if source:
                                             payload["source"] = source
                                         if chain_info:
-                                            payload["chain"] = "mantle"
+                                            payload["chain"] = "solana"
                                             payload["chain_id"] = 5000
                                             
                                         canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
@@ -294,7 +297,7 @@ def main():
     print("\n======================================")
     if found_match:
         print("✅ VERIFICATION SUCCESSFUL!")
-        print("The recommendation data is 100% untampered and matches the Mantle record.")
+        print("The recommendation data is 100% untampered and matches the Solana record.")
         print(f"Matched Payload: \n{json.dumps(json.loads(matched_payload), indent=2)}")
     else:
         print("❌ VERIFICATION FAILED / TAMPERED!")

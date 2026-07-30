@@ -6,7 +6,7 @@ This document covers the frontend architecture, focusing exclusively on the high
 
 ## Overview
 
-The YieldSage frontend is a Next.js (React) application designed to deliver a premium, luxury fintech aesthetic. The core visual language revolves around deep, true blacks (`#050505`) and the vibrant Mantle Network green (`#00ff88`). 
+The YieldSage frontend is a Next.js (React) application designed to deliver a premium, luxury fintech aesthetic. The core visual language revolves around deep, true blacks (`#050505`) and the vibrant Solana-inspired green (`#00ff88`). 
 
 The user experience is anchored by a complex, high-performance "scrollytelling" engine that ties 3D sequence frame rendering to the user's scroll position.
 

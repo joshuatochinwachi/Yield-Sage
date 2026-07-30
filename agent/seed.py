@@ -17,42 +17,70 @@ supabase: Client = create_client(url, key)
 def seed_protocols():
     protocols = [
         {
-            "slug": "agni-usdt-usdt0",
-            "name": "Agni Finance",
-            "pool_name": "USDT-USDT0",
-            "pool_address": "https://mantlescan.xyz/address/0x0d290c8e7f3ffa5267de4b1f9f6f6d8d578624ac",
+            "slug": "kamino-usdc",
+            "name": "Kamino Finance",
+            "pool_name": "USDC",
+            "pool_address": "https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5",
             "risk_tag": "stable",
-            "chain": "mantle",
+            "chain": "solana",
             "is_active": True
         },
         {
-            "slug": "agni-usde-wmnt",
-            "name": "Agni Finance",
-            "pool_name": "USDe-WMNT",
-            "pool_address": "https://mantlescan.xyz/address/0xeafc4d6d4c3391cd4fc10c85d2f5f972d58c0dd5",
+            "slug": "marginfi-usdc",
+            "name": "MarginFi",
+            "pool_name": "USDC",
+            "pool_address": "https://solscan.io/account/2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB",
+            "risk_tag": "stable",
+            "chain": "solana",
+            "is_active": True
+        },
+        {
+            "slug": "jito-sol",
+            "name": "Jito",
+            "pool_name": "JitoSOL",
+            "pool_address": "https://solscan.io/account/J1toso1uCk3RLmjorhTtrVwY9HJ7X8V9yYac6Y7kGCPn",
             "risk_tag": "moderate",
-            "chain": "mantle",
+            "chain": "solana",
             "is_active": True
         },
         {
-            "slug": "agni-susde-usde",
-            "name": "Agni Finance",
-            "pool_name": "sUSDe-USDe",
-            "pool_address": "https://mantlescan.xyz/address/0x07277f7c1567b5324aa50a3d2f1f003e2287fbfc",
+            "slug": "marinade-msol",
+            "name": "Marinade Finance",
+            "pool_name": "mSOL",
+            "pool_address": "https://solscan.io/account/mSoLzYCxHdYgdzU16g5QSh3i5K3z3KZK7ytfqcJm7So",
+            "risk_tag": "moderate",
+            "chain": "solana",
+            "is_active": True
+        },
+        {
+            "slug": "orca-sol-usdc",
+            "name": "Orca",
+            "pool_name": "SOL-USDC",
+            "pool_address": "https://solscan.io/account/HJPjoWUrhoZzkNfRpHuieeFk9WcZWjwy6PBjZ81ngndJ",
             "risk_tag": "aggressive",
-            "chain": "mantle",
+            "chain": "solana",
             "is_active": True
         },
         {
-            "slug": "agni-weth-cmeth",
-            "name": "Agni Finance",
-            "pool_name": "WETH-cmETH",
-            "pool_address": "https://mantlescan.xyz/address/0x0d9e39d357337edde4a9bc12178da40256e2f533",
+            "slug": "raydium-sol-usdc",
+            "name": "Raydium",
+            "pool_name": "SOL-USDC",
+            "pool_address": "https://solscan.io/account/58oQChx4yWmvKec8raoFH2oYy3r8nRRXqC4cSqMpqLmt",
+            "risk_tag": "aggressive",
+            "chain": "solana",
+            "is_active": True
+        },
+        {
+            "slug": "drift-usdc",
+            "name": "Drift Protocol",
+            "pool_name": "USDC",
+            "pool_address": "https://solscan.io/account/JCNCMFXo5M5qwUPg2Utu1u6YWp3MbygxqBsBeXXJfrw",
             "risk_tag": "stable",
-            "chain": "mantle",
+            "chain": "solana",
             "is_active": True
         }
     ]
+
     
     for p in protocols:
         try:

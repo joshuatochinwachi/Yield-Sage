@@ -42,7 +42,7 @@ export function Footer() {
           >
             Start Finding Alpha
             <br />
-            <span style={{ color: "rgba(255,255,255,0.3)" }}>on Mantle.</span>
+            <span style={{ color: "rgba(255,255,255,0.3)" }}>on Solana.</span>
           </motion.h2>
 
           {/* Launch App CTA */}
@@ -113,7 +113,7 @@ export function Footer() {
             ))}
           </div>
 
-          {/* Mantle badge */}
+          {/* Solana badge */}
           <div
             className="flex items-center gap-2 px-3 py-1.5 rounded-full"
             style={{
@@ -125,7 +125,7 @@ export function Footer() {
               className="w-2 h-2 rounded-full"
               style={{ background: "rgba(0,255,136,0.8)" }}
             />
-            <span className="text-[10px] font-mono text-white/30">Built on Mantle</span>
+            <span className="text-[10px] font-mono text-white/30">Built on Solana</span>
           </div>
         </div>
       </div>

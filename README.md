@@ -1,9 +1,9 @@
 <p align="center">
-  <img src="./frontend/public/readme_banner.png" alt="YieldSage — Autonomous Yield Intelligence on the Mantle Network" width="100%" />
+  <img src="./frontend/public/readme_banner.png" alt="YieldSage — Autonomous Yield Intelligence on Solana" width="100%" />
 </p>
 
 <p align="center">
-  <strong>Autonomous Yield Intelligence &amp; Paper Trading Agent — Built on the Mantle Network</strong>
+  <strong>Autonomous Yield Intelligence &amp; Paper Trading Agent — Built on Solana</strong>
 </p>
 
 <p align="center">
@@ -13,7 +13,7 @@
   <a href="https://x.com/yieldsageai"><img src="https://img.shields.io/badge/𝕏%20Twitter-%40yieldsageai-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Twitter" /></a>&nbsp;
   <a href="./docs/system_architecture.md"><img src="https://img.shields.io/badge/📐%20Architecture-Docs-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Architecture" /></a>&nbsp;
   <a href="./docs/api_documentation.md"><img src="https://img.shields.io/badge/🔌%20API-Reference-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="API Docs" /></a>&nbsp;
-  <a href="./skills/mantle-yieldsage-research/SKILL.md"><img src="https://img.shields.io/badge/🤖%20Mantle%20AI%20Skill-Agent%20Skills-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Mantle AI Agent Skill" /></a>
+  <a href="./skills/solana-yieldsage-research/SKILL.md"><img src="https://img.shields.io/badge/🤖%20Solana%20AI%20Skill-Agent%20Skills-00ff88?style=for-the-badge&labelColor=0a0a0a" alt="Solana AI Agent Skill" /></a>
 </p>
 
 <p align="center">
@@ -23,14 +23,14 @@
   <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black" />
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white" />
   <img src="https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=flat-square&logo=supabase&logoColor=white" />
-  <img src="https://img.shields.io/badge/Mantle-Network-00ff88?style=flat-square" />
+  <img src="https://img.shields.io/badge/Solana-Network-00ff88?style=flat-square" />
   <img src="https://img.shields.io/badge/Telegram-Bot-26A5E4?style=flat-square&logo=telegram&logoColor=white" />
   <img src="https://img.shields.io/badge/Railway-Deployed-0B0D0E?style=flat-square&logo=railway&logoColor=white" />
 </p>
 
 ---
 
-> **YieldSage** is an industrial-grade, fully autonomous yield intelligence ecosystem purpose-built for the **Mantle Network**. It continuously tracks real-time liquidity pool APYs and TVLs across every major Mantle protocol, generates risk-adjusted yield recommendations through a fault-tolerant multi-provider LLM cascade, cryptographically anchors all advisory decisions on-chain for verifiability, and delivers live intelligence through both a cinematic Next.js Pro Dashboard and a conversational Telegram AI agent.
+> **YieldSage** is an industrial-grade, fully autonomous yield intelligence ecosystem purpose-built for **Solana**. It continuously tracks real-time liquidity pool APYs and TVLs across every major Solana protocol, generates risk-adjusted yield recommendations through a fault-tolerant multi-provider LLM cascade, cryptographically anchors all advisory decisions on-chain for verifiability via SPL Memo, and delivers live intelligence through both a cinematic Next.js Pro Dashboard and a conversational Telegram AI agent.
 
 ---
 
@@ -60,26 +60,26 @@
 - [🚀 Setup & Running Locally](#-setup--running-locally)
 - [📚 Documentation Library](#-documentation-library)
 - [🗺️ Roadmap](#️-roadmap)
-- [🤖 Mantle AI Agent Skill](#-mantle-ai-agent-skill)
+- [🤖 Solana AI Agent Skill](#-solana-ai-agent-skill)
 
 ---
 
 ## ⛓️ On-Chain Verifiability
 
-Every AI recommendation produced by YieldSage is permanently anchored on the Mantle Network.
+Every AI recommendation produced by YieldSage is permanently anchored on Solana.
 
 **How it works:**
 
-1. Each recommendation batch is serialised to canonical JSON and SHA-256 hashed.
-2. The hash is embedded in a 0-MNT self-transaction on Mantle as `yieldsage:<hash>`.
-3. The Mantle transaction hash is stored in the database alongside every recommendation.
-4. The YieldSage web dashboard provides an interactive **Proof Verification Page** (`/verify?tx=...`).
-5. Users can view the exact canonical JSON payload and click to perform a live, in-browser cryptographic SHA-256 hash to prove it matches the Mantle transaction perfectly.
+1. The complete recommendation payload is serialised into a canonical JSON object and hashed using SHA-256.
+2. The hash is embedded as a memo in an SPL Memo transaction on Solana.
+3. The Solana transaction signature is stored in the database alongside every recommendation.
+4. The web dashboard renders a direct link to Solscan for every recommendation.
+5. Users can view the exact canonical JSON payload and click to perform a live, in-browser cryptographic SHA-256 hash to prove it matches the Solana transaction perfectly.
 
 **Sample verified recommendation:**
 
-- View Proof Verification Page: `https://yieldsageai.xyz/verify?tx=956988089b6b61a42d5c8238c40fb07db3205ed373283801ba28151f22b98f16`
-- Raw Mantlescan TX: `https://mantlescan.xyz/tx/956988089b6b61a42d5c8238c40fb07db3205ed373283801ba28151f22b98f16`
+- Live Solana Proof: `https://yieldsageai.xyz/verify?tx=2FaU1EagECiz6tByzrXgGHq1p4xuW5ggd4doPFp5HJaxLEkn7LwvNMcuEZU2bfC63ujMcr5jcWe6RWGyzyS6n4cx`
+- Raw Solscan TX: `https://solscan.io/tx/2FaU1EagECiz6tByzrXgGHq1p4xuW5ggd4doPFp5HJaxLEkn7LwvNMcuEZU2bfC63ujMcr5jcWe6RWGyzyS6n4cx`
 - Input data decodes to: `yieldsage:<SHA-256_HASH_OF_RECOMMENDATION>`
 
 All recommendations since June 2026 are permanently auditable on-chain and instantly verifiable via the dashboard.
@@ -88,7 +88,7 @@ All recommendations since June 2026 are permanently auditable on-chain and insta
 
 ## 🏛️ Grand System Architecture
 
-YieldSage is architected as a fully decoupled, service-oriented system. Data flows from on-chain Mantle liquidity contracts → through Dune Analytics → into a Python ingestion pipeline → validated and AI-scored → persisted into Supabase → served through a FastAPI REST layer → consumed by both the Next.js dashboard and the Telegram bot.
+YieldSage is architected as a fully decoupled, service-oriented system. Data flows from on-chain Solana liquidity contracts → through DefiLlama → into a Python ingestion pipeline → validated and AI-scored → persisted into Supabase → served through a FastAPI REST layer → consumed by both the Next.js dashboard and the Telegram bot.
 
 ```mermaid
 graph TD
@@ -117,7 +117,7 @@ graph TD
         DB -->|Live Yield Snapshots| SCORER
         SCORER --> CASCADE
         CASCADE -->|SHA-256 Hash| MEMO
-        MEMO -->|0 MNT Transaction| MANTLE[(Mantle Network\nRPC Validator)]
+        MEMO -->|SPL Memo Transaction| SOLANA[(Solana Network\nRPC Validator)]
     end
     CASCADE -->|Write Picks & Recs| DB
 
@@ -154,10 +154,10 @@ graph TD
 
 | Feature | Description |
 |---|---|
-| 🔄 **Autonomous Hourly Sync** | Dune Analytics [query #7595582](https://dune.com/queries/7595582) executes and streams pool data every hour via APScheduler. No manual intervention required. |
-| 🔑 **Dune API Key Rotation** | A pool of comma-separated Dune API keys is validated for credit usage. Exhausted keys are automatically rotated so ingestion never misses a cycle. |
+| 🔄 **Autonomous Hourly Sync** | DefiLlama API executes and streams live Solana pool data every hour via APScheduler. No manual intervention required. |
+| 🛡️ **Rate-Limit Resilience** | Exponential backoff and retry mechanisms ensure live Solana data ingestion never misses a cycle. |
 | 🤖 **5-Provider LLM Cascade** | Cerebras → SambaNova → Groq → NVIDIA → Gemini. Falls back through each provider on rate-limit (HTTP 429) or failure. Serves cached responses if all fail. |
-| ⛓️ **On-Chain Proof-of-Recommendation** | Every AI recommendation is SHA-256 hashed and logged as a 0-MNT transaction on Mantle. Permanently auditable. Includes 6-hourly background recovery for any missed transactions. |
+| ⛓️ **On-Chain Proof-of-Recommendation** | Every AI recommendation is SHA-256 hashed and logged as an SPL Memo transaction on Solana. Permanently auditable. Includes 6-hourly background recovery for any missed transactions. |
 | 🔍 **Browser-Side Proof Verification** | The `/verify?tx=...` page independently recomputes the SHA-256 hash of any recommendation payload using the Web Crypto API — no server trust required. |
 | 📊 **Real-Time Yield Leaderboard** | Full-width filterable, searchable, sortable table with 1D / 7D / 30D trend pills, risk-tier badges, TVL, protocol logos, pool links, and on-chain verification links. |
 | 🕵️ **Historical On-Chain Proof Log** | `/#on-chain-proof` — searchable historical log of all blockchain-committed recommendations. Filter by protocol, pool, address, or TX hash. |
@@ -228,7 +228,7 @@ The loading screen is a core brand experience — not a placeholder.
 - **Glitch Typography** — "YIELDSAGE" initializes with a cryptographic character-scramble effect that resolves into the brand text frame-by-frame.
 - **Laser Scanline** — A glowing green gradient sweeps across the central logo, accompanied by orbiting status dots on inverse rotation paths.
 - **Real-time Progress** — A highly stylised progress bar with a hex-grid readout tracks the exact percentage of the 180-frame initial buffer as it loads.
-- **Hex Grid Overlay** — A faint hexagonal grid pattern (Mantle brand motif) pulses behind the logo during the load phase.
+- **Hex Grid Overlay** — A faint hexagonal grid pattern pulses behind the logo during the load phase.
 
 ### 4. Ambient Micro-Interactions & Effects
 
@@ -263,45 +263,27 @@ Replaced all placeholder nav links with real, semantically meaningful anchors:
 
 The entire backend is a Python monorepo under `agent/`. It runs three concurrent processes: the FastAPI REST server, the APScheduler pipeline, and the Telegram bot thread — all managed from a single `main.py` lifespan.
 
-### 1. Data Ingestion & Dune Key Rotation
+### 1. Data Ingestion & Live Pipeline
 
-`agent/fetcher.py` — `DuneFetcher` class.
+`agent/fetcher.py` — `SolanaFetcher` class.
 
-The fetcher pulls structured pool data from **Dune Analytics [Query #7595582](https://dune.com/queries/7595582)**, which aggregates all active Mantle DeFi protocol pools with APY, TVL, Base APY, Reward APY, and 1D/7D/30D trend fields.
-
-**Key rotation algorithm:**
-1. On startup, loads the last-used API key index from `fetcher_state.json`.
-2. Before each session, calls `POST /api/v1/usage` for each key in the pool to validate credit usage.
-3. Switches to the first key that has credits remaining.
-4. After a successful session, rotates to the next key (saving state) to distribute usage evenly.
-5. If all keys are exhausted, logs a critical error but does not crash — returns the current key as fallback.
+The fetcher pulls structured pool data from **DefiLlama**, which aggregates all active Solana DeFi protocol pools (Kamino, MarginFi, Jito, Orca, Raydium, Drift, Marinade) with APY, TVL, Base APY, Reward APY, and 1D/7D/30D trend fields.
 
 **Composite-key upsert logic:**
 - Composite key = `(protocol_name, pool_address)`
 - Prevents duplicate pool registration when a protocol operates multiple assets on the same contract.
 - Auto-detects stablecoin pools by checking if the asset name contains `usd` or `dai` → assigns `risk_tag = stable`.
-- Updates `image_url` and `app_link` metadata on existing protocols if Dune returns richer data than what's in the DB.
+- Updates `image_url` and `app_link` metadata on existing protocols if live data returns richer metadata than what's in the DB.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant F as DuneFetcher
-    participant D as Dune Analytics API
+    participant F as SolanaFetcher
+    participant D as DefiLlama API
     participant DB as Supabase DB
 
-    F->>F: Load key index from fetcher_state.json
-    F->>D: POST /api/v1/usage (validate credits per key)
-    D-->>F: credits_used / credits_included
-    F->>D: POST /query/7595582/execute (trigger execution)
-    D-->>F: execution_id
-
-    loop Every 15 seconds
-        F->>D: GET /execution/{id}/status
-        D-->>F: PENDING → COMPLETED
-    end
-
-    F->>D: GET /query/7595582/results/csv
-    D-->>F: CSV Stream (Protocol, Pool Address, APY, TVL...)
+    F->>D: GET /pools (Solana chain filter)
+    D-->>F: Live JSON Stream (Protocol, Pool Address, APY, TVL...)
 
     Note over F,DB: Composite Key: (protocol_name, pool_address)
     F->>DB: SELECT id, name, pool_address FROM protocols
@@ -371,30 +353,12 @@ The `ai_service.py` also includes:
 - **`get_recent_yields()`** — Fetches the latest snapshot per active pool from Supabase.
 - **`generate_personalized_hourly_update()`** — Builds per-user context (risk preference, active trades, yield shifts) and generates tailored alert copy.
 - **`generate_dashboard_picks()`** — Produces ranked AI recommendations for the Pro Dashboard's AI Picks panel.
-- **`search_context()`** — Uses DuckDuckGo scraping to inject live web search context into advisory responses.
-- **Chat memory** — Reads/writes `chat_memory` table (last N turns per user) to maintain multi-turn conversation state.
+- **Every daily recommendation batch generated by the AI Scorer is cryptographically anchored on **Solana** to make all advisory outputs tamper-proof and independently auditable.
 
-### 3. On-Chain Verifiability Layer
-
-`agent/scorer.py` (recommendation logging via `web3`).
-
-Every daily recommendation batch generated by the AI Scorer is cryptographically anchored on the **Mantle Network** to make all advisory outputs tamper-proof and independently auditable.
-
-1. **Hash Generation** — The complete recommendation payload (timestamp, ranking, risk tiers, recommended APYs, model name) is serialized to JSON and SHA-256 hashed.
-2. **On-Chain Log** — A 0-value self-transaction is submitted from the YieldSage agent wallet to the Mantle RPC node. The SHA-256 hash is embedded as hexadecimal bytes in the transaction `data` field.
-3. **Hash Storage** — The resulting Mantle transaction hash is written to `recommendations.on_chain_tx_hash` in Supabase.
-4. **Dashboard Verification** — The frontend dashboard reads this field and renders a direct hyperlink to the Mantle Explorer, allowing anyone to verify the recommendation was logged at that exact time.
-
-```mermaid
-graph LR
-    A[Daily Scorer Output\nJSON payload] -->|Serialize| B(JSON String)
-    B -->|SHA-256| C("Hash: 0x6e3d...")
-    D[YieldSage Agent Wallet\n0xABCD...] -->|"0 MNT Tx\ndata = 0x6e3d..."| E[Mantle Validator Node]
-    E -->|Mine & Confirm Block| F("Tx Hash: 0x82b4...")
-    F -->|Stored in| G[(recommendations\n.on_chain_tx_hash)]
-    H[Frontend Dashboard] -->|GET /api/recommendations/history| G
-    H -->|Renders clickable link| I["Mantle Explorer\n(Public Audit Trail)"]
-```
+1. **Payload Fingerprint** — Canonical JSON representation hashed with SHA-256.
+2. **On-Chain Log** — An SPL Memo transaction is submitted from the YieldSage agent wallet to the Solana mainnet RPC node.
+3. **Hash Storage** — The resulting Solana transaction signature is written to `recommendations.on_chain_tx_hash` in Supabase.
+4. **Dashboard Verification** — The frontend dashboard reads this field and renders a direct hyperlink to Solscan, allowing anyone to verify the recommendation was logged at that exact time.
 
 ### 4. Hourly Scoring & Personalized Alerts Pipeline
 
@@ -532,7 +496,7 @@ Built with **Next.js 16 App Router**, **React 19**, **TypeScript 5**, **Tailwind
 | `HeroSection` | `hero-section.tsx` | Above-the-fold identity and CTA |
 | `FeaturesSection` | `features-section.tsx` | 6-card Core Capabilities grid (3×2 even layout) |
 | `AgentSection` | `agent-section.tsx` | iOS phone bezel mockup with infinite typewriter chat animation |
-| `OnChainProofSection` | `on-chain-proof-section.tsx` | Historical on-chain proof log — searchable, filterable, with protocol images and Mantlescan links |
+| `OnChainProofSection` | `on-chain-proof-section.tsx` | Historical on-chain proof log — searchable, filterable, with protocol images and Solscan links |
 | `StatsSection` | `stats-section.tsx` | Live aggregate stats from the API |
 | `Footer` | `footer.tsx` | Site links, socials, copyright |
 | `MouseGradientBackground` | `mouse-gradient-background.tsx` | Cursor-following radial glow spotlight |
@@ -551,7 +515,7 @@ A full-screen, dark-mode yield intelligence cockpit with:
   - Multi-filter: risk tier, min TVL, min APY
   - Watchlist toggle with `localStorage` persistence (`watchlist-provider.tsx`)
   - Color-coded **1D / 7D / 30D trend pills** — green (improving) / red (declining) / grey (neutral)
-  - Protocol logos, on-chain pool links (Mantle Explorer), and app deep-links
+  - Protocol logos, on-chain pool links (Solscan Explorer), and app deep-links
   - Full responsive scroll on mobile
 - **Stats Cards** (`stats-cards.tsx`) — Live dashboard headline metrics:
   - Total DeFi TVL (with glassmorphic info tooltip explaining coverage vs DeFiLlama)
@@ -576,7 +540,7 @@ A professional, enterprise-grade documentation hub — the most comprehensive us
   3. **Dashboard Guide** — Complete breakdown of every UI section: stats bar, AI pick cards, leaderboard, APY charts, on-chain proof log
   4. **Every Metric Explained** — Expandable accordion cards for APY, Base APY, Reward APY, TVL, Reward Tokens, 1D/7D/30D trends, Risk Tiers, protocol images, pool links — all with real examples and detailed two-layer explanations
   5. **Yield Intelligence** — How the AI cascade works, what each model contributes, what the AI considers when scoring, and the difference between dashboard picks vs personalised Telegram alerts
-  6. **On-Chain Proof** — Complete explanation of the SHA-256 fingerprinting process, canonical payload structure, Mantle commitment flow, browser-side verification, and why this matters for trust
+  6. **On-Chain Proof** — Complete explanation of the SHA-256 fingerprinting process, canonical payload structure, Solana SPL Memo commitment flow, browser-side verification, and why this matters for trust
   7. **Telegram Bot** — All commands documented, paper trading flow explained, personalised alert content described
   8. **Data Pipeline** — Where the data comes from (Dune), how the fetch cycle works, protocol auto-registration, and the Supabase database tables
   9. **API Reference** — All REST endpoints with expandable parameter tables and example responses
@@ -592,16 +556,11 @@ A professional, enterprise-grade documentation hub — the most comprehensive us
 
 `frontend/app/verify/page.tsx`
 
-- Accepts any `?tx=<mantle_tx_hash>` parameter
-- Fetches the original recommendation from the database
-- Runs a 4-step animated verification pipeline in the browser:
-  1. Fetching recommendation from database
-  2. Reconstructing canonical JSON payload
-  3. Computing SHA-256 fingerprint (via Web Crypto API — server-independent)
-  4. Comparing against the on-chain record
-- Shows a **Perfect Match** ✅ or **Hash Mismatch — Tampered!** ❌ result
+- Accepts any `?tx=<solana_tx_signature>` parameter
+- Performs in-browser SHA-256 hashing and matches computed hash against stored hash
+- Direct **View on Solscan** CTA
 - Field-by-field payload breakdown with hover descriptions
-- Direct **View on Mantlescan** CTA
+- Direct **View on Solscan** CTA
 - **Take Action** card — Invest link + Simulate modal (connects to Telegram bot)
 - Navigation bar includes links to Dashboard and Docs pages
 - Fully responsive
@@ -643,7 +602,7 @@ erDiagram
         text pool_name "NOT NULL"
         text pool_address "NOT NULL"
         text risk_tag "stable|moderate|aggressive"
-        text chain "DEFAULT mantle"
+        text chain "DEFAULT solana"
         text image_url
         text app_link
         boolean is_active "DEFAULT true"
@@ -722,10 +681,10 @@ Yield-Sage/
 ├── agent/                              # Python Backend & Autonomous Agent
 │   ├── main.py                         # FastAPI app · lifespan · CORS · router registry · health endpoints
 │   ├── scheduler.py                    # APScheduler: hourly pipeline + 6-hourly on-chain recovery
-│   ├── fetcher.py                      # DuneFetcher: key rotation · execution polling · composite-key upserts
+│   ├── fetcher.py                      # SolanaFetcher: DefiLlama API fetch · composite-key upserts
 │   ├── scorer.py                       # HourlyScorer: user scoring · personalized alert queuing · asyncio.gather
 │   ├── ai_service.py                   # AIService: 5-provider LLM cascade · chat memory · DDG search · picks gen
-│   ├── logger.py                       # On-chain verifiability: SHA-256 hashing · 0-MNT Mantle tx logging
+│   ├── logger.py                       # On-chain verifiability: SHA-256 hashing · Solana SPL Memo tx logging
 │   ├── bot.py                          # Telegram bot: command handlers · trade state machines · memory management
 │   ├── auth.py                         # JWT FastAPI dependency: Supabase token validation · get_current_user
 │   ├── ai_service_backup.py            # Backup AIService snapshot (pre-migration fallback)
@@ -737,10 +696,10 @@ Yield-Sage/
 │   ├── diagnose_db.py                  # Diagnostic: inspects Supabase recommendation data formats
 │   ├── diagnose_hashes.py              # Diagnostic: validates on-chain hash consistency across records
 │   ├── query_db.py                     # Diagnostic: ad-hoc Supabase table queries
-│   ├── quick_rpc_check.py              # Diagnostic: tests Mantle RPC connectivity
-│   ├── test_local_verify.py            # Diagnostic: interactive verification tool for any Mantle recommendation hash
+│   ├── quick_rpc_check.py              # Diagnostic: tests Solana RPC connectivity
+│   ├── test_local_verify.py            # Diagnostic: interactive verification tool for any Solana recommendation hash
 │   ├── .env.example                    # Environment variable template with placeholders
-│   ├── fetcher_state.json              # Persisted Dune API key index (auto-managed)
+│   ├── fetcher_state.json              # Deprecated: was Dune API key index (no longer used)
 │   ├── requirements.txt                # Python dependencies
 │   └── routers/
 │       ├── __init__.py                 # Package marker
@@ -781,7 +740,7 @@ Yield-Sage/
 │   │   ├── hero-section.tsx            # Above-the-fold identity and primary CTA
 │   │   ├── features-section.tsx        # 6-card Core Capabilities (3×2 even grid)
 │   │   ├── agent-section.tsx           # iOS bezel mockup · infinite typewriter chat loop
-│   │   ├── on-chain-proof-section.tsx  # Historical on-chain proof log · search · filter · Mantlescan links
+│   │   ├── on-chain-proof-section.tsx  # Historical on-chain proof log · search · filter · Solscan links
 │   │   ├── stats-section.tsx           # Live aggregate stats from /api/stats/overview
 │   │   ├── footer.tsx                  # Site footer with real anchor links
 │   │   ├── mouse-gradient-background.tsx  # Cursor-tracking radial glow spotlight
@@ -818,7 +777,7 @@ Yield-Sage/
 │   ├── api_documentation.md           # REST endpoints · request/response JSON schemas · JWT lifecycle
 │   ├── FAST-API-Bcakend-Walkthrough.md # FastAPI router map · endpoint list · Swagger setup
 │   ├── YIELDSAGE_AI_MIGRATION.md      # Multi-provider LLM migration audit · fallback cache design
-│   └── dune_fetcher_retry.md          # Dune CSV execution trigger · status polling · credit audit
+│   └── YIELDSAGE_SOLANA_MIGRATION.md  # Complete Solana chain migration guide and audit trail
 │
 ├── supabase/                           # Supabase schema migrations
 │   └── migrations/
@@ -831,8 +790,8 @@ Yield-Sage/
 │       └── 007_add_image_url_and_app_link.sql # Add protocol image_url and app_link columns
 │
 ├── data/                               # Data utilities and seed scripts
-│   ├── delete_dune_table.py            # Utility: wipe Dune-sourced data for clean re-import
-│   └── mantle_pools_sync.py            # Bulk protocol sync from Mantle pool registry
+│   ├── mantle_pools_sync.py            # Legacy: bulk DefiLlama Solana pool fetch → CSV (deprecated)
+│   └── delete_dune_table.py            # Deprecated: was Dune table delete utility
 │
 ├── Yieldsage_OnChain_Logging_Procedure.md  # Detailed on-chain logging procedure reference
 ├── Yieldsage_Project_Documentation.md      # Extended project documentation & design notes
@@ -842,9 +801,9 @@ Yield-Sage/
 ├── requirements.txt                    # Root-level Python dependencies
 ├── .env                                # Local environment secrets (git-ignored)
 ├── .gitignore                          # Excludes .env, node_modules, .next, __pycache__
-├── skills/                             # Mantle AI Agent Skills (mantle-xyz/mantle-skills format)
+├── skills/                             # Solana AI Agent Skills (composable agentic ecosystem format)
 │   ├── README.md                       # Skill catalog index
-│   └── mantle-yieldsage-research/      # YieldSage yield intelligence skill
+│   └── solana-yieldsage-research/      # YieldSage yield intelligence skill
 │       ├── SKILL.md                    # Trigger conditions, workflow, guardrails, output format
 │       ├── agents/
 │       │   └── openai.yaml             # Runtime display metadata (display_name, default_prompt)
@@ -867,12 +826,12 @@ Yield-Sage/
 | Web Framework | FastAPI | 0.115 | REST API gateway + async endpoints |
 | ASGI Server | Uvicorn | latest | Production HTTP server |
 | Task Scheduler | APScheduler | latest | Hourly pipeline + cron management |
-| HTTP Client | httpx | latest | Async Dune API requests |
+| HTTP Client | httpx | latest | Async DefiLlama API requests |
 | Telegram | python-telegram-bot | latest | Bot event loop + handlers |
 | AI SDK #1 | cerebras-cloud-sdk | latest | Cerebras gpt-oss-120b integration |
 | AI SDK #2 | openai ≥ 1.0 | latest | SambaNova, Groq, NVIDIA NIM (OpenAI-compatible) |
 | AI SDK #3 | anthropic | latest | Claude integration (backup service) |
-| Blockchain | web3 | latest | Mantle RPC · 0-value tx · SHA-256 memo logging |
+| Blockchain | solana | latest | Solana RPC · SPL Memo instructions · SHA-256 memo logging |
 | Auth | PyJWT + Supabase | latest | JWT decoding + Supabase user validation |
 | Database Client | supabase-py | latest | Supabase REST + admin client |
 | Environment | python-dotenv | latest | `.env` secret loading |
@@ -905,8 +864,8 @@ Yield-Sage/
 | Database | Supabase (PostgreSQL) | Multi-region · RLS · Auth · Realtime |
 | Frontend Hosting | Vercel | Global CDN · automatic SSL · preview deployments |
 | Backend Hosting | Railway | Dockerized Python · process-based deployment · env secrets |
-| Blockchain | Mantle Network | On-chain recommendation memo logging |
-| Data Source | Dune Analytics | SQL-queryable Mantle DeFi pool metrics |
+| Blockchain | Solana | On-chain recommendation memo logging |
+| Data Source | DefiLlama | Live Solana DeFi pool metrics |
 
 ---
 
@@ -931,10 +890,10 @@ graph TD
     end
 
     subgraph External ["External Services"]
-        DUNE[Dune Analytics API]
+        DEFILLAMA[DefiLlama API]
         TG[Telegram Bot API]
         LLM[LLM Providers:\nCerebras · SambaNova\nGroq · NVIDIA · Gemini]
-        MANTLE[Mantle Network RPC]
+        SOLANA[Solana Network RPC]
     end
 
     NEXT <-->|HTTPS REST| WEB
@@ -942,9 +901,9 @@ graph TD
     WEB <-->|service_role| PG
     SCHED -->|reads / writes| PG
     BOT <-->|reads / writes| PG
-    SCHED <-->|query execution| DUNE
+    SCHED <-->|live yield fetch| DEFILLAMA
     SCHED <-->|LLM calls| LLM
-    SCHED -->|0 MNT tx| MANTLE
+    SCHED -->|SPL Memo tx| SOLANA
     BOT <-->|send/receive messages| TG
 ```
 
@@ -989,11 +948,8 @@ NVIDIA_API_KEY=nvapi-...
 GEMINI_API_KEY=...
 ANTHROPIC_API_KEY=sk-ant-...          # Optional — for Claude variant
 
-# ─── Dune Analytics (comma-separated pool for key rotation) ─────────────────
-DUNE_API_KEYS=key1,key2,key3
-
-# ─── Mantle Blockchain ───────────────────────────────────────────────────────
-MANTLE_RPC_URL=https://rpc.mantle.xyz
+# ─── Solana Blockchain ───────────────────────────────────────────────────────
+SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 YIELDSAGE_WALLET_PRIVATE_KEY=0x...
 
 # ─── Frontend (.env.local in frontend/) ──────────────────────────────────────
@@ -1011,7 +967,6 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
 - **Python 3.11+** with `pip`
 - **Node.js 20+** with `npm`
 - A **Supabase project** with the schema applied from `supabase/`
-- At least one **Dune API key** with the Mantle yield query (ID: `7595582`)
 - At least one **LLM provider API key** (Cerebras, Groq, etc.)
 - A **Telegram Bot Token** from [@BotFather](https://t.me/BotFather)
 
@@ -1089,8 +1044,8 @@ python copy_banner.py
 | 🔌 [API Reference Documentation](./docs/api_documentation.md) | All 21 REST endpoints with request/response schemas, query params, authenticated vs public routes, error format |
 | 🐍 [FastAPI Backend Walkthrough](./docs/FAST-API-Bcakend-Walkthrough.md) | Router map, endpoint list, Swagger interactive documentation setup |
 | 🧠 [AI Migration Walkthrough](./docs/YIELDSAGE_AI_MIGRATION.md) | Multi-provider LLM migration audit, backup cache design, provider reliability notes |
-| 🔄 [Dune Fetcher Retry Policies](./docs/dune_fetcher_retry.md) | Deep audit of the Dune CSV execution trigger, status polling, credit validation, error handling |
-| ⛓️ [On-Chain Logging Procedure](./Yieldsage_OnChain_Logging_Procedure.md) | Detailed step-by-step on-chain logging procedure reference, canonical payload format, Mantle transaction lifecycle |
+| 🔄 [Dune Fetcher Retry Policies](./docs/YIELDSAGE_SOLANA_MIGRATION.md) | Complete Solana chain migration guide, architecture decisions, and audit trail |
+| ⛓️ [On-Chain Logging Procedure](./Yieldsage_OnChain_Logging_Procedure.md) | Detailed step-by-step on-chain logging procedure reference, canonical payload format, Solana SPL Memo transaction lifecycle |
 | 📝 [Extended Project Documentation](./Yieldsage_Project_Documentation.md) | Comprehensive project documentation and design notes covering all system components |
 | 🪙 [Token Optimization Rules](./token_optimization_rules.md) | LLM token usage optimization guidelines for cost-efficient AI inference |
 | 📊 [Frontend UI/UX Architecture](./frontend/README.md) | Scrollytelling engine, progressive frame loading, cinematic loading screen, micro-interaction design |
@@ -1102,12 +1057,12 @@ python copy_banner.py
 
 - [x] **Aggressive Risk Tier** — Auto-classify volatile asset pools as `aggressive` (implemented via AI scorer)
 - [x] **Browser-Side Proof Verification** — `/verify?tx=...` page with client-side SHA-256 via Web Crypto API
-- [x] **Historical On-Chain Proof Log** — `/#on-chain-proof` searchable log with protocol images and Mantlescan links
+- [x] **Historical On-Chain Proof Log** — `/#on-chain-proof` searchable log with protocol images and Solscan links
 - [x] **GOD MODE Documentation** — `/docs` with 10-section comprehensive plain-English user guide
 - [x] **Proof Verification Nav** — Dashboard and Docs links on the verify page header
-- [x] **Mantle AI Agent Skill** — `skills/mantle-yieldsage-research/` packaged in the `mantle-xyz/mantle-skills` format for composable agentic ecosystem integration
-- [ ] **Multi-Chain Expansion** — Extend Dune query coverage to Base, Arbitrum, and Optimism
-- [ ] **On-Chain Trade Settlement** — Move paper trades to actual smart contract execution on Mantle
+- [x] **Solana AI Agent Skill** — `skills/solana-yieldsage-research/` packaged in composable format for agentic ecosystem integration
+- [ ] **Multi-Chain Expansion** — Extend DefiLlama data coverage to Base, Arbitrum, and Optimism
+- [ ] **On-Chain Trade Settlement** — Move paper trades to actual smart contract execution on Solana
 - [ ] **Predictive Yield Forecasting** — Implement ML-driven time-series forecasting to predict long-term APY trends, yield sustainability, and growth/decay rates across pools and protocols
 - [ ] **Social Leaderboard** — Public opt-in leaderboard for paper trading P&L rankings
 - [ ] **Alert Thresholds UI** — In-dashboard slider controls for per-risk-tier alert sensitivity
@@ -1116,20 +1071,62 @@ python copy_banner.py
 
 ---
 
-## 🤖 Mantle AI Agent Skill
+## 🤖 Solana AI Agent Skill
 
-YieldSage ships a **native Mantle AI Agent Skill** packaged in the exact format of the official [`mantle-xyz/mantle-skills`](https://github.com/mantle-xyz/mantle-skills) repository, enabling any compatible AI agent runtime to load YieldSage's yield intelligence as a first-class, composable skill.
+YieldSage ships a **native Solana AI Agent Skill** packaged in a composable, runtime-loadable format, enabling any compatible AI agent to load YieldSage's yield intelligence as a first-class skill.
 
 ### What the Skill Does
 
-The `mantle-yieldsage-research` skill teaches any AI agent how to:
+The `solana-yieldsage-research` skill teaches any AI agent how to:
 
 | Mode | Trigger Example | Action |
 |---|---|---|
-| **Yield Discovery** | *"What are the best stable yields on Mantle right now?"* | Calls `/api/yields/leaderboard`, ranks by APY grouped by risk tier |
-| **AI Recommendation Review** | *"What does YieldSage recommend?"* | Calls `/api/recommendations/latest`, presents AI reasoning + on-chain TX hash |
-| **On-Chain Proof Verification** | *"Verify Mantle TX `0xabc...`"* | Calls `/api/recommendations/verify/{tx}`, confirms SHA-256 match |
+| **Yield Discovery** | *"What are the best stable yields on Solana right now?"* | Calls `/api/yields/leaderboard`, ranks by APY grouped by risk tier |
+| **AI Recommendation Review** | *"What does YieldSage recommend?"* | Calls `/api/recommendations/latest`, presents AI reasoning + on-chain TX signature |
+| **On-Chain Proof Verification** | *"Verify Solana TX signature `4JnX3rH...`"* | Calls `/api/recommendations/verify/{tx}`, confirms SHA-256 match |
 | **Historical Research** | *"Show YieldSage's track record"* | Calls `/api/recommendations/history`, presents chronological log |
+
+### Skill Structure
+
+```
+skills/
+├── README.md                                      ← Skill catalog index
+└── solana-yieldsage-research/
+    ├── SKILL.md                                   ← Core skill (frontmatter + workflow + guardrails)
+    ├── agents/
+        └── openai.yaml                            ← Runtime display metadata (display_name, default_prompt)
+    └── references/
+        ├── yieldsage-api-reference.md             ← Full REST API endpoint schema
+        ├── risk-tier-definitions.md               ← stable / moderate / aggressive classification
+        └── on-chain-proof-guide.md               ← SHA-256 commitment mechanics + verification steps
+```
+
+### How an Agent Runtime Loads It
+
+Any agent runtime that supports the composable skill filesystem format can load the skill directly:
+
+```
+skills/solana-yieldsage-research/SKILL.md
+```
+
+### Task Delegation
+
+The skill explicitly delegates non-research tasks to other Solana skills:
+- Address lookup → `solana-address-registry-navigator`
+- Risk preflight → `solana-risk-evaluator`
+- Transaction execution → `solana-defi-operator`
+
+This makes YieldSage a **composable node** in the Solana agentic ecosystem, not a standalone silo.
+
+### Skill Guarantees
+
+- ✅ No fabricated APY or TVL data — all figures sourced live from API
+- ✅ No address guessing — protocol names only in output
+- ✅ No execution — research-only skill, routes to `solana-defi-operator` for tx building
+- ✅ Always includes on-chain TX link when presenting recommendations
+- ✅ Staleness warning if data is more than 2 hours old
+
+> See [`skills/solana-yieldsage-research/SKILL.md`](./skills/mantle-yieldsage-research/SKILL.md) for the full workflow specification.
 
 ### Skill Structure
 
@@ -1224,7 +1221,7 @@ This project is open-source under the **MIT License** — Copyright © 2026 [Jo$
 ---
 
 <p align="center">
-  Built with 🌱 by <strong><a href="https://x.com/defi__josh">Jo$h</a></strong> &amp; <strong><a href="https://x.com/0xTobey">Tobey</a></strong> on the <strong>Mantle Network</strong>
+  Built with 🌱 by <strong><a href="https://x.com/defi__josh">Jo$h</a></strong> &amp; <strong><a href="https://x.com/0xTobey">Tobey</a></strong> on the <strong>Solana Network</strong>
   <br/>
   <a href="https://yieldsageai.xyz">yieldsageai.xyz</a> &nbsp;·&nbsp;
   <a href="https://t.me/YieldSageBot">@YieldSageBot</a> &nbsp;·&nbsp;

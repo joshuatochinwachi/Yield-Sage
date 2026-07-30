@@ -457,7 +457,7 @@ export function ScrollytellingSection({
           range={[0, 100 / 1300]}
           position="bottom-left"
         >
-          <FlankingLabel text="Mantle Network" />
+          <FlankingLabel text="Solana Network" />
           <h2 className="text-4xl sm:text-5xl md:text-6xl font-serif text-white/90 tracking-tight leading-[1.1] font-light mt-1">
             Something is growing.
           </h2>
@@ -606,7 +606,7 @@ export function ScrollytellingSection({
           <FlankingLabel text="Always Watching" />
           <motion.div variants={staggerContainer} initial="hidden" animate="show" className="flex flex-col gap-4 mt-2">
             <motion.h3 variants={staggerItem} className="text-3xl sm:text-4xl md:text-5xl font-serif text-white/95 leading-tight font-light max-w-sm ml-auto">
-              YieldSage monitors Mantle in real time.
+              YieldSage monitors Solana in real time.
             </motion.h3>
             <motion.p variants={staggerItem} className="text-xs font-sans tracking-[0.35em] text-white/45 uppercase font-semibold">
               Continuously. Autonomously.
@@ -642,7 +642,7 @@ export function ScrollytellingSection({
           <FlankingLabel text="On-Chain Verified" />
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8 }} className="flex flex-col items-center gap-3.5 mt-2">
             <h3 className="text-3xl sm:text-4xl md:text-5xl font-serif text-white/95 leading-tight font-light max-w-lg">
-              Every recommendation logged on Mantle.
+              Every recommendation logged on Solana.
             </h3>
             <div className="flex flex-col items-center gap-1 font-sans text-xs text-white/50 tracking-wider font-light mt-1">
               <span>Verifiable. Transparent.</span>
@@ -686,7 +686,7 @@ export function ScrollytellingSection({
               transition={{ delay: 0.4, duration: 1.0, ease: "easeOut" }}
               className="text-base sm:text-lg md:text-xl font-sans text-white/50 leading-relaxed font-light tracking-wide max-w-md"
             >
-              Your autonomous yield intelligence on Mantle.
+              Your autonomous yield intelligence on Solana.
             </motion.p>
 
             {/* CTA button delayed 1.0s */}

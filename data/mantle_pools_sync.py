@@ -1,9 +1,7 @@
 """
-Fetches Mantle DeFi pools from DeFiLlama, writes to CSV, and uploads to Dune.
-Equivalent to the Google Apps Script version.
-
-Note: The full data isn't sourced from here alone.. I applied on-chain analytic skills to query and 
-collect data from multiple sources (dune tables included) and then aggregate it into tables on Dune.
+Fetches Solana DeFi pools from DefiLlama, writes to CSV.
+This is a legacy data utility script — the live fetcher (agent/fetcher.py) now
+pulls Solana pool data directly from the DefiLlama API on an hourly schedule.
 """
 
 import csv
@@ -17,10 +15,9 @@ import requests
 
 # ─── CONFIG ───────────────────────────────────────────────────────────────────
 
-DUNE_API_KEY = " Insert API KEY here "
-DUNE_TABLE_NAME = "protocol_apy"
-LLAMA_URL       = "https://yields.llama.fi/pools"
-OUTPUT_CSV      = "mantle_pools.csv"
+LLAMA_URL    = "https://yields.llama.fi/pools"
+OUTPUT_CSV   = "solana_pools.csv"
+CHAIN_FILTER = "Solana"
 
 HEADERS = [
     "Project", "Symbol", "APY", "APY Base", "APY Reward",
@@ -34,8 +31,8 @@ log = logging.getLogger(__name__)
 
 # ─── FETCH + PARSE ────────────────────────────────────────────────────────────
 
-def fetch_mantle_pools() -> Optional[list[list]]:
-    """Fetch all pools from DeFiLlama and return only Mantle rows."""
+def fetch_solana_pools() -> Optional[list[list]]:
+    """Fetch all pools from DefiLlama and return only Solana rows."""
     for attempt in range(2):
         try:
             resp = requests.get(LLAMA_URL, timeout=30)
@@ -52,7 +49,7 @@ def fetch_mantle_pools() -> Optional[list[list]]:
             return None
 
         if resp.status_code != 200:
-            log.error("DeFiLlama API error: %s", resp.status_code)
+            log.error("DefiLlama API error: %s", resp.status_code)
             return None
 
         return parse_pools(resp.text)
@@ -61,7 +58,7 @@ def fetch_mantle_pools() -> Optional[list[list]]:
 
 
 def parse_pools(response_text: str) -> Optional[list[list]]:
-    """Parse raw JSON and extract Mantle pools."""
+    """Parse raw JSON and extract Solana pools."""
     try:
         data = json.loads(response_text)
     except json.JSONDecodeError as e:
@@ -69,14 +66,14 @@ def parse_pools(response_text: str) -> Optional[list[list]]:
         return None
 
     pools = data.get("data", [])
-    mantle = [p for p in pools if p.get("chain") == "Mantle"]
+    solana = [p for p in pools if p.get("chain") == CHAIN_FILTER]
 
-    if not mantle:
-        log.warning("No Mantle pools found in response.")
+    if not solana:
+        log.warning("No Solana pools found in response.")
         return None
 
     rows = []
-    for p in mantle:
+    for p in solana:
         tokens = p.get("underlyingTokens") or []
         reward_tokens = p.get("rewardTokens") or []
         rows.append([
@@ -97,7 +94,7 @@ def parse_pools(response_text: str) -> Optional[list[list]]:
             tokens[1] if len(tokens) > 1 else "",
         ])
 
-    log.info("Parsed %d Mantle pools.", len(rows))
+    log.info("Parsed %d Solana pools.", len(rows))
     return rows
 
 # ─── CSV WRITER ───────────────────────────────────────────────────────────────
@@ -110,55 +107,19 @@ def write_pools_to_csv(rows: list[list], path: str = OUTPUT_CSV) -> None:
         writer.writerows(rows)
     log.info("CSV written: %s (%d rows)", path, len(rows))
 
-
-def rows_to_csv_string(rows: list[list]) -> str:
-    """Serialise headers + rows to a CSV string for Dune upload."""
-    buf = io.StringIO()
-    writer = csv.writer(buf)
-    writer.writerow(HEADERS)
-    writer.writerows(rows)
-    return buf.getvalue()
-
-# ─── DUNE UPLOAD ──────────────────────────────────────────────────────────────
-
-def push_to_dune(rows: list[list]) -> None:
-    """Upload pool data to Dune via the CSV upload endpoint."""
-    csv_string = rows_to_csv_string(rows)
-
-    payload = {
-        "table_name":  DUNE_TABLE_NAME,
-        "description": "Current APY of DeFi protocols on Mantle blockchain via DeFiLlama",
-        "data":        csv_string,
-        "is_private":  False,
-    }
-
-    resp = requests.post(
-        "https://api.dune.com/api/v1/table/upload/csv",
-        headers={
-            "X-Dune-Api-Key": DUNE_API_KEY,
-            "Content-Type":   "application/json",
-        },
-        json=payload,
-        timeout=30,
-    )
-
-    log.info("Dune upload: %s — %s", resp.status_code, resp.text)
-
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 
-def sync_mantle_pools() -> None:
-    log.info("Starting Mantle pools sync...")
+def sync_solana_pools() -> None:
+    log.info("Starting Solana pools sync...")
 
-    rows = fetch_mantle_pools()
+    rows = fetch_solana_pools()
     if not rows:
         log.error("Fetch failed — aborting sync.")
         return
 
     write_pools_to_csv(rows)
-    push_to_dune(rows)
-
-    log.info("Sync complete. %d pools pushed to Dune.", len(rows))
+    log.info("Sync complete. %d pools written to CSV.", len(rows))
 
 
 if __name__ == "__main__":
-    sync_mantle_pools()
+    sync_solana_pools()

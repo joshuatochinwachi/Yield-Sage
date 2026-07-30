@@ -472,22 +472,22 @@ export default function DocsPage() {
               num="01"
               tag="Introduction"
               title="What is YieldSage?"
-              sub="A plain-English guide to the most intelligent yield platform on Mantle Network."
+              sub="A plain-English guide to the most intelligent yield platform on Solana."
             />
 
             <div className="space-y-5 text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>
               <p>
                 <strong className="text-white">YieldSage</strong> is your personal AI-powered yield advisor for the{" "}
-                <strong className="text-white">Mantle Network</strong> — a fast, low-cost blockchain built for DeFi. Think of it as having a smart financial analyst working around the clock, scanning every liquidity pool and yield farm on Mantle, ranking them by how good they are right now, and delivering that intelligence directly to you — in plain English — through a web dashboard and a Telegram bot.
+                <strong className="text-white">Solana</strong> — the world’s fastest blockchain built for DeFi. Think of it as having a smart financial analyst working around the clock, scanning every liquidity pool and yield farm on Solana, ranking them by how good they are right now, and delivering that intelligence directly to you — in plain English — through a web dashboard and a Telegram bot.
               </p>
               <p>
-                The problem YieldSage solves is real: DeFi opportunities on Mantle change every hour. Yields spike and drop. Protocols launch new pools. Better opportunities appear while you're asleep. Unless you manually check five different protocols every single day, you'll miss things. YieldSage does all of that monitoring for you automatically.
+                The problem YieldSage solves is real: DeFi opportunities on Solana change every hour. Yields spike and drop. Protocols launch new pools. Better opportunities appear while you're asleep. Unless you manually check five different protocols every single day, you'll miss things. YieldSage does all of that monitoring for you automatically.
               </p>
               <p>
                 But it goes further than just showing you numbers. YieldSage uses <strong className="text-white">artificial intelligence</strong> to actually reason about each opportunity — considering the risk, the liquidity depth, the reward structure, and whether the yield is genuinely sustainable — and then tells you what it thinks in plain, honest language that anyone can understand.
               </p>
               <p>
-                And because trust matters in DeFi, every single recommendation YieldSage produces is <strong className="text-white">permanently recorded on the Mantle blockchain</strong> with a cryptographic fingerprint. Anyone can verify, at any time, that the recommendation was real and was never edited after the fact.
+                And because trust matters in DeFi, every single recommendation YieldSage produces is <strong className="text-white">permanently recorded on the Solana blockchain</strong> with a cryptographic fingerprint. Anyone can verify, at any time, that the recommendation was real and was never edited after the fact.
               </p>
 
               <Callout type="tip" title="Watch the Video Demo">
@@ -497,9 +497,9 @@ export default function DocsPage() {
 
             <div className="grid gap-4 grid-cols-1 sm:grid-cols-3 mt-8">
               {[
-                { icon: <RefreshCw className="w-5 h-5" />, color: "rgba(0,255,136,", title: "Hourly Updates", desc: "Every hour, YieldSage queries on-chain data from all tracked Mantle protocols and refreshes every metric on the dashboard automatically." },
+                { icon: <RefreshCw className="w-5 h-5" />, color: "rgba(0,255,136,", title: "Hourly Updates", desc: "Every hour, YieldSage queries live data from all tracked Solana protocols via DefiLlama and refreshes every metric on the dashboard automatically." },
                 { icon: <Cpu className="w-5 h-5" />, color: "rgba(99,179,237,", title: "AI-Powered Scoring", desc: "A multi-model AI cascade analyses every pool and produces ranked recommendations — categorised into Stable, Moderate, and Aggressive risk tiers." },
-                { icon: <ShieldCheck className="w-5 h-5" />, color: "rgba(167,139,250,", title: "Verifiable On-Chain", desc: "Every recommendation is SHA-256 fingerprinted and committed to Mantle as a transaction. Zero trust required — you can verify everything yourself." },
+                { icon: <ShieldCheck className="w-5 h-5" />, color: "rgba(167,139,250,", title: "Verifiable On-Chain", desc: "Every recommendation is SHA-256 fingerprinted and committed to Solana as an SPL Memo transaction. Zero trust required — you can verify everything yourself." },
               ].map(({ icon, color, title, desc }) => (
                 <div
                   key={title}
@@ -516,7 +516,7 @@ export default function DocsPage() {
             </div>
 
             <Callout type="tip" title="Who is YieldSage for?">
-              YieldSage is built for anyone who holds crypto on Mantle — from complete beginners who just want to know the safest place to earn yield on their stablecoins, to experienced DeFi users who want a reliable daily signal without manually reading protocol documentation every morning. No technical knowledge is required to use the dashboard or the Telegram bot.
+              YieldSage is built for anyone who holds crypto on Solana — from complete beginners who just want to know the safest place to earn yield on their stablecoins, to experienced DeFi users who want a reliable daily signal without manually reading protocol documentation every morning. No technical knowledge is required to use the dashboard or the Telegram bot.
             </Callout>
           </section>
 
@@ -531,7 +531,7 @@ export default function DocsPage() {
 
             <div className="space-y-2">
               <Step n={1} title="On-Chain Data is Collected — Every Hour">
-                YieldSage runs a custom query against <strong>Dune Analytics</strong> — a powerful on-chain data platform — every single hour, 24 hours a day. This query pulls real, live data directly from Mantle's blockchain records: the APY of every major liquidity pool, how much money is locked in each pool (TVL), what the reward tokens are, and how each metric has changed over the past 1 day, 7 days, and 30 days. The system is engineered for high availability, with built-in rate-limit resilience ensuring data collection is never interrupted.
+                YieldSage calls the <strong>DefiLlama</strong> API — the most comprehensive DeFi data aggregator — every single hour, 24 hours a day. This query pulls real, live data directly from Solana’s ecosystem: the APY of every major liquidity pool, how much money is locked in each pool (TVL), what the reward tokens are, and how each metric has changed over the past 1 day, 7 days, and 30 days. The system is engineered for high availability, with built-in rate-limit resilience ensuring data collection is never interrupted.
               </Step>
 
               <Step n={2} title="Protocols Are Auto-Registered in the Database">
@@ -550,7 +550,7 @@ export default function DocsPage() {
               </Step>
 
               <Step n={4} title="Recommendations Are Fingerprinted and Committed On-Chain">
-                Before any recommendation is stored in the database or shown to users, it is <strong>cryptographically fingerprinted</strong>. The entire recommendation — the protocol name, pool address, APY, AI reasoning, risk tier, and timestamp — is serialised into a standardised JSON format and then run through the SHA-256 hashing algorithm. The resulting hash (a unique 64-character string) is embedded into a 0-value transaction on the Mantle blockchain, making the recommendation permanently and publicly verifiable. This is explained in full detail in the On-Chain Proof section.
+                Before any recommendation is stored in the database or shown to users, it is <strong>cryptographically fingerprinted</strong>. The entire recommendation — the protocol name, pool address, APY, AI reasoning, risk tier, and timestamp — is serialised into a standardised JSON format and then run through the SHA-256 hashing algorithm. The resulting hash (a unique 64-character string) is embedded into an SPL Memo transaction on the Solana blockchain, making the recommendation permanently and publicly verifiable. This is explained in full detail in the On-Chain Proof section.
               </Step>
 
               <Step n={5} title="The Dashboard Updates Automatically">
@@ -567,11 +567,11 @@ export default function DocsPage() {
               <p className="text-[10px] font-mono uppercase tracking-widest" style={{ color: "rgba(255,255,255,0.3)" }}>System Architecture — Data Flow</p>
               <div className="hidden sm:flex flex-col items-center gap-4 font-mono text-[10px] min-w-[500px]">
                 <div className="flex items-center gap-3">
-                  <span className="px-3 py-1.5 rounded-lg" style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", color: "rgba(16,185,129,0.85)" }}>Mantle Network (On-Chain)</span>
+                  <span className="px-3 py-1.5 rounded-lg" style={{ background: "rgba(16,185,129,0.1)", border: "1px solid rgba(16,185,129,0.2)", color: "rgba(16,185,129,0.85)" }}>Solana Ecosystem (On-Chain)</span>
                   <span style={{ color: "rgba(255,255,255,0.2)" }}>→</span>
-                  <span className="px-3 py-1.5 rounded-lg" style={{ background: "rgba(6,182,212,0.1)", border: "1px solid rgba(6,182,212,0.2)", color: "rgba(6,182,212,0.85)" }}>Dune Analytics API</span>
+                  <span className="px-3 py-1.5 rounded-lg" style={{ background: "rgba(6,182,212,0.1)", border: "1px solid rgba(6,182,212,0.2)", color: "rgba(6,182,212,0.85)" }}>DefiLlama API</span>
                   <span style={{ color: "rgba(255,255,255,0.2)" }}>→</span>
-                  <span className="px-3 py-1.5 rounded-lg" style={{ background: "rgba(6,182,212,0.1)", border: "1px solid rgba(6,182,212,0.2)", color: "rgba(6,182,212,0.85)" }}>DuneFetcher (Python)</span>
+                  <span className="px-3 py-1.5 rounded-lg" style={{ background: "rgba(6,182,212,0.1)", border: "1px solid rgba(6,182,212,0.2)", color: "rgba(6,182,212,0.85)" }}>SolanaFetcher (Python)</span>
                 </div>
                 <div style={{ color: "rgba(255,255,255,0.2)" }}>↓</div>
                 <div className="flex items-center gap-3">
@@ -584,7 +584,7 @@ export default function DocsPage() {
                   <div className="flex flex-col items-center gap-2">
                     <span className="px-3 py-1.5 rounded-lg" style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)", color: "rgba(245,158,11,0.85)" }}>AI Scoring Engine</span>
                     <div style={{ color: "rgba(255,255,255,0.2)" }}>↓</div>
-                    <span className="px-3 py-1.5 rounded-lg" style={{ background: "rgba(0,255,136,0.1)", border: "1px solid rgba(0,255,136,0.2)", color: "rgba(0,255,136,0.85)" }}>SHA-256 + Mantle TX</span>
+                    <span className="px-3 py-1.5 rounded-lg" style={{ background: "rgba(0,255,136,0.1)", border: "1px solid rgba(0,255,136,0.2)", color: "rgba(0,255,136,0.85)" }}>SHA-256 + Solana SPL Memo</span>
                   </div>
                   <div style={{ color: "rgba(255,255,255,0.2)" }}>|</div>
                   <div className="flex flex-col items-center gap-2">
@@ -602,7 +602,7 @@ export default function DocsPage() {
               </div>
               {/* Mobile simplified */}
               <div className="sm:hidden flex flex-col items-center gap-3 font-mono text-[10px]">
-                {["Mantle Network", "Dune Analytics", "Supabase Database", "AI Scoring + On-Chain Hash", "Dashboard · Telegram · Alerts"].map((item, i, arr) => (
+                {["Solana Ecosystem", "DefiLlama API", "Supabase Database", "AI Scoring + On-Chain Hash", "Dashboard · Telegram · Alerts"].map((item, i, arr) => (
                   <div key={item} className="flex flex-col items-center gap-1 w-full">
                     <span className="px-3 py-1.5 rounded-lg text-center w-full" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }}>{item}</span>
                     {i < arr.length - 1 && <span style={{ color: "rgba(255,255,255,0.2)" }}>↓</span>}
@@ -626,7 +626,7 @@ export default function DocsPage() {
               <div>
                 <h3 className="text-base font-semibold text-white mb-3">The Overview Stats Bar</h3>
                 <p className="mb-3">
-                  At the top of the dashboard you'll find four headline numbers. These give you an instant pulse-check of the Mantle DeFi ecosystem right now:
+                  At the top of the dashboard you'll find four headline numbers. These give you an instant pulse-check of the Solana DeFi ecosystem right now:
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {[
@@ -671,7 +671,7 @@ export default function DocsPage() {
                   <li><strong className="text-white">Filter by risk tier</strong> using the toggle buttons (All / Stable / Moderate / Aggressive)</li>
                   <li><strong className="text-white">Filter by minimum TVL</strong> to exclude small pools with low liquidity</li>
                   <li><strong className="text-white">Add to Watchlist</strong> by clicking the star icon — watchlisted pools appear in your personal watchlist tab</li>
-                  <li><strong className="text-white">Click the pool name</strong> to open its contract address on Mantlescan (the Mantle blockchain explorer)</li>
+                  <li><strong className="text-white">Click the pool name</strong> to open its account address on Solscan (the Solana blockchain explorer)</li>
                   <li><strong className="text-white">Click Invest</strong> to go directly to the protocol's DApp to deposit funds</li>
                   <li><strong className="text-white">Click Simulate</strong> to run a paper trade through the Telegram bot</li>
                 </ul>
@@ -687,7 +687,7 @@ export default function DocsPage() {
               <div>
                 <h3 className="text-base font-semibold text-white mb-3">The On-Chain Proof Section</h3>
                 <p>
-                  At the bottom of the main page (accessible via <code className="text-xs font-mono text-cyan-400">/#on-chain-proof</code>), you'll find the complete historical log of every AI recommendation that has been committed to the Mantle blockchain. You can search this log by protocol name, pool name, contract address, or transaction hash. Each entry links directly to its Mantlescan transaction and its verification page — where you can independently confirm the recommendation was never altered.
+                  At the bottom of the main page (accessible via <code className="text-xs font-mono text-cyan-400">/#on-chain-proof</code>), you'll find the complete historical log of every AI recommendation that has been committed to the Solana blockchain. You can search this log by protocol name, pool name, account address, or transaction signature. Each entry links directly to its Solscan transaction and its verification page — where you can independently confirm the recommendation was never altered.
                 </p>
               </div>
             </div>
@@ -737,7 +737,7 @@ export default function DocsPage() {
                 label="Reward Tokens"
                 color="rgba(236,72,153,0.9)"
                 example="MNT, USDC"
-                description="This shows the specific token(s) you receive as rewards for providing liquidity to this pool. For example, 'MNT' means the protocol pays you in MNT (Mantle's native token). Some pools pay rewards in multiple tokens simultaneously."
+                description="This shows the specific token(s) you receive as rewards for providing liquidity to this pool. For example, 'SOL' means the protocol pays you in SOL. Some pools pay rewards in multiple tokens simultaneously."
                 detail="The identity of the reward token matters because you need to understand what you're receiving. Native tokens like MNT have established markets and liquidity. Newly launched protocol tokens may be harder to sell and more volatile. When evaluating a reward APY, always consider the market depth and price history of the reward token itself."
               />
               <MetricCard
@@ -764,9 +764,9 @@ export default function DocsPage() {
               <MetricCard
                 label="Pool Contract Link"
                 color="rgba(0,255,136,0.7)"
-                example="https://mantlescan.xyz/address/0x..."
-                description="Clicking the protocol name in the leaderboard opens the pool's smart contract address on Mantlescan — Mantle's blockchain explorer. This lets you independently verify that the pool exists on-chain, see its transaction history, and inspect its code."
-                detail="Always clicking through to verify the contract address is a best practice in DeFi before depositing funds. A legitimate protocol will always have a verifiable on-chain contract address. YieldSage links directly to Mantlescan for transparency."
+                example="https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5"
+                description="Clicking the protocol name in the leaderboard opens the pool's account address on Solscan — Solana's blockchain explorer. This lets you independently verify that the pool exists on-chain, see its transaction history, and inspect its program."
+                detail="Always clicking through to verify the account address is a best practice in DeFi before depositing funds. A legitimate protocol will always have a verifiable on-chain address. YieldSage links directly to Solscan for transparency."
               />
             </div>
           </section>
@@ -872,7 +872,7 @@ export default function DocsPage() {
               num="06"
               tag="Verifiability"
               title="On-Chain Proof — How YieldSage Earns Your Trust"
-              sub="The complete technical explanation of how every recommendation is permanently verified on the Mantle blockchain — explained so anyone can understand it."
+              sub="The complete technical explanation of how every recommendation is permanently verified on the Solana blockchain — explained so anyone can understand it."
             />
 
             <div className="space-y-6 text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>
@@ -906,9 +906,9 @@ export default function DocsPage() {
                     ["tvl_usd", "The total value locked at scoring time, as a 2-decimal string"],
                     ["ai_reasoning", "The verbatim text of the AI's reasoning, trimmed of whitespace"],
                     ["ai_model", "The exact model identifier used (e.g. llama-3.1-70b)"],
-                    ["chain", "Always 'mantle' for this version"],
-                    ["chain_id", "Always 5000 — Mantle Network's numeric identifier"],
-                    ["source", "The Dune query ID used as the data source"],
+                    ["chain", "Always 'solana' for this version"],
+                    ["chain_id", "Always 101 — Solana Mainnet's cluster identifier"],
+                    ["source", "The DefiLlama pool ID used as the data source"],
                   ].map(([field, desc]) => (
                     <div key={field} className="flex gap-2 text-xs p-2 rounded-lg" style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.04)" }}>
                       <code className="font-mono flex-shrink-0" style={{ color: "rgba(0,255,136,0.7)" }}>{field}</code>
@@ -935,12 +935,12 @@ export default function DocsPage() {
               </div>
 
               <div>
-                <h3 className="text-base font-semibold text-white mb-3">Step 3 — Embedding the Hash in a Mantle Transaction</h3>
+                <h3 className="text-base font-semibold text-white mb-3">Step 3 — Embedding the Hash in a Solana SPL Memo Transaction</h3>
                 <p className="mb-3">
-                  The hash is then prefixed with a YieldSage identifier: <code className="text-xs font-mono" style={{ color: "rgba(0,255,136,0.8)" }}>yieldsage:{"<hash>"}</code>. This string is embedded as the <strong className="text-white">data field</strong> of a transaction on the Mantle blockchain.
+                  The hash is then prefixed with a YieldSage identifier: <code className="text-xs font-mono" style={{ color: "rgba(0,255,136,0.8)" }}>yieldsage:{"<hash>"}</code>. This string is embedded as the <strong className="text-white">memo field</strong> of an SPL Memo transaction on the Solana blockchain.
                 </p>
                 <p className="mb-3">
-                  The transaction is a self-transfer — it sends 0 MNT from YieldSage's wallet to itself. This means no funds move, and the transaction's only purpose is to record the hash on the blockchain. Once the transaction is confirmed (which takes seconds on Mantle), the hash is <strong className="text-white">permanently, publicly, and immutably recorded</strong>. The Mantle blockchain is a public ledger — anyone in the world can see this transaction, forever.
+                  The transaction is a self-transfer — it sends 0 SOL from YieldSage's wallet to itself. This means no funds move, and the transaction's only purpose is to record the hash on the blockchain. Once the transaction is confirmed (which takes seconds on Solana), the hash is <strong className="text-white">permanently, publicly, and immutably recorded</strong>. The Solana blockchain is a public ledger — anyone in the world can see this transaction, forever.
                 </p>
                 <p>
                   The system includes retry logic: if the first attempt to submit the transaction fails (due to network congestion or an RPC issue), it automatically retries up to 3 times with increasing delays. If the transaction still fails after all retries, the hash is still stored in the database — and a background job runs every 6 hours to retry any recommendations that haven't yet been committed to the chain.
@@ -973,7 +973,7 @@ export default function DocsPage() {
               <div>
                 <h3 className="text-base font-semibold text-white mb-3">Why This Matters</h3>
                 <p>
-                  This system means that YieldSage cannot retroactively change or delete any recommendation. If it tried to alter a recommendation in the database, the hash would no longer match — and anyone who visits the verification page would immediately see <strong className="text-white">"Hash Mismatch — Tampered!"</strong>. The blockchain record is the source of truth, and the blockchain is controlled by nobody — it's a global public ledger that will exist for as long as Mantle Network exists.
+                  This system means that YieldSage cannot retroactively change or delete any recommendation. If it tried to alter a recommendation in the database, the hash would no longer match — and anyone who visits the verification page would immediately see <strong className="text-white">"Hash Mismatch — Tampered!"</strong>. The blockchain record is the source of truth, and the blockchain is controlled by nobody — it's a global public ledger that will exist for as long as Solana exists.
                 </p>
                 <p className="mt-3">
                   This is what <em>trustless verifiability</em> means: you don't have to trust YieldSage. You can verify everything yourself.
@@ -990,14 +990,14 @@ export default function DocsPage() {
                   View Historical On-Chain Proofs
                 </a>
                 <a
-                  href="https://mantlescan.xyz"
+                  href="https://solscan.io"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all"
                   style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.5)" }}
                 >
                   <ExternalLink className="w-4 h-4" />
-                  Mantlescan Explorer
+                  Solscan Explorer
                 </a>
               </div>
             </div>
@@ -1021,7 +1021,7 @@ export default function DocsPage() {
                 <h3 className="text-base font-semibold text-white mb-4">Available Commands</h3>
                 <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
                   <CommandPill cmd="/start" desc="Registers your account and shows the main interactive menu with buttons for all key features. This is the first command to run." />
-                  <CommandPill cmd="/yields" desc="Displays a paginated, scrollable view of all current yield opportunities across every tracked Mantle protocol. Tap Next/Prev to navigate pages." />
+                  <CommandPill cmd="/yields" desc="Displays a paginated, scrollable view of all current yield opportunities across every tracked Solana protocol. Tap Next/Prev to navigate pages." />
                   <CommandPill cmd="/trade" desc="Opens the paper trading flow. You can select a pool from the paginated list, specify how much USD to simulate investing, and the bot records the trade on your profile." />
                   <CommandPill cmd="/positions" desc="Shows all your currently active paper trades with their entry APY, the current APY, the simulated profit or loss, and how long each has been open." />
                   <CommandPill cmd="/alerts" desc="Toggles your hourly alert subscription on or off. When on, you receive a personalised market update every hour — tailored to your risk preference." />
@@ -1041,7 +1041,7 @@ export default function DocsPage() {
                   /trade address=0x5d54d430d1fd9425976147318e6080479bffc16d amount=10000 token=merchant-moe (USDe-WMNT)
                 </div>
                 <p className="mt-3">
-                  The bot reads the pool contract address directly from this command, looks up its current APY, and records the paper trade instantly — no need to navigate any menus. The pool address is extracted from the command or from the full Mantlescan URL (either format works).
+                  The bot reads the pool account address directly from this command, looks up its current APY, and records the paper trade instantly — no need to navigate any menus. The pool address is extracted from the command or from the full Solscan URL (either format works).
                 </p>
               </div>
 
@@ -1074,12 +1074,12 @@ export default function DocsPage() {
 
             <div className="space-y-6 text-sm leading-relaxed" style={{ color: "rgba(255,255,255,0.6)" }}>
               <div>
-                <h3 className="text-base font-semibold text-white mb-3">The Data Source: Dune Analytics</h3>
+                <h3 className="text-base font-semibold text-white mb-3">The Data Source: DefiLlama</h3>
                 <p className="mb-3">
-                  YieldSage pulls all of its yield data from <strong className="text-white">Dune Analytics</strong> — a professional on-chain data platform that allows developers to write custom SQL queries against raw blockchain data. This approach means the data comes directly from Mantle's on-chain records, not from any protocol's own self-reported API (which could be manipulated or delayed).
+                  YieldSage pulls all of its yield data from <strong className="text-white">DefiLlama</strong> — the most comprehensive DeFi data aggregator in the industry. This approach means the data comes from a trusted, neutral third-party source that aggregates directly from protocol smart contracts (not from any protocol's own self-reported API).
                 </p>
                 <p>
-                  YieldSage maintains a custom Dune query (Query ID: <code className="text-xs font-mono text-cyan-400">7595582</code>) that extracts the following for every active Mantle liquidity pool: pool address, protocol name, asset pair, current APY, base APY, reward APY, TVL in USD, reward tokens, and 1D/7D/30D APY trends.
+                  The DefiLlama API returns the following for every active Solana liquidity pool: pool ID, project name, asset pair, current APY, base APY, reward APY, TVL in USD, reward tokens, and 1D/7D/30D APY trends.
                 </p>
               </div>
 
@@ -1090,7 +1090,7 @@ export default function DocsPage() {
                 </p>
                 <ol className="list-decimal pl-5 space-y-2">
                   <li>The scheduler validates the active API key's credit balance and selects the next available key if needed</li>
-                  <li>The query is executed on Dune — Dune runs the SQL against the latest blockchain data</li>
+                  <li>The query is executed against DefiLlama — which aggregates live liquidity data across Solana smart contracts</li>
                   <li>The system monitors the execution status and waits for completion</li>
                   <li>The results are downloaded as a CSV file</li>
                   <li>The CSV is parsed and each row is matched to an existing protocol in the database (or a new protocol is created if it's new)</li>
@@ -1105,7 +1105,7 @@ export default function DocsPage() {
               <div>
                 <h3 className="text-base font-semibold text-white mb-3">Protocol Auto-Registration</h3>
                 <p>
-                  When a new protocol or pool appears in the Dune data for the first time, YieldSage automatically creates a record for it in the database. The system intelligently infers the initial risk tier: pools containing stablecoin assets (USDC, USDT, DAI, USDB, etc.) are initially classified as Stable, while everything else starts as Moderate. The AI Scoring Engine may override this classification based on further analysis.
+                  When a new protocol or pool appears in the DefiLlama data for the first time, YieldSage automatically creates a record for it in the database. The system intelligently infers the initial risk tier: pools containing stablecoin assets (USDC, USDT, etc.) are initially classified as Stable, while everything else starts as Moderate. The AI Scoring Engine may override this classification based on further analysis.
                 </p>
               </div>
 
@@ -1236,7 +1236,7 @@ export default function DocsPage() {
                 path="/api/recommendations/verify/{tx_hash}"
                 desc="Returns the original payload and canonical JSON string for a given transaction hash, enabling browser-side SHA-256 verification"
                 params={[
-                  { name: "tx_hash", type: "string", required: true, description: "The Mantle transaction hash of the on-chain proof" },
+                  { name: "tx_hash", type: "string", required: true, description: "The Solana transaction signature of the on-chain SPL Memo proof" },
                 ]}
                 example={`{
   "data": {
@@ -1244,7 +1244,7 @@ export default function DocsPage() {
     "apy_at_time": 18.42,
     "risk_tag": "moderate",
     "on_chain_tx_hash": "0xabc...",
-    "explorer_url": "https://mantlescan.xyz/tx/0xabc...",
+    "explorer_url": "https://solscan.io/tx/abc123...",
     "protocols": { "name": "Merchant Moe", ... }
   },
   "canonical_payload": "{\"ai_model\":\"llama...\",\"ai_reasoning\":\"...\",..."
@@ -1303,7 +1303,7 @@ export default function DocsPage() {
               </FAQ>
 
               <FAQ q="Why do TVL values sometimes differ from DefiLlama?">
-                YieldSage pulls TVL data from Dune Analytics queries that focus on <em>active, high-liquidity yield opportunities</em>. Low-TVL or inactive pools may be filtered out by the Dune query. DefiLlama aggregates TVL across an entire protocol including inactive pools, locked positions, and other components. These differences are expected and don't indicate any inaccuracy in YieldSage's data.
+                YieldSage pulls TVL data directly from DefiLlama for <em>active, high-liquidity yield opportunities</em>. Low-TVL or inactive pools may be filtered out. These differences are expected and don't indicate any inaccuracy in YieldSage's data.
               </FAQ>
 
               <FAQ q="What does the Risk Tier classification actually mean in practice?">
@@ -1316,12 +1316,12 @@ export default function DocsPage() {
                 A paper trade is a <strong>simulated investment</strong> — you record a position as if you'd invested real money, but no actual funds are moved. YieldSage records the pool you chose, the APY at the time you entered, and the amount you simulated. You can then track how your simulated position performs over time: see if the APY went up or down, whether you would have profited, and how your pick compares to other pools. It's a risk-free way to test strategies and build confidence before committing real capital.
               </FAQ>
 
-              <FAQ q="What is the Mantle Network? Why does YieldSage focus on it?">
-                Mantle is a Layer 2 blockchain built on Ethereum — meaning it inherits Ethereum's security while offering much lower transaction fees and faster confirmation times. It has a growing DeFi ecosystem with multiple protocols offering competitive yields. YieldSage focuses on Mantle because it believes Mantle represents one of the most compelling emerging DeFi ecosystems, and because there's currently a gap: there's no intelligent, real-time yield aggregator specifically tailored to Mantle's unique protocol landscape.
+              <FAQ q="What is Solana? Why does YieldSage focus on it?">
+                Solana is a high-performance Layer 1 blockchain renowned for its blazing speed and ultra-low transaction fees. It has one of the most vibrant DeFi ecosystems in crypto, with protocols like Kamino, MarginFi, Jito, Orca, Raydium, Drift, and Marinade competing for liquidity. YieldSage focuses on Solana because the yields are real, the liquidity is deep, and there is currently a gap: no intelligent, real-time yield aggregator specifically tailored to guide users through Solana’s rapidly evolving protocol landscape.
               </FAQ>
 
               <FAQ q="Can I verify a recommendation even years later?">
-                Yes. As long as the Mantle blockchain exists (and it's designed to exist permanently), the transaction containing the hash will be publicly accessible. The YieldSage database also retains all historical recommendations indefinitely. You can visit the /verify page with any historical transaction hash — from day 1 of YieldSage's operation — and verify it exactly as you would a recent one.
+                Yes. As long as the Solana blockchain exists (and it’s designed to exist permanently), the transaction containing the hash will be publicly accessible. The YieldSage database also retains all historical recommendations indefinitely. You can visit the /verify page with any historical transaction signature — from day 1 of YieldSage’s operation — and verify it exactly as you would a recent one.
               </FAQ>
 
               <FAQ q="What happens if the AI provider has an outage?">

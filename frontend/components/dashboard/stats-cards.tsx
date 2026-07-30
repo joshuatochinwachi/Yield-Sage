@@ -46,7 +46,7 @@ export function StatsCards() {
               formatTVL(data?.total_tvl)
             )}
           </div>
-          <p className="text-[10px] text-white/40 font-mono mt-1">Mantle Ecosystem</p>
+          <p className="text-[10px] text-white/40 font-mono mt-1">Solana Ecosystem</p>
         </CardContent>
       </Card>
 

@@ -87,7 +87,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = user.first_name or "there"
     greeting = (
         f"👋 **Welcome to YieldSage, {name}!**\n\n"
-        "I am your intelligent AI-powered DeFi yield assistant for the **Mantle Network**.\n\n"
+        "I am your intelligent AI-powered DeFi yield assistant for the **Solana Network**.\n\n"
         "Here is what I can do for you:\n"
         "📈 **Paper Trading**: Simulate investing in live yield pools with zero capital risk. Wanna make real investments? Check [yieldsageai.xyz/dashboard](https://www.yieldsageai.xyz/dashboard).\n"
         "🚨 **Hourly Scoring & Alerts**: Automatically analyze your positions and alert you if yields drop or if better options appear.\n"
@@ -124,7 +124,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def prompts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Displays an intelligent prompt keyboard for quick questions."""
     prompts = [
-        "What are the safest yield pools on Mantle right now?",
+        "What are the safest yield pools on Solana right now?",
         "Which pools offer the highest APY, and why are they so high?",
         "Explain the risks of providing liquidity to high-APY pools.",
         "How do I balance my portfolio between stable and volatile assets?",
@@ -168,7 +168,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     help_text = (
         "💡 **YieldSage Command Guide**\n\n"
         "/start - Launch the main menu & register\n"
-        "/yields - Show current yield opportunities on Mantle\n"
+        "/yields - Show current yield opportunities on Solana\n"
         "/positions - View and close your active paper trades\n"
         "/trade - Guided setup to simulate a new position\n"
         "/prompts - View intelligent questions to ask the bot\n"
@@ -193,9 +193,10 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
         help_text = (
             "🔍 **How to Verify a YieldSage Proof**\n\n"
-            "Usage: `/verify <transaction_hash>`\n"
-            "Example: `/verify 0x82db0e4ab5c81de...`\n\n"
-            "Every recommendation is fingerprinted with SHA-256 and logged on the Mantle blockchain. "
+            "Usage: `/verify <transaction_signature>`\n"
+            "Example: `/verify 2FaU1EagECiz6t...`\n\n"
+            "Every recommendation is fingerprinted with SHA-256 and logged on the Solana blockchain. "
+
             "This command retrieves the original recommendation, computes its SHA-256 fingerprint, "
             "and compares it to the on-chain logged hash to guarantee it has never been altered."
         )
@@ -220,13 +221,7 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
                 "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
             )
-            .execute()
-        )
-
-        # Let's filter in memory or try direct queries. Since recommendations table is small,
-        # we can first try an exact case-insensitive match, or try to query specific formats.
-        # But to be robust and performant, we can do a targeted query using .ilike or filter:
-        tx_lower = tx_hash.lower()
+        # Fetch from DB: try exact match first (Solana Base58 is case-sensitive), then ilike match
         rec_res = (
             supabase.table("recommendations")
             .select(
@@ -234,13 +229,12 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
                 "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
             )
-            .ilike("on_chain_tx_hash", tx_lower)
+            .eq("on_chain_tx_hash", tx_hash)
             .execute()
         )
 
         if not rec_res.data:
-            # Try without 0x prefix just in case it is stored that way in some rows
-            clean_hash = tx_lower.replace("0x", "")
+            # Fallback to case-insensitive match
             rec_res = (
                 supabase.table("recommendations")
                 .select(
@@ -248,7 +242,7 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
                     "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
                 )
-                .ilike("on_chain_tx_hash", f"%{clean_hash}%")
+                .ilike("on_chain_tx_hash", f"%{tx_hash.replace('0x', '')}%")
                 .execute()
             )
 
@@ -256,7 +250,7 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(
                 "❌ Recommendation not found in database for this transaction hash.\n"
                 f"Searched for hash: `{tx_hash}`\n"
-                "Make sure you copied the correct Mantle transaction hash, or that the transaction has finished indexing."
+                "Make sure you copied the correct Solana transaction signature, or that the transaction has finished indexing."
             )
             return
 
@@ -373,7 +367,7 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
             rec["protocols"]["name"].replace(" ", "-"),
             rec["protocols"]["name"].replace("-", " "),
             rec["protocols"]["name"].lower(),
-            "fluxion-network", "fluxion", "clearpool-lending", "clearpool"
+            "kamino-finance", "kamino", "marginfi", "jito", "orca", "raydium", "drift", "marinade"
         ]))
         
         pool_names = list(set([
@@ -383,13 +377,9 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ]))
         
         raw_addr = rec["protocols"]["pool_address"] or ""
-        hex_addr = "0x" + raw_addr.split("0x")[-1] if "0x" in raw_addr else raw_addr
         pool_addresses = list(set([
             raw_addr,
-            raw_addr.lower(),
-            hex_addr,
-            hex_addr.lower(),
-            hex_addr.upper(),
+            raw_addr.lower() if raw_addr else "",
             "",
         ]))
         
@@ -429,8 +419,8 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                             if source:
                                                 payload["source"] = source
                                             if chain_info:
-                                                payload["chain"] = "mantle"
-                                                payload["chain_id"] = 5000
+                                                payload["chain"] = "solana"
+                                                payload["chain_id"] = 101
                                                 
                                             canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
                                             computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
@@ -490,7 +480,7 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if is_valid:
             verify_text = (
                 f"✅ **Cryptographic Proof Verified Successfully!**\n\n"
-                f"This recommendation matches the Mantle blockchain record and is 100% untampered.\n\n"
+                f"This recommendation matches the Solana blockchain record and is 100% untampered.\n\n"
                 f"🏦 **Pool**: `{rec['protocols']['name']} ({rec['protocols']['pool_name']})`\n"
                 f"🏷️ **Risk Tier**: `{rec['risk_tag'].upper()}`\n"
                 f"📈 **APY**: **{rec['apy_at_time']}%**\n"
@@ -499,11 +489,11 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"🔗 **Input Data Hash**:\n`{rec['recommendation_hash']}`\n\n"
                 f"💬 **AI Reasoning**:\n_{rec['ai_reasoning']}_\n"
             )
-            # Add buttons to view on web verify page or Mantlescan
+            # Add buttons to view on web verify page or Solscan
             keyboard = [
                 [
                     InlineKeyboardButton("🌐 Verify on Web", url=f"https://www.yieldsageai.xyz/verify?tx={tx_hash}"),
-                    InlineKeyboardButton("🔍 View on Mantlescan", url=f"https://mantlescan.xyz/tx/{tx_hash}")
+                    InlineKeyboardButton("🔍 View on Solscan", url=f"https://solscan.io/tx/{tx_hash}")
                 ]
             ]
             await update.message.reply_text(
@@ -552,7 +542,7 @@ async def alerts_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🔔 **Notification & Alert Settings**\n\n"
         f"Hourly status updates & recommendations: {status_str}\n\n"
         "When enabled, YieldSage will run autonomous research and send you hourly updates "
-        "covering Mantle yield pools, general DeFi recommendations, and alerts or position "
+        "covering Solana yield pools, general DeFi recommendations, and alerts or position "
         "shifts for your simulated trades."
     )
     
@@ -685,7 +675,7 @@ async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
     page_yields = yields[start_idx:end_idx]
     
     risk_emoji = {"stable": "🟢", "moderate": "🟡", "aggressive": "🔴"}
-    text = f"📊 **Yield Opportunities on Mantle** (Page {page}/{total_pages})\n"
+    text = f"📊 **Yield Opportunities on Solana** (Page {page}/{total_pages})\n"
     text += f"Total active pools: **{total_pools}**\n\n"
     
     for i, y in enumerate(page_yields, start_idx + 1):
@@ -700,7 +690,7 @@ async def view_yields(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         pool_address = p.get('pool_address')
         if pool_address:
-            url = pool_address if pool_address.startswith('http') else f"https://mantlescan.xyz/address/{pool_address}"
+            url = pool_address if pool_address.startswith('http') else f"https://solscan.io/account/{pool_address}"
             text += f"{i}. {emoji} **[{name}]({url})** ({pool})\n"
         else:
             text += f"{i}. {emoji} **{name}** ({pool})\n"
@@ -783,7 +773,7 @@ async def view_positions(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         pool_address = t["protocols"].get("pool_address")
         if pool_address:
-            url = pool_address if pool_address.startswith('http') else f"https://mantlescan.xyz/address/{pool_address}"
+            url = pool_address if pool_address.startswith('http') else f"https://solscan.io/account/{pool_address}"
             text += f"🔹 **[{p_name}]({url}) ({p_pool})**\n"
         else:
             text += f"🔹 **{p_name} ({p_pool})**\n"
@@ -1027,15 +1017,15 @@ async def handle_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Send on-chain proof verification instructions
         verify_text = (
             "🔍 **On-Chain Yield Verification**\n\n"
-            "Every YieldSage recommendation is fingerprinted with a secure SHA-256 hash and permanently logged on the **Mantle blockchain**.\n\n"
+            "Every YieldSage recommendation is fingerprinted with a secure SHA-256 hash and permanently logged on the **Solana blockchain**.\n\n"
             "To verify the authenticity of any recommendation, run:\n"
-            "`/verify <transaction_hash>`\n\n"
+            "`/verify <transaction_signature>`\n\n"
             "Example:\n"
-            "`/verify 0x1af457148117e2b1d866af5c086a53ba9a63764f96f8983b75cb0f96b77adbfa`\n\n"
+            "`/verify 2FaU1EagECiz6tByzrXgGHq1p4xuW5ggd4doPFp5HJaxLEkn7LwvNMcuEZU2bfC63ujMcr5jcWe6RWGyzyS6n4cx`\n\n"
             "**What happens next?**\n"
             "1. We fetch the matching recommendation from the secure database.\n"
             "2. We reconstruct the exact JSON metadata payload (APY, TVL, AI Reasoning, and timestamp).\n"
-            "3. We hash it using SHA-256 and cross-examine it against the on-chain logged transaction hash.\n"
+            "3. We hash it using SHA-256 and cross-examine it against the on-chain logged transaction signature.\n"
             "4. This mathematically proves the recommendation's integrity and prevents tampering."
         )
         keyboard = [[InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]]

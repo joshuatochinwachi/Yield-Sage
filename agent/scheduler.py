@@ -2,41 +2,42 @@ import asyncio
 import logging
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fetcher import DuneFetcher, supabase
+from fetcher import SolanaFetcher, supabase
 from scorer import HourlyScorer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 # Initialize persistent singletons
-fetcher = DuneFetcher()
+fetcher = SolanaFetcher()
 scorer = HourlyScorer()
 
 async def run_pipeline():
-    logger.info("Starting scheduled Yield-Sage pipeline...")
+    logger.info("Starting scheduled Yield-Sage Solana pipeline...")
     
-    # 1. Fetch Dune yields with retries for transient errors
+    # 1. Fetch Solana yields with retries for transient errors
     max_retries = 3
     retry_delay = 30  # seconds
     fetch_success = False
     
     for attempt in range(1, max_retries + 1):
         try:
-            logger.info(f"Running Dune Fetcher (attempt {attempt}/{max_retries})...")
+            logger.info(f"Running Solana Fetcher (attempt {attempt}/{max_retries})...")
             await fetcher.run()
             fetch_success = True
-            logger.info("Dune Fetcher completed successfully.")
+            logger.info("Solana Fetcher completed successfully.")
             break
         except Exception as e:
-            logger.error(f"Dune Fetcher failed on attempt {attempt}: {e}")
+            logger.error(f"Solana Fetcher failed on attempt {attempt}: {e}")
             if attempt < max_retries:
                 logger.info(f"Retrying Fetcher in {retry_delay} seconds...")
                 await asyncio.sleep(retry_delay)
                 retry_delay *= 2  # Exponential backoff
                 
     if not fetch_success:
-        logger.error("Dune Fetcher failed after all attempts. Skipping Scoring Engine for this hour.")
+        logger.error("Solana Fetcher failed after all attempts. Skipping Scoring Engine for this hour.")
         return
+
 
     # 2. Generate hourly AI recommendations for the dashboard
     try:

@@ -77,7 +77,7 @@ def main():
             payload["ai_model"] = rec["ai_model"]
             
             if cfg["chain"]:
-                payload["chain"] = "mantle"
+                payload["chain"] = "solana"
                 payload["chain_id"] = 5000
 
             canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)

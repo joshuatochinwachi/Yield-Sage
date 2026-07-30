@@ -1,6 +1,6 @@
 # Risk Tier Definitions
 
-YieldSage classifies every tracked Mantle DeFi pool into one of three risk tiers.
+YieldSage classifies every tracked Solana DeFi pool into one of three risk tiers.
 Use these definitions when explaining or filtering recommendations.
 
 ---
@@ -35,9 +35,9 @@ against the other, or native-token staking strategies. Impermanent loss is possi
 but bounded by asset correlation.
 
 **Asset composition examples:**
-- MNT / USDC
-- ETH / USDC
-- mETH staking (single-asset)
+- SOL / USDC
+- JitoSOL / USDC
+- mSOL staking (single-asset)
 - WBTC / USDT
 
 **Typical APY range:** 8 % – 60 %

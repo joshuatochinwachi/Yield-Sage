@@ -1,6 +1,6 @@
 # Skills
 
-`skills/` contains one directory per Mantle-focused agent skill. Each skill combines a
+`skills/` contains one directory per Solana-focused agent skill. Each skill combines a
 primary workflow in `SKILL.md` with local references so the runtime can ground answers
 in repository data instead of relying only on model memory.
 
@@ -16,4 +16,4 @@ in repository data instead of relying only on model memory.
 
 | Skill | Role |
 | --- | --- |
-| [`mantle-yieldsage-research`](./mantle-yieldsage-research/SKILL.md) | Discover, compare, and cryptographically verify live DeFi yield opportunities on Mantle using the YieldSage intelligence API |
+| [`solana-yieldsage-research`](./solana-yieldsage-research/SKILL.md) | Discover, compare, and cryptographically verify live DeFi yield opportunities on Solana using the YieldSage intelligence API |

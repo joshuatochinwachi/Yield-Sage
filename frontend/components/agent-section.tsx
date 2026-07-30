@@ -41,7 +41,7 @@ const CONVERSATION: ChatStep[] = [
     isThinking: true,
     typeSpeed: 10,
     timestamp: "9:41",
-    text: `👋 *Welcome to YieldSage, Alex!*\n\nI am your intelligent AI-powered DeFi yield assistant for the *Mantle Network*.\n\nHere is what I can do for you:\n📈 *Paper Trading:* Simulate investing in live yield pools with zero capital risk. Wanna make real investments? Check [yieldsageai.xyz/dashboard](https://www.yieldsageai.xyz/dashboard).\n🚨 *Hourly Scoring & Alerts:* Automatically analyze your positions and alert you if yields drop or if better options appear.\n🔍 *On-Chain Verification:* Check and cryptographically verify AI recommendations using on-chain SHA-256 hashes.\n💬 *DeFi Assistant & Insights:* Ask me any questions about yield strategies, pool risks, TVL drops, or portfolio optimization!\n\nUse the buttons below to explore:`,
+    text: `👋 *Welcome to YieldSage, Alex!*\n\nI am your intelligent AI-powered DeFi yield assistant for the *Solana Ecosystem*.\n\nHere is what I can do for you:\n📈 *Paper Trading:* Simulate investing in live yield pools with zero capital risk. Wanna make real investments? Check [yieldsageai.xyz/dashboard](https://www.yieldsageai.xyz/dashboard).\n🚨 *Hourly Scoring & Alerts:* Automatically analyze your positions and alert you if yields drop or if better options appear.\n🔍 *On-Chain Verification:* Check and cryptographically verify AI recommendations using on-chain SHA-256 hashes.\n💬 *DeFi Assistant & Insights:* Ask me any questions about yield strategies, pool risks, TVL drops, or portfolio optimization!\n\nUse the buttons below to explore:`,
     rows: [
       { buttons: [{ label: "📊 View Yield Pools" }, { label: "💼 My Positions" }] },
       { buttons: [{ label: "📈 Simulate Trade" }, { label: "⚙️ Risk Preference" }] },
@@ -54,7 +54,7 @@ const CONVERSATION: ChatStep[] = [
     role: "user",
     pauseBefore: 1800,
     timestamp: "9:42",
-    text: "What are the best stablecoin yields on Mantle right now?",
+    text: "What are the best stablecoin yields on Solana right now?",
   },
   {
     id: "bot-thinking1",
@@ -63,7 +63,7 @@ const CONVERSATION: ChatStep[] = [
     isThinking: true,
     typeSpeed: 11,
     timestamp: "9:42",
-    text: `*Top Stable Pools Right Now*\n\n• [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc) — *17.50% APY* | TVL: $2.1M | 🟢 STABLE\n  Institutional private-credit pool. Best stable-tier yield on Mantle.\n\n• [Aave V3 USDC](https://mantlescan.xyz/address/0x5c42bc61e1b12b2a64c5d564c76bca2b76bfa251) — *7.02% APY* | TVL: $3.68M | 🟢 STABLE\n  Most battle-tested protocol globally. Lowest counterparty risk.\n\n• [Lendle USDT](https://mantlescan.xyz/address/0x89ab1cd5e1db2cf648b76bca3821a76c8cba7df1) — *11.80% APY* | TVL: $890K | 🟢 STABLE\n  Lending market with solid utilisation rate.\n\n*My Recommendation*\n\nFor a $1,000 conservative entry: split 70 / 30 between Clearpool and Aave V3. Clearpool carries higher yield, Aave anchors your downside.\n\nUse /trade to simulate this allocation.`,
+    text: `*Top Stable Pools Right Now*\n\n• [Kamino USDC](https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5) — *8.50% APY* | TVL: $142M | 🟢 STABLE\n  Largest lending vault on Solana. Best stable-tier yield right now.\n\n• [MarginFi USDC](https://solscan.io/account/2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB) — *7.20% APY* | TVL: $89M | 🟢 STABLE\n  Most battle-tested Solana lending protocol. Lowest counterparty risk.\n\n• [Drift USDC](https://solscan.io/account/JCNCMFXo5M5qwUPg2Utu1u6YWp3MbygxqBsBeXXJfrw) — *6.80% APY* | TVL: $34M | 🟢 STABLE\n  Perp DEX lending with solid utilisation rate.\n\n*My Recommendation*\n\nFor a $1,000 conservative entry: split 70 / 30 between Kamino and MarginFi. Kamino carries higher yield, MarginFi anchors your downside.\n\nUse /trade to simulate this allocation.`,
   },
   {
     id: "user-q2",
@@ -79,14 +79,14 @@ const CONVERSATION: ChatStep[] = [
     isThinking: true,
     typeSpeed: 10,
     timestamp: "9:44",
-    text: `To simulate a paper trade, you can use any of these methods:\n\n1. Use the /trade command and simulate trade from the list of pools / yield opportunities. Follow the instructions from there.\n\n2. Use this format that the bot uses:\n/trade address=<pool_address> amount=<amount> token=<protocol and token_or_pool_name>\n\nExample:\n/trade address=0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc amount=2000 token=clearpool (USDT)\n\nNote: The pool address, token / pool name, and protocol name must match the live data exactly for this to work.\n\n3. Simulate a trade directly from the preferred pool / yield opportunity on the web dashboard at [yieldsageai.xyz/dashboard](https://www.yieldsageai.xyz/dashboard)`,
+    text: `To simulate a paper trade, you can use any of these methods:\n\n1. Use the /trade command and simulate trade from the list of pools / yield opportunities. Follow the instructions from there.\n\n2. Use this format that the bot uses:\n/trade address=<pool_address> amount=<amount> token=<protocol and token_or_pool_name>\n\nExample:\n/trade address=ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5 amount=2000 token=kamino-finance (USDC)\n\nNote: The pool address, token / pool name, and protocol name must match the live data exactly for this to work.\n\n3. Simulate a trade directly from the preferred pool / yield opportunity on the web dashboard at [yieldsageai.xyz/dashboard](https://www.yieldsageai.xyz/dashboard)`,
   },
   {
     id: "user-trade-cmd",
     role: "user",
     pauseBefore: 2000,
     timestamp: "9:45",
-    text: "/trade address=0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc amount=2000 token=clearpool (USDT)",
+    text: "/trade address=ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5 amount=2000 token=kamino-finance (USDC)",
   },
   {
     id: "bot-trade-success",
@@ -95,7 +95,7 @@ const CONVERSATION: ChatStep[] = [
     isThinking: true,
     typeSpeed: 12,
     timestamp: "9:45",
-    text: `✅ *Paper Trade Simulated Successfully!*\n\n💰 Invested: *$2,000.00*\n🏦 Pool: *Clearpool (USDT)*\n📈 Entry APY: *17.50%*\n\nI will now monitor this position hourly. You will receive alerts if the APY drops or if a better opportunity appears in the same risk tier!`,
+    text: `✅ *Paper Trade Simulated Successfully!*\n\n💰 Invested: *$2,000.00*\n🏦 Pool: *Kamino Finance (USDC)*\n📈 Entry APY: *8.50%*\n\nI will now monitor this position hourly. You will receive alerts if the APY drops or if a better opportunity appears in the same risk tier!`,
     rows: [
       { buttons: [{ label: "💼 View My Positions" }] },
     ],
@@ -130,7 +130,7 @@ const CONVERSATION: ChatStep[] = [
     isThinking: true,
     typeSpeed: 9,
     timestamp: "10:46",
-    text: `📊 *Mantle Yield Snapshots & Recommendations*\n\n• [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc): *15.20% APY* | TVL: $2.1M | Risk: STABLE | [Verify and take action](https://www.yieldsageai.xyz/verify?tx=0x82db0e4ab5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41f)\n\n• [Aave V3 USDC](https://mantlescan.xyz/address/0x5c42bc61e1b12b2a64c5d564c76bca2b76bfa251): *7.10% APY* | TVL: $3.7M | Risk: STABLE | [Verify and take action](https://www.yieldsageai.xyz/verify?tx=0x5c42bc61e1b12b2a64c5d564c76bca2b76bfa251)\n\n💼 *Personalized Portfolio Analysis*\n\n• [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc): Entry *17.50% APY* → Current *15.20% APY* — underperforming by *2.30%*. Hold position but monitor closely.\n\n💡 *Actionable DeFi Intelligence*\nClearpool USDT has dipped slightly due to an influx of deposit TVL. However, it remains the highest stable-tier yield on Mantle. No rebalancing is needed yet.\n\n🕒 *Data snapshot:* 10 Jun 2026, 10:45 UTC\n\n📋 View all live yield opportunities on Mantle → /yields or [yieldsageai.xyz/dashboard](https://www.yieldsageai.xyz/dashboard)`,
+    text: `📊 *Solana Yield Snapshots & Recommendations*\n\n• [Kamino USDC](https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5): *8.20% APY* | TVL: $140M | Risk: STABLE | [Verify and take action](https://www.yieldsageai.xyz/verify?tx=2FaU1EagECiz6tByzrXgGHq1p4xuW5ggd4doPFp5HJaxLEkn7LwvNMcuEZU2bfC63ujMcr5jcWe6RWGyzyS6n4cx)\n\n• [MarginFi USDC](https://solscan.io/account/2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB): *7.10% APY* | TVL: $88M | Risk: STABLE | [Verify and take action](https://www.yieldsageai.xyz/verify?tx=GtLfBLTi8Uzqg9iAdcK1DHp4ovQTMsVMr1KqyBJzmyevRq4pVRkD8HBUwNgvZSx38mcqFnuDR6qbqcKL1SzLqjM)\n\n💼 *Personalized Portfolio Analysis*\n\n• [Kamino USDC](https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5): Entry *8.50% APY* → Current *8.20% APY* — slight dip of *0.30%*. Hold position, still best stable-tier yield.\n\n💡 *Actionable DeFi Intelligence*\nKamino USDC remains the strongest stable vault on Solana. Minor APY fluctuation due to deposit inflows. No rebalancing needed yet.\n\n🕒 *Data snapshot:* 30 Jul 2026, 04:52 UTC\n\n📋 View all live yield opportunities on Solana → /yields or [yieldsageai.xyz/dashboard](https://www.yieldsageai.xyz/dashboard)`,
   },
   {
     id: "user-risk-q",
@@ -146,14 +146,14 @@ const CONVERSATION: ChatStep[] = [
     isThinking: true,
     typeSpeed: 11,
     timestamp: "10:48",
-    text: `If Clearpool's APY drops below *12.00%* (your safety threshold), I will trigger a high-priority alert recommending a portfolio rotation.\n\nFor instance, we can rotate 50% into [Aave V3 USDC](https://mantlescan.xyz/address/0x5c42bc61e1b12b2a64c5d564c76bca2b76bfa251) to lock in low-risk yields, or query emerging stablecoin pools on Mantle.`,
+    text: `If Kamino's APY drops below *6.00%* (your safety threshold), I will trigger a high-priority alert recommending a portfolio rotation.\n\nFor instance, we can rotate 50% into [MarginFi USDC](https://solscan.io/account/2s37akK2eyBbp8DZgCm7RtsaEz8eJP3Nxd4urLHQv7yB) to lock in low-risk yields, or query emerging stablecoin pools on Solana.`,
   },
   {
     id: "user-q3",
     role: "user",
     pauseBefore: 2000,
     timestamp: "10:49",
-    text: "/verify 0x82db0e4ab5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41f",
+    text: "/verify 2FaU1EagECiz6tByzrXgGHq1p4xuW5ggd4doPFp5HJaxLEkn7LwvNMcuEZU2bfC63ujMcr5jcWe6RWGyzyS6n4cx",
   },
   {
     id: "bot-verification",
@@ -162,9 +162,9 @@ const CONVERSATION: ChatStep[] = [
     isThinking: true,
     typeSpeed: 10,
     timestamp: "10:49",
-    text: `✅ *Cryptographic Proof Verified Successfully!*\n\nThis recommendation matches the Mantle blockchain record and is 100% untampered.\n\n🏦 *Pool*: [Clearpool USDT](https://mantlescan.xyz/address/0x2eb79bd3db97ef9ffe2ff8d9f1db75ebca1b9ffc)\n🏷️ *Risk Tier*: *STABLE*\n📈 *APY*: *17.50%*\n🧠 *AI Model*: *gpt-oss-120b*\n\n🔗 *Computed Hash*:\n\`d5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41fd5e26b1fb\`\n🔗 *Input Data Hash*:\n\`d5c81de7df8c81e3a79d0684f59c11867c4faee4bd1a1d94c1c9c41fd5e26b1fb\`\n\n💬 *AI Reasoning*:\nClearpool USDT offers premium yields backed by institutional borrower pools, presenting an attractive risk-adjusted rate for stablecoin allocations on Mantle.`,
+    text: `✅ *Cryptographic Proof Verified Successfully!*\n\nThis recommendation matches the Solana blockchain record and is 100% untampered.\n\n🏦 *Pool*: [Kamino USDC](https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5)\n🏷️ *Risk Tier*: *STABLE*\n📈 *APY*: *8.50%*\n🧠 *AI Model*: *gpt-oss-120b*\n\n🔗 *Computed Hash*:\n\`ebf127cc1bf756eb12ece5cea84ef61b7786e3a79f2e30afdc239e6690e95572\`\n🔗 *Input Data Hash*:\n\`ebf127cc1bf756eb12ece5cea84ef61b7786e3a79f2e30afdc239e6690e95572\`\n\n💬 *AI Reasoning*:\nKamino USDC offers the deepest stable-yield vault on Solana with institutional-grade liquidity and consistent high utilisation — ideal risk-adjusted stablecoin allocation.`,
     rows: [
-      { buttons: [{ label: "🌐 Verify on Web" }, { label: "🔍 View on Mantlescan" }] },
+      { buttons: [{ label: "🌐 Verify on Web" }, { label: "🔍 View on Solscan" }] },
     ],
   },
 ]
@@ -889,7 +889,7 @@ export function AgentSection() {
                 {
                   icon: "📊",
                   title: "Live Yield Intelligence",
-                  desc: "Real-time APY data from every major Mantle protocol — scored, ranked, and risk-tiered automatically.",
+                  desc: "Real-time APY data from every major Solana protocol — scored, ranked, and risk-tiered automatically.",
                 },
                 {
                   icon: "📈",
@@ -904,7 +904,7 @@ export function AgentSection() {
                 {
                   icon: "🔍",
                   title: "On-Chain Proof Verification",
-                  desc: "Each recommendation is fingerprinted via SHA-256 and committed to the Mantle blockchain, allowing instant verification of data integrity.",
+                  desc: "Each recommendation is fingerprinted via SHA-256 and committed to the Solana blockchain via SPL Memo, allowing instant verification of data integrity.",
                 },  
                 {
                   icon: "💬",

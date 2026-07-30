@@ -12,21 +12,21 @@ const cormorant = Cormorant_Garamond({
 })
 
 export const metadata: Metadata = {
-  title: "YieldSage | AI-Powered DeFi Yield Intelligence on Mantle",
+  title: "YieldSage | AI-Powered DeFi Yield Intelligence on Solana",
   description:
-    "Maximize your yield optimization with autonomous allocations, real-time risk-adjusted models, and secure on-chain intelligence. Built natively on Mantle Network.",
+    "Maximize your yield optimization with autonomous allocations, real-time risk-adjusted models, and secure on-chain intelligence. Built natively on Solana.",
   icons: { icon: "/logo.jpg" },
   openGraph: {
-    title: "YieldSage | AI-Powered DeFi Yield Intelligence on Mantle",
+    title: "YieldSage | AI-Powered DeFi Yield Intelligence on Solana",
     description:
-      "Autonomous yield optimization. Real-time on-chain intelligence. Built for Mantle.",
+      "Autonomous yield optimization. Real-time on-chain intelligence. Built for Solana.",
     images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "YieldSage" }],
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "YieldSage | AI-Powered DeFi Yield Intelligence on Mantle",
-    description: "Autonomous yield optimization. Real-time on-chain intelligence. Built for Mantle.",
+    title: "YieldSage | AI-Powered DeFi Yield Intelligence on Solana",
+    description: "Autonomous yield optimization. Real-time on-chain intelligence. Built for Solana.",
     images: ["/og-image.png"],
   },
 }

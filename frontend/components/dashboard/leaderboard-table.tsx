@@ -245,10 +245,10 @@ export function LeaderboardTable() {
           <div className="space-y-1">
             <CardTitle className="text-xl font-light text-white tracking-tight flex items-center gap-2">
               <Coins className="h-5 w-5 text-[#00ff88]" />
-              Mantle Yield Opportunities
+              Solana Yield Opportunities
             </CardTitle>
             <p className="text-xs text-white/40 font-mono">
-              Real-time yield snapshots aggregated across the Mantle network.
+              Real-time yield snapshots aggregated across the Solana ecosystem.
             </p>
           </div>
 
@@ -458,10 +458,11 @@ export function LeaderboardTable() {
                   const isRowWatched = isWatched(row.protocol_id);
 
                   // Extract pool address for explorer links
-                  const poolAddr = protocol.pool_address || row.pool_address;
+                  const poolAddr = protocol.program_address || protocol.pool_address || row.pool_address;
                   const explorerLink = poolAddr 
-                    ? (poolAddr.startsWith("http") ? poolAddr : `https://mantlescan.xyz/address/${poolAddr}`)
+                    ? (poolAddr.startsWith("http") ? poolAddr : `https://solscan.io/account/${poolAddr}`)
                     : null;
+
 
                   return (
                     <tr key={`${row.protocol_id}-${i}`} className="hover:bg-white/[0.03] transition-all duration-200 group">

@@ -195,7 +195,7 @@ export function OnChainProofSection() {
             style={{ color: "rgba(255,255,255,0.35)" }}
           >
             Before writing to the database, YieldSage fingerprints every recommendation
-            with SHA-256 and commits the hash to Mantle. Anyone — anytime — can verify the
+            with SHA-256 and commits the hash to Solana. Anyone — anytime — can verify the
             AI's exact output was never altered.
           </motion.p>
         </div>
@@ -212,7 +212,7 @@ export function OnChainProofSection() {
               n: "01",
               icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>,
               title: "AI Scores",
-              desc: "The AI analyses all Mantle pools and produces a ranked recommendation with full reasoning.",
+              desc: "The AI analyses all Solana pools and produces a ranked recommendation with full reasoning.",
               color: "rgba(99,179,237,",
             },
             {
@@ -226,7 +226,7 @@ export function OnChainProofSection() {
               n: "03",
               icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><polyline points="9 12 11 14 15 10"/></svg>,
               title: "Committed On-Chain",
-              desc: "The hash is embedded in a Mantle transaction. It becomes immutable, publicly auditable, forever.",
+              desc: "The hash is embedded in a Solana SPL Memo transaction. It becomes immutable, publicly auditable, forever.",
               color: "rgba(246,173,85,",
             },
           ].map(({ n, icon, title, desc, color }, i) => (
@@ -374,7 +374,7 @@ export function OnChainProofSection() {
             const scored   = rec.on_chain_logged_at || rec.created_at
             const poolAddr = rec.protocols?.pool_address || ""
             const explorerLink = poolAddr
-              ? (poolAddr.startsWith("http") ? poolAddr : `https://mantlescan.xyz/address/${poolAddr}`)
+              ? (poolAddr.startsWith("http") ? poolAddr : `https://solscan.io/account/${poolAddr}`)
               : null
             const protocolName = rec.protocols?.name || "—"
             const poolName     = rec.protocols?.pool_name || "—"
@@ -461,7 +461,7 @@ export function OnChainProofSection() {
                     </a>
                     <span style={{ color: "rgba(255,255,255,0.1)" }}>·</span>
                     <a
-                      href={`https://mantlescan.xyz/tx/${txHash}`}
+                      href={`https://solscan.io/tx/${txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-[10px] font-mono transition-colors"
@@ -535,16 +535,17 @@ export function OnChainProofSection() {
                       Verify Proof
                     </a>
                     <a
-                      href={`https://mantlescan.xyz/tx/${txHash}`}
+                      href={`https://solscan.io/tx/${txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-[10px] font-mono px-2.5 py-1 rounded-lg transition-colors"
                       style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }}
                     >
-                      ⛓ Mantlescan
+                      ⛓ Solscan
                     </a>
                   </div>
                 </div>
+
               </div>
             )
           })}

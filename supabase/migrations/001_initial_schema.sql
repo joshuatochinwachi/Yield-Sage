@@ -20,7 +20,7 @@ CREATE TABLE public.protocols (
     pool_name TEXT NOT NULL,
     pool_address TEXT,
     risk_tag TEXT NOT NULL CHECK (risk_tag IN ('stable', 'moderate', 'aggressive')),
-    chain TEXT DEFAULT 'mantle',
+    chain TEXT DEFAULT 'solana',
     source_url TEXT,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMPTZ DEFAULT now(),

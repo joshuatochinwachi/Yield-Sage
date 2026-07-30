@@ -23,8 +23,9 @@ _url = os.getenv("SUPABASE_URL", "")
 _key = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 _db: Client | None = create_client(_url, _key) if _url and _key else None
 
-# Mantle explorer base URL for on-chain proof links
-_EXPLORER_BASE = "https://mantlescan.xyz/tx/"
+# Solana explorer base URL for on-chain proof links
+_EXPLORER_BASE = "https://solscan.io/tx/"
+
 
 
 def _db_or_503():
@@ -209,8 +210,10 @@ async def verify_recommendation_by_tx(tx_hash: str):
     """
     db = _db_or_503()
     try:
-        # 1. Fetch from DB using ilike for case-insensitive lookup
-        tx_lower = tx_hash.lower()
+        # Strip URL prefix if full Solscan link was passed
+        clean_tx = tx_hash.split("/")[-1].split("?")[0].strip()
+
+        # 1. Try exact match (Solana Base58 signatures are case-sensitive)
         rec_res = (
             db.table("recommendations")
             .select(
@@ -218,13 +221,12 @@ async def verify_recommendation_by_tx(tx_hash: str):
                 "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
                 "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
             )
-            .ilike("on_chain_tx_hash", tx_lower)
+            .eq("on_chain_tx_hash", clean_tx)
             .execute()
         )
 
+        # 2. Fallback to case-insensitive substring match
         if not rec_res.data:
-            # Try without 0x prefix just in case
-            clean_hash = tx_lower.replace("0x", "")
             rec_res = (
                 db.table("recommendations")
                 .select(
@@ -232,7 +234,7 @@ async def verify_recommendation_by_tx(tx_hash: str):
                     "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
                     "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
                 )
-                .ilike("on_chain_tx_hash", f"%{clean_hash}%")
+                .ilike("on_chain_tx_hash", f"%{clean_tx.replace('0x', '')}%")
                 .execute()
             )
 
@@ -355,7 +357,7 @@ async def verify_recommendation_by_tx(tx_hash: str):
             rec["protocols"]["name"].replace(" ", "-"),
             rec["protocols"]["name"].replace("-", " "),
             rec["protocols"]["name"].lower(),
-            "fluxion-network", "fluxion", "clearpool-lending", "clearpool"
+            "kamino-finance", "kamino", "marginfi", "jito", "orca", "raydium", "drift", "marinade"
         ]))
         
         pool_names = list(set([
@@ -365,13 +367,9 @@ async def verify_recommendation_by_tx(tx_hash: str):
         ]))
         
         raw_addr = rec["protocols"]["pool_address"] or ""
-        hex_addr = "0x" + raw_addr.split("0x")[-1] if "0x" in raw_addr else raw_addr
         pool_addresses = list(set([
             raw_addr,
-            raw_addr.lower(),
-            hex_addr,
-            hex_addr.lower(),
-            hex_addr.upper(),
+            raw_addr.lower() if raw_addr else "",
             "",
         ]))
         
@@ -411,8 +409,9 @@ async def verify_recommendation_by_tx(tx_hash: str):
                                             if source:
                                                 payload["source"] = source
                                             if chain_info:
-                                                payload["chain"] = "mantle"
-                                                payload["chain_id"] = 5000
+                                                payload["chain"] = "solana"
+                                                payload["chain_id"] = 101
+
                                                 
                                             canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
                                             computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()

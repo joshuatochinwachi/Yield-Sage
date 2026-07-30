@@ -270,7 +270,7 @@ class AIService:
         paper_trades = await self.get_user_paper_trades(user_id, telegram_chat_id)
         
         # Format context tightly
-        yield_context = "Current Live Yields (Mantle Network):\n"
+        yield_context = "Current Live Yields (Solana Ecosystem):\n"
         for y in yields:
             p = y["protocol"]
             apy_val = y.get("apy")
@@ -278,7 +278,7 @@ class AIService:
             risk_tag = p.get('risk_tag') or 'unknown'
             pool_address = p.get('pool_address')
             if pool_address:
-                url = pool_address if pool_address.startswith('http') else f"https://mantlescan.xyz/address/{pool_address}"
+                url = pool_address if pool_address.startswith('http') else f"https://solscan.io/account/{pool_address}"
                 yield_context += f"- [{p['name']} ({p['pool_name']})]({url}): {apy_str} APY (Risk: {risk_tag.upper()}) | Address: {pool_address}\n"
             else:
                 yield_context += f"- {p['name']} ({p['pool_name']}): {apy_str} APY (Risk: {risk_tag.upper()})\n"
@@ -291,11 +291,11 @@ class AIService:
         else:
             trade_context += "- None active.\n"
             
-        system_prompt = f"""You are YieldSage, an premium, autonomous DeFi advisor on the Mantle network.
+        system_prompt = f"""You are YieldSage, an premium, autonomous DeFi advisor on Solana.
 Your goal is to help users find the best yields, simulate trades (paper trading), and adjust their positions based on market changes.
 Keep your answers concise, friendly, and analytical. Use formatting (bolding, lists) to make it readable.
 If the user wants to start a paper trade, instruct them to use the `/trade` command.
-Whenever you mention, recommend, list, or refer to any yield pool, you MUST wrap the pool name in its Markdown link to the Mantle Explorer using the exact address provided in the context (e.g. `[Protocol - Pool](https://mantlescan.xyz/address/THE_ADDRESS)`). Never output a bare pool name without its explorer link if the address is available in the context!
+Whenever you mention, recommend, list, or refer to any yield pool, you MUST wrap the pool name in its Markdown link to Solscan using the exact address provided in the context (e.g. `[Protocol - Pool](https://solscan.io/account/THE_ADDRESS)`). Never output a bare pool name without its explorer link if the address is available in the context!
 
 CRITICAL FORMATTING RULES FOR TELEGRAM:
 1. NO HEADERS: Do not use #, ##, or ###. Instead, bold your section titles like this: **Section Title**
@@ -496,7 +496,7 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
             tvl_str = f"${tvl_val:,.0f}" if tvl_val else "N/A"
             pool_address = p.get('pool_address')
             if pool_address:
-                url = pool_address if pool_address.startswith('http') else f"https://mantlescan.xyz/address/{pool_address}"
+                url = pool_address if pool_address.startswith('http') else f"https://solscan.io/account/{pool_address}"
                 yield_context += f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
             else:
                 yield_context += f"- {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
@@ -521,7 +521,7 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
                 apy_str = f"{current_apy:.2f}%" if current_apy is not None else "N/A"
                 pool_address = p.get("pool_address")
                 if pool_address:
-                    url = pool_address if pool_address.startswith('http') else f"https://mantlescan.xyz/address/{pool_address}"
+                    url = pool_address if pool_address.startswith('http') else f"https://solscan.io/account/{pool_address}"
                     trade_context += f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}) | Entry APY: {t['entry_apy']:.2f}% | Current APY: {apy_str} | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
                 else:
                     trade_context += f"- Protocol: {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) | Entry APY: {t['entry_apy']:.2f}% | Current APY: {apy_str} | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
@@ -535,16 +535,16 @@ User Settings:
 - Target Risk Profile: {risk_preference.upper()}
 
 The message MUST contain ALL of the following distinct sections, clearly formatted with headers and emojis:
-1. 📊 **Mantle Yield Snapshots & Recommendations**: Highlight the top-performing yield pools matching their risk tier. Provide 2-3 specific pool names with current APYs, TVLs, and verify links. Consistently append "Reason: [AI Reasoning from context]" at the end of each bullet on the same line. IMPORTANT: If a pool has an Address provided, you MUST wrap the pool name in a Markdown link to the Mantle Explorer (e.g. `[Pool Name](https://mantlescan.xyz/address/THE_ADDRESS)`).
+1. 📊 **Solana Yield Snapshots & Recommendations**: Highlight the top-performing yield pools matching their risk tier. Provide 2-3 specific pool names with current APYs, TVLs, and verify links. Consistently append "Reason: [AI Reasoning from context]" at the end of each bullet on the same line. IMPORTANT: If a pool has an Address provided, you MUST wrap the pool name in a Markdown link to Solscan (e.g. `[Pool Name](https://solscan.io/account/THE_ADDRESS)`).
 2. 💼 **Personalized Portfolio Analysis**:
    - You MUST analyze and list EVERY SINGLE trade in the User's Active Paper Trades context. Do not omit, group, or skip any of them. For EACH trade, output exactly one bullet point formatted as follows:
-     • [Protocol Name (Pool Name)](https://mantlescan.xyz/address/0xADDRESS): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Detailed personalized analysis of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
+     • [Protocol Name (Pool Name)](https://solscan.io/account/0xADDRESS): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Detailed personalized analysis of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
      For status symbols/text:
      - If underperforming by 2%+: ⚠️ Underperforming by Z.ZZ%
      - If performing normally or close (within 2%): 🟢 Steady
      - If outperforming: ✅ Outperforming
    - If the user does not have active paper trades: Explain the benefits of simulating trades to track yields, and suggest a specific pool to simulate first.
-3. 💡 **Actionable DeFi Intelligence**: Provide a short, senior-engineer level market insight specific to Mantle DeFi (e.g. stablecoin yields, LST yields, gas costs, pool TVL inflows, etc.).
+3. 💡 **Actionable DeFi Intelligence**: Provide a short, senior-engineer level market insight specific to Solana DeFi (e.g. stablecoin yields, LST yields, transaction speeds, pool TVL inflows, etc.).
 
 Strict Formatting Rules:
 1. NO RAW UNDERSCORES: Never output bare underscores (like USDT_USDC). Always format cleanly (e.g. USDT-USDC) or escape them to avoid breaking Telegram's parser.

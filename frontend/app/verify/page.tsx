@@ -274,7 +274,7 @@ function VerifyContent() {
               style={{ background: "rgba(0,255,136,0.06)", border: "1px solid rgba(0,255,136,0.15)", color: "rgba(0,255,136,0.6)" }}
             >
               <span style={{ width: 5, height: 5, borderRadius: "50%", background: "rgba(0,255,136,1)", display: "inline-block", animation: "glowPulse 1.5s ease-in-out infinite" }} />
-              Mantle · Chain 5000
+              Solana · Chain 101
             </div>
           </div>
         </nav>
@@ -314,7 +314,7 @@ function VerifyContent() {
             className="max-w-lg text-base leading-relaxed"
             style={{ color: "rgba(255,255,255,0.38)" }}
           >
-            Every AI recommendation is fingerprinted with SHA-256 and committed to the Mantle blockchain.
+            Every AI recommendation is fingerprinted with SHA-256 and committed to the Solana blockchain.
             This page mathematically proves the data has never been altered.
           </motion.p>
 
@@ -647,7 +647,7 @@ function VerifyContent() {
                     {[
                       { num: "1", text: "YieldSage serialises the AI output to canonical JSON" },
                       { num: "2", text: "SHA-256 fingerprints the exact JSON string" },
-                      { num: "3", text: "Hash is embedded in a 0-MNT Mantle transaction" },
+                      { num: "3", text: "Hash is embedded in a Solana SPL Memo transaction" },
                       { num: "4", text: "Your browser re-hashes the data and compares" },
                     ].map(({ num, text }) => (
                       <div key={num} className="flex items-start gap-3">
@@ -662,7 +662,7 @@ function VerifyContent() {
                     ))}
                   </div>
 
-                  {/* Mantlescan CTA */}
+                  {/* Solscan CTA */}
                   {status === "success" && data.data.explorer_url && (
                     <motion.a
                       initial={{ opacity: 0, y: 10 }}
@@ -685,10 +685,11 @@ function VerifyContent() {
                         (e.currentTarget as HTMLElement).style.transform = "translateY(0)";
                       }}
                     >
-                      View on Mantlescan
+                      View on Solscan
                       <IconLink />
                     </motion.a>
                   )}
+
                 </div>
               </div>
             </motion.div>

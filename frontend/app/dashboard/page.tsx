@@ -85,7 +85,7 @@ export default function DashboardPage() {
                 Yield Intelligence
               </h1>
               <p className="text-white/60 text-xs sm:text-sm font-light max-w-2xl font-mono leading-relaxed">
-                Real-time APY tracking, AI-driven recommendations, and risk-adjusted metrics for the Mantle network.
+                Real-time APY tracking, AI-driven recommendations, and risk-adjusted metrics for the Solana ecosystem.
               </p>
             </div>
             <a 

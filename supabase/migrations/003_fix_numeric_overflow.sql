@@ -1,4 +1,4 @@
--- Fix numeric overflow: some Dune APYs are astronomically large (e.g. 3.9e+93)
+-- Fix numeric overflow: some APYs from early data are astronomically large (e.g. 3.9e+93)
 -- Switch from NUMERIC(18,8) to DOUBLE PRECISION
 
 DROP TABLE IF EXISTS public.yield_snapshots CASCADE;

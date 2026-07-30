@@ -84,12 +84,9 @@ async def lifespan(app: FastAPI):
 
 # ── FastAPI app ───────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="YieldSage API",
-    description=(
-        "Real-time DeFi yield intelligence for the Mantle network. "
-        "Powers the YieldSage web dashboard and Telegram bot."
-    ),
-    version="1.0.0",
+    title="YieldSage AI Engine",
+    description="Real-time DeFi yield intelligence for the Solana network. Powered by multi-model LLM cascade + on-chain Solana SPL Memo verifiability.",
+    version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,

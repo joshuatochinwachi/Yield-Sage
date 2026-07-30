@@ -8,7 +8,7 @@ No authentication is required for read-only endpoints. All responses are JSON.
 
 ## GET /api/stats/overview
 
-Returns aggregate statistics across all tracked Mantle DeFi protocols.
+Returns aggregate statistics across all tracked Solana DeFi protocols.
 
 ### Response Fields
 
@@ -48,7 +48,7 @@ Returns the most recent snapshot for every active pool.
 
 | Field | Type | Description |
 |---|---|---|
-| `protocol_name` | string | Protocol display name (e.g. "Agni Finance") |
+| `protocol_name` | string | Protocol display name (e.g. "Kamino Finance") |
 | `pool_name` | string | Pool identifier (e.g. "USDC/USDT") |
 | `pool_address` | string | On-chain pool contract address |
 | `risk_tag` | string | `stable` / `moderate` / `aggressive` |
@@ -97,8 +97,8 @@ Returns the most recent AI-generated ranked picks per risk tier.
 | `apy_at_time` | number | APY at time recommendation was generated |
 | `ai_reasoning` | string | Plain-English AI explanation (verbatim) |
 | `ai_model` | string | LLM model that generated this recommendation |
-| `on_chain_tx_hash` | string | Mantle TX hash of the SHA-256 commitment (null if pending) |
-| `on_chain_logged_at` | ISO8601 | When the TX was confirmed on Mantle |
+| `on_chain_tx_hash` | string | Solana TX signature of the SHA-256 commitment (null if pending) |
+| `on_chain_logged_at` | ISO8601 | When the TX was confirmed on Solana |
 | `created_at` | ISO8601 | When the recommendation was generated |
 
 ---
@@ -111,7 +111,7 @@ Verifies a YieldSage recommendation against its on-chain SHA-256 commitment.
 
 | Parameter | Description |
 |---|---|
-| `tx_hash` | The Mantle transaction hash (from `on_chain_tx_hash` field) |
+| `tx_hash` | The Solana transaction signature (from `on_chain_tx_hash` field) |
 
 ### Response Fields
 
@@ -121,14 +121,14 @@ Verifies a YieldSage recommendation against its on-chain SHA-256 commitment.
 | `match` | boolean | Alias for `verified` |
 | `recommendation_hash` | string | The SHA-256 hash of the canonical recommendation payload |
 | `payload` | object | The canonical recommendation JSON that was hashed |
-| `mantle_tx` | string | Mantlescan URL: `https://mantlescan.xyz/tx/{tx_hash}` |
+| `solana_tx` | string | Solscan URL: `https://solscan.io/tx/{tx_hash}` |
 
 ### Verification Logic
 
 YieldSage computes: `SHA-256(JSON.stringify(canonical_payload))` where `canonical_payload` contains:
 `{ timestamp, protocol_id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model }`
 
-The hash is embedded as `yieldsage:<hex_hash>` in the `data` field of a 0-MNT self-transaction on Mantle.
+The hash is embedded as `yieldsage:<hex_hash>` in an SPL Memo instruction on Solana.
 
 ---
 
@@ -160,7 +160,7 @@ Returns the full registry of tracked protocols.
 | `pool_name` | string | Pool pair name |
 | `pool_address` | string | On-chain contract address |
 | `risk_tag` | string | Default risk classification |
-| `chain` | string | Always `mantle` |
+| `chain` | string | Always `solana` |
 | `image_url` | string | Protocol logo URL |
 | `app_link` | string | Protocol UI deep-link |
 | `is_active` | boolean | Whether actively tracked |

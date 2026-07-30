@@ -169,7 +169,7 @@ export function RecommendationCard() {
                   )}
                 </h3>
                 <p className="text-xs text-white/40 font-mono">
-                  Asset: <span className="text-white/70 font-semibold">{activePick.protocols?.pool_name || "Mantle Pool"}</span>
+                  Asset: <span className="text-white/70 font-semibold">{activePick.protocols?.pool_name || "Solana Pool"}</span>
                 </p>
               </div>
               
@@ -196,33 +196,39 @@ export function RecommendationCard() {
             {/* Actions: Invest and On-chain Verification Links */}
             <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-white/5">
               <div>
-                {activePick.on_chain_tx_hash ? (
-                  <div className="flex flex-wrap items-center gap-3">
-                    <a 
-                      href={`https://mantlescan.xyz/tx/${activePick.on_chain_tx_hash}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 text-xs font-mono text-[#4ADE80] hover:underline underline-offset-2 transition-opacity hover:opacity-80"
-                    >
-                      <span>⛓</span>
-                      <span>Verify on Mantle</span>
-                      <span className="text-[#52504D]">{activePick.on_chain_tx_hash.slice(0, 8)}...{activePick.on_chain_tx_hash.slice(-6)}</span>
-                    </a>
-                    <span className="text-[#52504D] text-xs">·</span>
-                    <a
-                      href={`/verify?tx=${activePick.on_chain_tx_hash}`}
-                      className="inline-flex items-center gap-1 text-xs font-mono text-emerald-400/60 hover:text-emerald-400 transition-colors"
-                    >
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                        <polyline points="9 12 11 14 15 10"/>
-                      </svg>
-                      Verify Proof
-                    </a>
-                  </div>
+                {activePick.on_chain_tx_signature || activePick.on_chain_tx_hash ? (
+                  (() => {
+                    const txSig = activePick.on_chain_tx_signature || activePick.on_chain_tx_hash;
+                    return (
+                      <div className="flex flex-wrap items-center gap-3">
+                        <a 
+                          href={`https://solscan.io/tx/${txSig}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-xs font-mono text-[#14F195] hover:underline underline-offset-2 transition-opacity hover:opacity-80"
+                        >
+                          <span>⛓</span>
+                          <span>Verify on Solana</span>
+                          <span className="text-[#52504D]">{txSig.slice(0, 8)}...{txSig.slice(-6)}</span>
+                        </a>
+                        <span className="text-[#52504D] text-xs">·</span>
+                        <a
+                          href={`/verify?tx=${txSig}`}
+                          className="inline-flex items-center gap-1 text-xs font-mono text-emerald-400/60 hover:text-emerald-400 transition-colors"
+                        >
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                            <polyline points="9 12 11 14 15 10"/>
+                          </svg>
+                          Verify Proof
+                        </a>
+                      </div>
+                    );
+                  })()
                 ) : (
                   <span className="text-xs text-[#52504D] font-mono">Logging pending...</span>
                 )}
+
               </div>
               
               <div className="flex gap-2">

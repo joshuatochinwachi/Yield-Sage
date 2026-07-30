@@ -106,7 +106,7 @@ export function ProtocolCharts({ data, isLoading }: ProtocolChartsProps) {
               TVL Breakdown by Protocol
             </CardTitle>
             <CardDescription className="text-white/40 text-xs font-mono">
-              Distribution of locked capital across top Mantle yield platforms
+              Distribution of locked capital across top Solana yield platforms
             </CardDescription>
           </div>
         </CardHeader>
@@ -189,7 +189,7 @@ export function ProtocolCharts({ data, isLoading }: ProtocolChartsProps) {
           <div className="flex items-start gap-2 p-3 bg-white/[0.02] border border-white/5 rounded-xl">
             <AlertCircle className="h-4 w-4 text-white/30 shrink-0 mt-0.5" />
             <p className="text-[10px] text-white/40 leading-relaxed font-mono">
-              *Disclaimer: YieldSage tracks active yields across Mantle DeFi pools. Some inactive or non-yield-bearing pools are filtered out.
+              *Disclaimer: YieldSage tracks active yields across Solana DeFi pools. Some inactive or non-yield-bearing pools are filtered out.
             </p>
           </div>
         </CardContent>

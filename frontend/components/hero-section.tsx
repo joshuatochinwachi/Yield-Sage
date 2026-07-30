@@ -85,7 +85,7 @@ export function HeroSection() {
             }}
           />
           <span className="text-[10px] tracking-[0.3em] text-white/40 uppercase font-mono">
-            Live on Mantle Network
+            Live on Solana Network
           </span>
         </motion.div>
 
@@ -99,7 +99,7 @@ export function HeroSection() {
         >
           The Yield Intelligence
           <br />
-          <span style={{ color: "rgba(255,255,255,0.4)" }}>Layer for Mantle.</span>
+          <span style={{ color: "rgba(255,255,255,0.4)" }}>Layer for Solana.</span>
         </motion.h1>
 
         {/* Sub copy */}
