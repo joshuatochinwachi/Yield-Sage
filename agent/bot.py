@@ -214,13 +214,6 @@ async def verify_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         # Fetch from DB. We check for exact match, case-insensitive match, and prefixes.
         # Use execute() instead of single() to avoid PGRST116 exceptions.
-        rec_res = (
-            supabase.table("recommendations")
-            .select(
-                "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
-                "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
-                "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
-            )
         # Fetch from DB: try exact match first (Solana Base58 is case-sensitive), then ilike match
         rec_res = (
             supabase.table("recommendations")
