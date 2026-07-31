@@ -122,6 +122,49 @@ def clean_pool_url(pool_address) -> str | None:
     return f"https://solscan.io/account/{s}"
 
 
+def enforce_authentic_pool_links(text: str, allowed_pool_url_map: dict) -> str:
+    """
+    Guarantees zero hallucinated, made-up, or mis-mapped pool links.
+    If a pool in live data has no pool_address, any link created for it is stripped to plain text.
+    If a pool has an authentic address, its link is preserved only if the URL matches its exact database record.
+    """
+    if not text:
+        return text
+
+    SYSTEM_PATTERNS = ["yieldsageai.xyz/verify", "yield.hollowscan.com/verify", "yieldsageai.xyz/dashboard", "yield.hollowscan.com/dashboard", "t.me/YieldSageBot"]
+
+    def _validate_link(match):
+        label = match.group(1).strip()
+        url = match.group(2).strip()
+
+        # Always allow system links
+        if any(sys_pat in url for sys_pat in SYSTEM_PATTERNS):
+            return f"[{label}]({url})"
+
+        label_clean = re.sub(r'^[•\-\*\s]+', '', label).strip().lower()
+
+        # Check direct or partial match against allowed pool url map
+        matched_url = None
+        for pool_key, valid_url in allowed_pool_url_map.items():
+            if valid_url and (pool_key in label_clean or label_clean in pool_key):
+                matched_url = valid_url
+                break
+
+        if matched_url and url.lower() == matched_url.lower():
+            return f"[{label}]({url})"
+
+        # Also allow if the exact URL is registered for any pool in allowed_pool_url_map
+        all_valid_urls = {v.lower() for v in allowed_pool_url_map.values() if v}
+        if url.lower() in all_valid_urls:
+            return f"[{label}]({url})"
+
+        # REJECT AND STRIP TO PLAIN TEXT
+        logger.warning(f"[URL Guard] Stripped unverified/hallucinated link for '{label}': {url}")
+        return label
+
+    return re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', _validate_link, text)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # clean_telegram_markdown
 # Exported symbol — bot.py imports this directly. Keep the function name stable.
@@ -580,6 +623,7 @@ class AIService:
         )
 
         # 3. Build yield context — TVL included to prevent hallucination
+        allowed_pool_url_map = {}
         yield_context = "Current Live Yields (Solana Network):\n"
         for y in yields:
             p         = y["protocol"]
@@ -590,6 +634,10 @@ class AIService:
             risk_tag  = p.get("risk_tag") or "unknown"
             url       = clean_pool_url(p.get("pool_address"))
             if url:
+                name_key = f"{p.get('name', '')} {p.get('pool_name', '')}".strip().lower()
+                allowed_pool_url_map[name_key] = url
+                if p.get('name'):
+                    allowed_pool_url_map[p.get('name').lower()] = url
                 yield_context += (
                     f"- [{p['name']} ({p['pool_name']})]({url}): "
                     f"APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
@@ -607,6 +655,10 @@ class AIService:
                 p = t["protocols"]
                 url = clean_pool_url(p.get("pool_address"))
                 if url:
+                    name_key = f"{p.get('name', '')} {p.get('pool_name', '')}".strip().lower()
+                    allowed_pool_url_map[name_key] = url
+                    if p.get('name'):
+                        allowed_pool_url_map[p.get('name').lower()] = url
                     trade_context += (
                         f"- [{p['name']} ({p['pool_name']})]({url}): "
                         f"${t['simulated_investment_usd']:,.2f} invested at {t['entry_apy']}% APY\n"
@@ -834,8 +886,11 @@ LIVE DATA — USE ONLY THESE VALUES
                 if not bot_reply:
                     bot_reply = "⚠️ I didn't quite catch that — could you rephrase or try again?"
 
+            # Strip any hallucinated or null-address pool links before returning.
+            # allowed_pool_url_map was built earlier in this function from live DB data.
             # Do NOT call clean_telegram_markdown here — bot.py does exactly one clean pass
             # per chunk after splitting, preventing double-escaping of underscores in links.
+            bot_reply = enforce_authentic_pool_links(bot_reply, allowed_pool_url_map)
             await self.push_to_memory("assistant", bot_reply, user_id, telegram_chat_id)
             _response_cache["conversational"] = bot_reply
             return bot_reply
@@ -982,6 +1037,9 @@ REQUIRED JSON SCHEMA
         if not _PROVIDERS:
             return "⚠️ YieldSage background services are temporarily offline. Please check back later."
 
+        # Build the authoritative URL map for this user's hourly update.
+        # Only real pool_address values (cleaned) end up here.
+        allowed_pool_url_map: dict = {}
         yield_context = ""
         for y in yields:
             p         = y.get("protocol", {})
@@ -991,7 +1049,11 @@ REQUIRED JSON SCHEMA
             tvl_str   = f"${tvl_val:,.0f}" if tvl_val else "N/A"
             risk_tag  = p.get("risk_tag") or "unknown"
             url       = clean_pool_url(p.get("pool_address"))
+            name_key  = f"{p.get('name', '')} {p.get('pool_name', '')}".strip().lower()
             if url:
+                allowed_pool_url_map[name_key] = url
+                if p.get("name"):
+                    allowed_pool_url_map[p.get("name").lower()] = url
                 yield_context += (
                     f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}): "
                     f"APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
@@ -1037,9 +1099,14 @@ REQUIRED JSON SCHEMA
                         apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
                         tvl_str = f"${tvl_val:,.0f}" if tvl_val else "N/A"
                         url = clean_pool_url(p.get("pool_address"))
+                        rec_name_key = f"{p.get('name', '')} {p.get('pool_name', '')}".strip().lower()
+                        if url:
+                            allowed_pool_url_map[rec_name_key] = url
+                            if p.get("name"):
+                                allowed_pool_url_map[p.get("name").lower()] = url
                         tx_hash = r.get("on_chain_tx_hash")
                         tx_str = f" | [Verify and take action](https://yieldsageai.xyz/verify?tx={tx_hash})" if tx_hash else ""
-                        
+
                         if url:
                             recs_context += (
                                 f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}): "
@@ -1073,7 +1140,11 @@ REQUIRED JSON SCHEMA
                 
                 apy_str = f"{current_apy:.2f}%" if current_apy is not None else "N/A"
                 url = clean_pool_url(p.get("pool_address"))
+                trade_name_key = f"{p.get('name', '')} {p.get('pool_name', '')}".strip().lower()
                 if url:
+                    allowed_pool_url_map[trade_name_key] = url
+                    if p.get("name"):
+                        allowed_pool_url_map[p.get("name").lower()] = url
                     trade_context += (
                         f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}) | "
                         f"Entry APY: {t['entry_apy']:.2f}% | "
@@ -1109,10 +1180,12 @@ FORBIDDEN → ---, ***, ===
 REQUIRED → Blank line between sections
 
 LAW 4 ── ALL POOL NAMES WITH ADDRESSES MUST BE HYPERLINKS.
-Every single pool name that has an address in the context MUST be a Markdown link.
-FORMAT → [Protocol Name](https://solscan.io/account/0xADDRESS)
-WRONG → Kamino USDC pool offers 8.5% APY
-RIGHT → [Kamino USDC](https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5) offers 8.5% APY
+Every single pool name that has an EXACT address in the context MUST be a Markdown link.
+Copy the link EXACTLY as it appears in the context — never construct or guess an address.
+FORMAT → [Protocol Name](exact_url_from_context)
+WRONG → Kamino USDC pool offers 8.5% APY  ← when context has a link for it
+RIGHT → [Kamino USDC](https://solscan.io/account/ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5) offers 8.5% APY  ← copy exactly from context
+If a pool appears in the context WITHOUT a link, write its name as plain text — never invent a URL.
 
 LAW 5 ── NO RAW UNDERSCORES IN TOKEN NAMES.
 WRONG → USDT_USDC, WMNT_mETH
@@ -1158,7 +1231,8 @@ MANDATORY OUTPUT STRUCTURE — FOLLOW EXACTLY
 
 💼 **Personalized Portfolio Analysis**
 [You MUST analyze and list EVERY SINGLE trade in the User's Active Paper Trades context. Do not omit, group, or skip any of them. For EACH trade, output exactly one bullet point formatted as follows:
-• [Protocol Name (Pool Name)](https://solscan.io/account/THE_ADDRESS): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Detailed personalized analysis of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
+• [Protocol Name (Pool Name)](exact_url_from_context_if_available): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Detailed personalized analysis of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
+  CRITICAL: Only use the URL that appears in the context data. If no URL is in the context for this pool, write the name as plain text — no link.
 
 For status symbols/text:
 - If underperforming by 2%+: ⚠️ Underperforming by Z.ZZ%
@@ -1241,6 +1315,11 @@ Fix any failure before responding.
             # broadcast_alerts_job splits on <<<PART_BREAK>>> first, then cleans each
             # chunk individually to prevent double-escaping of underscores in links.
             result = (response.choices[0].message.content or "").strip()
+
+            # ── Strip any hallucinated or unmapped pool links from LLM output ──
+            # allowed_pool_url_map was built above from live DB data (yields + recs + trades).
+            # Any link whose URL is not in that map is silently converted to plain text.
+            result = enforce_authentic_pool_links(result, allowed_pool_url_map)
 
             # ── Append UTC timestamp and CTA (will land on the last split chunk) ──
             utc_now = datetime.utcnow()

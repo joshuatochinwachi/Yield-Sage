@@ -38,6 +38,38 @@ def clean_pool_url(pool_address) -> str | None:
         return s
     return f"https://solscan.io/account/{s}"
 
+
+def enforce_authentic_pool_links(text: str, allowed_pool_url_map: dict) -> str:
+    """
+    Post-processing guard: strips any Markdown link whose URL is not in the
+    authenticated allowed_pool_url_map built from live DB data.
+    System links (yieldsageai.xyz, t.me) are always preserved.
+    """
+    if not text:
+        return text
+    SYSTEM_PATTERNS = ["yieldsageai.xyz/verify", "yield.hollowscan.com/verify", "yieldsageai.xyz/dashboard", "yield.hollowscan.com/dashboard", "t.me/YieldSageBot"]
+
+    def _validate_link(match):
+        label = match.group(1).strip()
+        url = match.group(2).strip()
+        if any(sys_pat in url for sys_pat in SYSTEM_PATTERNS):
+            return f"[{label}]({url})"
+        label_clean = re.sub(r'^[•\-\*\s]+', '', label).strip().lower()
+        matched_url = None
+        for pool_key, valid_url in allowed_pool_url_map.items():
+            if valid_url and (pool_key in label_clean or label_clean in pool_key):
+                matched_url = valid_url
+                break
+        if matched_url and url.lower() == matched_url.lower():
+            return f"[{label}]({url})"
+        all_valid_urls = {v.lower() for v in allowed_pool_url_map.values() if v}
+        if url.lower() in all_valid_urls:
+            return f"[{label}]({url})"
+        logger.warning(f"[URL Guard] Stripped unverified link for '{label}': {url}")
+        return label
+
+    return re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', _validate_link, text)
+
 def clean_telegram_markdown(text: str) -> str:
     if not text:
         return ""
@@ -320,6 +352,7 @@ class AIService:
         paper_trades = await self.get_user_paper_trades(user_id, telegram_chat_id)
         
         # Format context tightly
+        allowed_pool_url_map = {}
         yield_context = "Current Live Yields (Solana Ecosystem):\n"
         for y in yields:
             p = y["protocol"]
@@ -328,23 +361,33 @@ class AIService:
             risk_tag = p.get('risk_tag') or 'unknown'
             url = clean_pool_url(p.get('pool_address'))
             if url:
+                name_key = f"{p.get('name', '')} {p.get('pool_name', '')}".strip().lower()
+                allowed_pool_url_map[name_key] = url
+                if p.get('name'):
+                    allowed_pool_url_map[p.get('name').lower()] = url
                 yield_context += f"- [{p['name']} ({p['pool_name']})]({url}): {apy_str} APY (Risk: {risk_tag.upper()})\n"
             else:
                 yield_context += f"- {p['name']} ({p['pool_name']}): {apy_str} APY (Risk: {risk_tag.upper()})\n"
-            
+
         trade_context = "User's Active Paper Trades:\n"
         if paper_trades:
             for t in paper_trades:
                 p = t["protocols"]
+                t_url = clean_pool_url(p.get('pool_address'))
+                if t_url:
+                    t_name_key = f"{p.get('name', '')} {p.get('pool_name', '')}".strip().lower()
+                    allowed_pool_url_map[t_name_key] = t_url
+                    if p.get('name'):
+                        allowed_pool_url_map[p.get('name').lower()] = t_url
                 trade_context += f"- ${t['simulated_investment_usd']} in {p['name']} ({p['pool_name']}) at {t['entry_apy']}% APY.\n"
         else:
             trade_context += "- None active.\n"
             
-        system_prompt = f"""You are YieldSage, an premium, autonomous DeFi advisor on Solana.
+        system_prompt = f"""You are YieldSage, a premium, autonomous DeFi advisor on Solana.
 Your goal is to help users find the best yields, simulate trades (paper trading), and adjust their positions based on market changes.
 Keep your answers concise, friendly, and analytical. Use formatting (bolding, lists) to make it readable.
 If the user wants to start a paper trade, instruct them to use the `/trade` command.
-Whenever you mention, recommend, list, or refer to any yield pool, you MUST wrap the pool name in its Markdown link to Solscan using the exact address provided in the context (e.g. `[Protocol - Pool](https://solscan.io/account/THE_ADDRESS)`). Never output a bare pool name without its explorer link if the address is available in the context!
+Whenever you mention, recommend, list, or refer to any yield pool that has an EXACT address link in the context below, you MUST copy that link exactly to format the pool name as a Markdown link (e.g. `[Protocol - Pool](exact_url_from_context)`). If no address/link is in the context for a pool, write its name as plain text — never invent or construct a URL.
 
 CRITICAL FORMATTING RULES FOR TELEGRAM:
 1. NO HEADERS: Do not use #, ##, or ###. Instead, bold your section titles like this: **Section Title**
@@ -459,12 +502,14 @@ CONTEXT INJECTION:
                 bot_reply = final_response.content[0].text
             else:
                 bot_reply = response.content[0].text
-                
+
+            # Strip hallucinated or unregistered links before markdown cleaning
+            bot_reply = enforce_authentic_pool_links(bot_reply, allowed_pool_url_map)
             bot_reply = clean_telegram_markdown(bot_reply)
-            
+
             # 3. Save assistant message
             await self.push_to_memory("assistant", bot_reply, user_id, telegram_chat_id)
-            
+
             return bot_reply
             
         except Exception as e:
@@ -489,7 +534,7 @@ CONTEXT INJECTION:
             trade_context += f"Trade ID: {t['id']} | User ID: {t['user_id']} | Protocol: {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) | Entry APY: {t['entry_apy']}% | Current Investment: ${t['simulated_investment_usd']}\n"
             
         system_prompt = """You are YieldSage's backend scoring engine.
-Analyze the provided paper trades against the latest yield data. 
+Analyze the provided paper trades against the latest yield data.
 Generate a brief hourly status update for each trade.
 If a trade is underperforming by more than 2% APY compared to a better opportunity in the SAME risk tier, highlight it as an ALERT and recommend the better pool.
 If the trade is performing well, just provide a reassuring status update (e.g., 'Your trade on X is currently earning Y%.').
@@ -499,7 +544,7 @@ Return ONLY a strict JSON array of messages (no markdown formatting, no preamble
   {
     "user_id": "uuid",
     "trade_id": "uuid",
-    "alert_message": "Hourly Update: Your paper trade on Agni is earning 8% APY. Consider moving to Merchant Moe for 12.5% APY."
+    "alert_message": "Hourly Update: Your paper trade on Kamino is earning 5% APY. Looks solid — no better alternative at this risk tier right now."
   }
 ]
 You MUST generate an update for EVERY active trade. Do not return an empty array if trades exist.
@@ -534,7 +579,8 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
         if not anthropic:
             return "⚠️ YieldSage background services are temporarily offline. Please check back later."
 
-        # Compile latest yields context
+        # Build authoritative URL map for post-processing
+        allowed_pool_url_map: dict = {}
         yield_context = ""
         for y in yields:
             p = y.get("protocol", {})
@@ -545,6 +591,10 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
             tvl_str = f"${tvl_val:,.0f}" if tvl_val else "N/A"
             url = clean_pool_url(p.get('pool_address'))
             if url:
+                name_key = f"{p.get('name', '')} {p.get('pool_name', '')}".strip().lower()
+                allowed_pool_url_map[name_key] = url
+                if p.get('name'):
+                    allowed_pool_url_map[p.get('name').lower()] = url
                 yield_context += f"- [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
             else:
                 yield_context += f"- {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}): APY: {apy_str} | TVL: {tvl_str} | Risk: {risk_tag.upper()}\n"
@@ -569,6 +619,10 @@ Do not use underscores (_) in pool names to prevent Telegram formatting errors.
                 apy_str = f"{current_apy:.2f}%" if current_apy is not None else "N/A"
                 url = clean_pool_url(p.get("pool_address"))
                 if url:
+                    t_name_key = f"{p.get('name', '')} {p.get('pool_name', '')}".strip().lower()
+                    allowed_pool_url_map[t_name_key] = url
+                    if p.get('name'):
+                        allowed_pool_url_map[p.get('name').lower()] = url
                     trade_context += f"- Protocol: [{p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')})]({url}) | Entry APY: {t['entry_apy']:.2f}% | Current APY: {apy_str} | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
                 else:
                     trade_context += f"- Protocol: {p.get('name', 'Unknown')} ({p.get('pool_name', 'Unknown')}) | Entry APY: {t['entry_apy']:.2f}% | Current APY: {apy_str} | Current Investment: ${t['simulated_investment_usd']:.2f}\n"
@@ -582,10 +636,11 @@ User Settings:
 - Target Risk Profile: {risk_preference.upper()}
 
 The message MUST contain ALL of the following distinct sections, clearly formatted with headers and emojis:
-1. 📊 **Solana Yield Snapshots & Recommendations**: Highlight the top-performing yield pools matching their risk tier. Provide 2-3 specific pool names with current APYs, TVLs, and verify links. Consistently append "Reason: [AI Reasoning from context]" at the end of each bullet on the same line. IMPORTANT: If a pool has an Address provided, you MUST wrap the pool name in a Markdown link to Solscan (e.g. `[Pool Name](https://solscan.io/account/THE_ADDRESS)`).
+1. 📊 **Solana Yield Snapshots & Recommendations**: Highlight the top-performing yield pools matching their risk tier. Provide 2-3 specific pool names with current APYs, TVLs, and verify links. Consistently append "Reason: [AI Reasoning from context]" at the end of each bullet on the same line. IMPORTANT: Only use URLs that appear EXACTLY in the context below. If a pool has an address link in the context, copy it exactly into a Markdown link. If no address is in the context, write the name as plain text — never invent or construct a URL.
 2. 💼 **Personalized Portfolio Analysis**:
    - You MUST analyze and list EVERY SINGLE trade in the User's Active Paper Trades context. Do not omit, group, or skip any of them. For EACH trade, output exactly one bullet point formatted as follows:
-     • [Protocol Name (Pool Name)](https://solscan.io/account/0xADDRESS): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Detailed personalized analysis of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
+     • [Protocol Name (Pool Name)](exact_url_from_context_if_available): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Detailed personalized analysis of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
+     CRITICAL: Only use the URL that appears in the context. If no URL is in the context for this pool, write the name as plain text — no link.
      For status symbols/text:
      - If underperforming by 2%+: ⚠️ Underperforming by Z.ZZ%
      - If performing normally or close (within 2%): 🟢 Steady
@@ -614,7 +669,10 @@ Strict Formatting Rules:
                 ],
                 temperature=0.4
             )
-            return clean_telegram_markdown(response.content[0].text.strip())
+            result = response.content[0].text.strip()
+            # Strip hallucinated or unregistered pool links before markdown cleaning
+            result = enforce_authentic_pool_links(result, allowed_pool_url_map)
+            return clean_telegram_markdown(result)
         except Exception as e:
             logger.error(f"Error generating personalized hourly update: {e}")
             return "⚠️ Sorry, I had trouble generating your hourly market update. I will try again next hour!"
