@@ -34,6 +34,8 @@ POOLS_URL = "https://yields.llama.fi/pools"
 PROTOCOLS_URL = "https://api.llama.fi/protocols"
 RAYDIUM_MINT_URL = "https://api-v3.raydium.io/pools/info/mint"
 ORCA_POOLS_URL = "https://api.orca.so/v2/solana/pools"
+JUPITER_LEND_TOKENS_URL = "https://api.solana.fluid.io/v1/lending/tokens"
+JUPITER_LEND_VAULTS_URL = "https://api.solana.fluid.io/v1/borrowing/vaults"
 
 # --- TEMP / DEV-ONLY ---
 OUTPUT_CSV = "solana_pools_output.csv"
@@ -178,6 +180,57 @@ def _fetch_orca_pool_index() -> dict:
     return index
 
 
+def _fetch_jupiter_lend_index() -> dict:
+    """
+    Pull Jupiter Lend's Earn tokens + borrow vaults from Fluid's API
+    (Jupiter Lend runs on Fluid's infrastructure, not its own backend)
+    and index by underlying/supply mint address -> best (highest TVL)
+    pool address.
+
+    Ambiguity note: same convention as the Raydium/Orca resolvers above -
+    a single mint can back more than one Jupiter Lend pool (e.g. the same
+    supply asset used across multiple borrow vaults), so this keeps the
+    highest-TVL match per mint rather than guaranteeing uniqueness.
+    """
+    log("Step 4/4: building Jupiter Lend pool index ...")
+    index = {}
+
+    def _consider(mint, address, tvl):
+        if not (mint and address):
+            return
+        existing = index.get(mint)
+        if existing is None or tvl > existing[1]:
+            index[mint] = (address, tvl)
+
+    try:
+        resp = _SESSION.get(JUPITER_LEND_TOKENS_URL, timeout=30)
+        resp.raise_for_status()
+        for t in resp.json():
+            asset = t.get("asset", {})
+            mint = t.get("assetAddress") or asset.get("address")
+            decimals = asset.get("decimals", 0)
+            price = float(asset.get("price") or 0)
+            tvl = (float(t.get("totalAssets") or 0) / (10 ** decimals)) * price if decimals else 0.0
+            _consider(mint, t.get("address"), tvl)
+    except requests.RequestException as e:
+        log(f"  Jupiter Lend tokens fetch failed: {e}")
+
+    try:
+        resp = _SESSION.get(JUPITER_LEND_VAULTS_URL, timeout=30)
+        resp.raise_for_status()
+        for v in resp.json():
+            supply = v.get("supplyToken", {})
+            decimals = supply.get("decimals", 0)
+            price = float(supply.get("price") or 0)
+            tvl = (float(v.get("totalSupply") or 0) / (10 ** decimals)) * price if decimals else 0.0
+            _consider(supply.get("address"), v.get("address"), tvl)
+    except requests.RequestException as e:
+        log(f"  Jupiter Lend vaults fetch failed: {e}")
+
+    log(f"Step 4/4: Jupiter Lend index built - {len(index)} mint(s) indexed.")
+    return index
+
+
 def _fetch_raydium_pool_address(mint_a: str, mint_b: str) -> str | None:
     """
     Query Raydium's mint-pair endpoint for a specific pool pair.
@@ -208,21 +261,25 @@ def _fetch_raydium_pool_address(mint_a: str, mint_b: str) -> str | None:
 
 def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
     """
-    Resolve "Pool Address" for Raydium and Orca pools only, matched by
-    underlying token mint pair. Every other project gets None - there is
-    no verified free source for them yet.
+    Resolve "Pool Address" for Raydium, Orca, and Jupiter Lend pools,
+    matched by underlying token mint(s). Every other project gets None -
+    there is no verified free source for them yet.
 
-    Ambiguity note: a mint pair can have more than one pool (different
-    fee tiers, AMM vs CLMM/Whirlpool). This takes the highest-TVL/
-    liquidity match rather than guaranteeing a unique correct one.
+    Ambiguity note: a mint pair (Raydium/Orca) or a single supply mint
+    (Jupiter Lend) can back more than one pool (different fee tiers, AMM
+    vs CLMM/Whirlpool, or multiple borrow vaults on the same supply
+    asset). This takes the highest-TVL/liquidity match rather than
+    guaranteeing a unique correct one.
     """
-    log("Step 4/4: resolving Pool Address for Raydium/Orca pools ...")
+    log("Step 4/4: resolving Pool Address for Raydium/Orca/Jupiter Lend pools ...")
     results = []
     orca_index = None  # lazy-built only if an Orca pool is actually present
+    jupiter_index = None  # lazy-built only if a Jupiter Lend pool is actually present
     raydium_calls = 0
     raydium_hits = 0
     raydium_failures = 0
     orca_hits = 0
+    jupiter_hits = 0
 
     raydium_total = int(pools_df["Project"].str.lower().str.contains("raydium").sum())
     log(f"Step 4/4: {raydium_total} Raydium pool(s) to check individually (this is the slow part) ...")
@@ -234,8 +291,8 @@ def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
         mints = [t.strip() for t in underlying.split(",") if t.strip()]
 
         address = None
-        if len(mints) == 2:
-            if "raydium" in project:
+        if len(mints) in (1, 2):
+            if "raydium" in project and len(mints) == 2:
                 raydium_calls += 1
                 try:
                     address = _fetch_raydium_pool_address(mints[0], mints[1])
@@ -247,7 +304,7 @@ def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
                     address = None
                 if raydium_calls % 25 == 0 or raydium_calls == raydium_total:
                     log(f"  Raydium progress: {raydium_calls}/{raydium_total} checked, {raydium_hits} matched so far")
-            elif "orca" in project:
+            elif "orca" in project and len(mints) == 2:
                 if orca_index is None:
                     try:
                         orca_index = _fetch_orca_pool_index()
@@ -258,12 +315,24 @@ def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
                 address = match[0] if match else None
                 if address:
                     orca_hits += 1
+            elif "jupiter-lend" in project and len(mints) == 1:
+                if jupiter_index is None:
+                    try:
+                        jupiter_index = _fetch_jupiter_lend_index()
+                    except requests.RequestException as e:
+                        log(f"  Jupiter Lend index build failed: {e}")
+                        jupiter_index = {}
+                match = jupiter_index.get(mints[0])
+                address = match[0] if match else None
+                if address:
+                    jupiter_hits += 1
 
         results.append({"Pool ID": pool_id, "Pool Address": address})
 
     log(
         f"Step 4/4: done - Raydium {raydium_hits}/{raydium_calls} matched "
-        f"({raydium_failures} request failures), Orca {orca_hits} matched."
+        f"({raydium_failures} request failures), Orca {orca_hits} matched, "
+        f"Jupiter Lend {jupiter_hits} matched."
     )
     return pd.DataFrame(results)
 
