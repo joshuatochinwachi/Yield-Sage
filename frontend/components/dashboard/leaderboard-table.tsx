@@ -236,6 +236,7 @@ export function LeaderboardTable() {
   };
 
   return (
+    <>
     <Card className="bg-black/40 backdrop-blur-xl border-white/5 overflow-hidden shadow-2xl relative">
       {/* Dynamic top accent light */}
       <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-[#00ff88]/20 to-transparent" />
@@ -581,7 +582,7 @@ export function LeaderboardTable() {
                           )}
                           <button
                             onClick={() => {
-                              setSimPoolAddr(poolAddr || "");
+                              setSimPoolAddr(_isValidAddr ? rawPoolAddr : "");
                               setSimPoolName(`${protocol.name || "Unknown"} (${row.asset || "Pool"})`);
                               setSimAmount("1000");
                               setSimModalOpen(true);
@@ -673,49 +674,54 @@ export function LeaderboardTable() {
           </p>
         </div>
       </CardContent>
-      {simModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 transition-all duration-300">
-          <div className="bg-[#0a0a0c] border border-white/10 rounded-2xl p-6 max-w-sm w-full mx-auto shadow-2xl relative z-55">
-            <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-indigo-400" />
-              Simulate Paper Trade
-            </h3>
-            <p className="text-xs text-white/60 mb-4 leading-relaxed">
-              How much USD would you like to simulate investing in <span className="text-white font-semibold">{simPoolName}</span>?
-            </p>
-            <div className="relative mb-5">
-              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-xs font-mono">$</span>
-              <input
-                type="number"
-                value={simAmount}
-                onChange={(e) => setSimAmount(e.target.value)}
-                placeholder="1000"
-                className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 rounded-xl pl-8 pr-4 py-2.5 text-sm font-mono text-white placeholder-white/20 outline-none transition-all"
-                autoFocus
-              />
-            </div>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setSimModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold rounded-lg border border-white/10 hover:bg-white/5 text-white/70 transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  setSimModalOpen(false);
-                  const cleanAddr = simPoolAddr.match(/0x[a-fA-F0-9]{40}/)?.[0] || simPoolAddr;
-                  const telegramUrl = `https://t.me/YieldSageBot?text=${encodeURIComponent(`/trade address=${cleanAddr} amount=${simAmount} token=${simPoolName}`)}`;
-                  window.open(telegramUrl, "_blank", "noopener,noreferrer");
-                }}
-                className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
-              >
-                Approve
-              </button>
-            </div>
+    </Card>
+
+    {/* Simulate modal — rendered OUTSIDE Card to escape backdrop-filter/overflow-hidden */}
+    {simModalOpen && (
+      <div
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-4"
+        onClick={(e) => { if (e.target === e.currentTarget) setSimModalOpen(false); }}
+      >
+        <div className="bg-[#0a0a0c] border border-white/10 rounded-2xl p-6 max-w-sm w-full mx-auto shadow-2xl">
+          <h3 className="text-lg font-bold text-white mb-2 flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-indigo-400" />
+            Simulate Paper Trade
+          </h3>
+          <p className="text-xs text-white/60 mb-4 leading-relaxed">
+            How much USD would you like to simulate investing in <span className="text-white font-semibold">{simPoolName}</span>?
+          </p>
+          <div className="relative mb-5">
+            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/40 text-xs font-mono">$</span>
+            <input
+              type="number"
+              value={simAmount}
+              onChange={(e) => setSimAmount(e.target.value)}
+              placeholder="1000"
+              className="w-full bg-white/5 border border-white/10 focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50 rounded-xl pl-8 pr-4 py-2.5 text-sm font-mono text-white placeholder-white/20 outline-none transition-all"
+              autoFocus
+            />
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={() => setSimModalOpen(false)}
+              className="px-4 py-2 text-xs font-semibold rounded-lg border border-white/10 hover:bg-white/5 text-white/70 transition-all cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                setSimModalOpen(false);
+                const telegramUrl = `https://t.me/YieldSageBot?text=${encodeURIComponent(`/trade address=${simPoolAddr} amount=${simAmount} token=${simPoolName}`)}`;
+                window.open(telegramUrl, "_blank", "noopener,noreferrer");
+              }}
+              className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+            >
+              Approve
+            </button>
           </div>
         </div>
-      )}
-    </Card>
+      </div>
+    )}
+  </>
   );
 }

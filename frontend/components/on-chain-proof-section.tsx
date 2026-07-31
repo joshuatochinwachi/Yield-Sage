@@ -372,9 +372,15 @@ export function OnChainProofSection() {
             const txHash   = rec.on_chain_tx_hash
             const color    = RISK_COLOR[rec.risk_tag?.toLowerCase()] || "rgba(255,255,255,0.6,"
             const scored   = rec.on_chain_logged_at || rec.created_at
-            const poolAddr = rec.protocols?.pool_address || ""
-            const explorerLink = poolAddr
-              ? (poolAddr.startsWith("http") ? poolAddr : `https://solscan.io/account/${poolAddr}`)
+            const _rawAddr = rec.protocols?.pool_address || ""
+            const _BAD_ADDR = new Set(["nan", "none", "null", "n/a", "", "undefined"])
+            const _isValidAddr = _rawAddr &&
+              !_BAD_ADDR.has(String(_rawAddr).toLowerCase().trim()) &&
+              !String(_rawAddr).toLowerCase().endsWith("/nan") &&
+              !String(_rawAddr).toLowerCase().endsWith("/none") &&
+              !String(_rawAddr).toLowerCase().endsWith("/null")
+            const explorerLink = _isValidAddr
+              ? (_rawAddr.startsWith("http") ? _rawAddr : `https://solscan.io/account/${_rawAddr}`)
               : null
             const protocolName = rec.protocols?.name || "—"
             const poolName     = rec.protocols?.pool_name || "—"
