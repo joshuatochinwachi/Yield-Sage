@@ -187,7 +187,17 @@ class SolanaFetcher:
                         if app_link_val and existing.get("app_link") != app_link_val:
                             update_payload["app_link"] = app_link_val
                             needs_update = True
-                        if pool_address and not get_address(existing):
+                        _INVALID = {"nan", "none", "null", "n/a", "", "undefined"}
+                        existing_addr = get_address(existing)
+                        existing_is_valid = (
+                            existing_addr is not None
+                            and str(existing_addr).lower().strip() not in _INVALID
+                            and not str(existing_addr).lower().endswith("/nan")
+                            and not str(existing_addr).lower().endswith("/none")
+                            and not str(existing_addr).lower().endswith("/null")
+                        )
+
+                        if pool_address and (not existing_is_valid or existing.get("pool_address") != pool_address):
                             update_payload["pool_address"] = pool_address
                             needs_update = True
 
