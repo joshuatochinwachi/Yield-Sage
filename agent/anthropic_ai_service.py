@@ -192,31 +192,28 @@ class AIService:
         self.sonnet_model = "claude-sonnet-4-6"
 
     async def get_recent_yields(self):
-        """Fetch the latest snapshot for each active protocol."""
-        if not supabase: return []
+        """Fetch the latest snapshot for each active protocol using joined query."""
+        if not supabase:
+            return []
         try:
-            # First get active protocols
-            protocols_res = supabase.table("protocols").select("id, name, pool_name, pool_address, risk_tag").eq("is_active", True).execute()
-            protocols = protocols_res.data
-            
+            snap_res = supabase.table("yield_snapshots").select(
+                "*, protocols!inner(id, name, pool_name, pool_address, risk_tag, is_active)"
+            ).eq("protocols.is_active", True).order(
+                "fetched_at", desc=True
+            ).limit(100000).execute()
+
+            seen = set()
             latest_yields = []
-            
-            # Fetch the most recent batch of snapshots (100 is enough for ~32 active protocols)
-            snap_res = supabase.table("yield_snapshots").select("*").order("fetched_at", desc=True).limit(len(protocols) * 5).execute()
-            
-            latest_snaps = {}
-            if snap_res.data:
-                for row in snap_res.data:
-                    pid = row["protocol_id"]
-                    if pid not in latest_snaps:
-                        latest_snaps[pid] = row
-            
-            for p in protocols:
-                if p["id"] in latest_snaps:
-                    yield_data = latest_snaps[p["id"]]
-                    yield_data["protocol"] = p
-                    latest_yields.append(yield_data)
-                    
+            for row in (snap_res.data or []):
+                proto = row.get("protocols") or {}
+                pid = row.get("protocol_id") or proto.get("id")
+                if pid and pid not in seen:
+                    seen.add(pid)
+                    latest_yields.append({
+                        **row,
+                        "protocol": proto,
+                    })
+
             return latest_yields
         except Exception as e:
             logger.error(f"Error fetching recent yields: {e}")

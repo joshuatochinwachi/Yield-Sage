@@ -539,11 +539,40 @@ export function LeaderboardTable() {
                         <div className="flex flex-col items-end text-[10px] text-white/50 font-mono">
                           <div>Base: <span className="text-white/75 font-semibold">{(row.base_apy ?? 0).toFixed(2)}%</span></div>
                           <div>Rewards: <span className="text-white/75 font-semibold">{(row.reward_apy ?? 0).toFixed(2)}%</span></div>
-                          {row.reward_tokens && (
-                            <span className="text-[8px] px-1 rounded bg-[#00ff88]/10 text-[#00ff88]/80 mt-0.5 border border-[#00ff88]/20 truncate max-w-[120px]" title={row.reward_tokens}>
-                              {row.reward_tokens}
-                            </span>
-                          )}
+                          {(() => {
+                            if (!row.reward_tokens) return null;
+                            const _BAD_TOKENS = new Set(["nan", "none", "null", "n/a", "", "undefined"]);
+                            const tokens = String(row.reward_tokens)
+                              .split(",")
+                              .map((t) => t.trim())
+                              .filter((t) => t && !_BAD_TOKENS.has(t.toLowerCase()));
+                            if (tokens.length === 0) return null;
+
+                            return (
+                              <div className="flex flex-wrap gap-1 justify-end mt-1 max-w-[140px]">
+                                {tokens.map((rawToken: string, idx: number) => {
+                                  const isUrl = rawToken.startsWith("http://") || rawToken.startsWith("https://");
+                                  const tokenUrl = isUrl ? rawToken : `https://solscan.io/token/${rawToken}`;
+                                  const displayLabel = rawToken.length > 12
+                                    ? `${rawToken.slice(0, 4)}...${rawToken.slice(-4)}`
+                                    : rawToken;
+                                  return (
+                                    <a
+                                      key={idx}
+                                      href={tokenUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      title={`View ${rawToken} on Solscan`}
+                                      className="text-[8px] px-1.5 py-0.5 rounded bg-[#00ff88]/10 text-[#00ff88] hover:bg-[#00ff88]/20 border border-[#00ff88]/25 transition-all inline-flex items-center gap-1 font-mono hover:underline cursor-pointer"
+                                    >
+                                      <span>{displayLabel}</span>
+                                      <ExternalLink className="w-2 h-2 opacity-70" />
+                                    </a>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </td>
 
