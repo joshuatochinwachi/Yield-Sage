@@ -99,22 +99,18 @@ class SolanaFetcher:
         def get_address(p):
             return p.get("program_address") or p.get("pool_address")
 
-        db_protocols_full = {
-            (p["name"].lower(), (get_address(p) or "").lower(), p["pool_name"].lower()): p
-            for p in resp.data
+        db_protocols_by_slug = {
+            p["slug"].lower(): p["id"]
+            for p in resp.data if p.get("slug")
         }
-        
         db_protocols_by_pair = {
             (p["name"].lower(), p["pool_name"].lower(), (p.get("pool_address") or "").lower()): p["id"]
             for p in resp.data
         }
-        # Fallback map by name + pool_name for backward compatibility
         db_protocols_fallback = {
             (p["name"].lower(), p["pool_name"].lower()): p["id"]
             for p in resp.data
         }
-        
-        db_protocols_ids = {k: v["id"] for k, v in db_protocols_full.items()}
 
         new_protocols = []
         protocols_to_update = []
@@ -127,14 +123,12 @@ class SolanaFetcher:
             protocol_name = str(row.get("Protocol") or "Unknown").strip()
             asset = str(row.get("Asset") or "Unknown").strip()
             raw_address = str(row.get("Pool Address") or "").strip()
-            # Guard: pandas NaN serializes to "nan"; reject any invalid sentinel values
             _INVALID_ADDR = {"nan", "none", "null", "n/a", "", "undefined"}
             if raw_address.lower() in _INVALID_ADDR:
                 raw_address = None
-            
+
             pool_id = str(row.get("Pool ID") or "").strip()
-            
-            # Format non-null pool addresses with solscan URL
+
             if raw_address:
                 if raw_address.startswith("http://") or raw_address.startswith("https://"):
                     pool_address = raw_address
@@ -142,12 +136,11 @@ class SolanaFetcher:
                     pool_address = f"https://solscan.io/account/{raw_address}"
             else:
                 pool_address = None
-            
+
             image_val = row.get("Image") or None
             app_link_val = row.get("App Link") or None
 
             composite_key = (protocol_name.lower(), (pool_address or "").lower(), asset.lower())
-            # Use pool_id or pool_address so multiple pools for the same asset pair are tracked separately
             unique_pool_ref = pool_id if pool_id else (raw_address or "")
             pair_key = (protocol_name.lower(), asset.lower(), unique_pool_ref.lower())
             fallback_key = (protocol_name.lower(), asset.lower())
@@ -158,7 +151,7 @@ class SolanaFetcher:
             if pair_key not in seen_pairs:
                 id_slug_part = f"-{unique_pool_ref[:8]}" if unique_pool_ref else ""
                 slug = f"{protocol_name}-{asset}{id_slug_part}".lower().replace(" ", "-").replace("/", "-")
-                
+
                 new_protocol_record = {
                     "slug": slug,
                     "name": protocol_name,
@@ -204,7 +197,6 @@ class SolanaFetcher:
                         if needs_update:
                             protocols_to_update.append(update_payload)
 
-
         # Insert new protocols
         if new_protocols:
             logger.info(f"Auto-registering {len(new_protocols)} new Solana protocols...")
@@ -216,12 +208,16 @@ class SolanaFetcher:
 
             # Re-fetch database state
             try:
-                try:
-                    resp = supabase.table("protocols").select("id, name, pool_name, pool_address, image_url, app_link").execute()
-                except Exception:
-                    resp = supabase.table("protocols").select("id, name, pool_name, pool_address, image_url, app_link").execute()
-
+                resp = supabase.table("protocols").select("id, slug, name, pool_name, pool_address, image_url, app_link").execute()
+                db_protocols_by_slug = {
+                    p["slug"].lower(): p["id"]
+                    for p in resp.data if p.get("slug")
+                }
                 db_protocols_by_pair = {
+                    (p["name"].lower(), p["pool_name"].lower(), (p.get("pool_address") or "").lower()): p["id"]
+                    for p in resp.data
+                }
+                db_protocols_fallback = {
                     (p["name"].lower(), p["pool_name"].lower()): p["id"]
                     for p in resp.data
                 }
@@ -258,10 +254,13 @@ class SolanaFetcher:
             pool_id = str(row.get("Pool ID") or "").strip()
             unique_pool_ref = pool_id if pool_id else (raw_address or "")
 
+            id_slug_part = f"-{unique_pool_ref[:8]}" if unique_pool_ref else ""
+            slug = f"{protocol_name}-{asset}{id_slug_part}".lower().replace(" ", "-").replace("/", "-")
+
             pair_key = (protocol_name.lower(), asset.lower(), unique_pool_ref.lower())
             fallback_key = (protocol_name.lower(), asset.lower())
 
-            protocol_id = db_protocols_by_pair.get(pair_key) or db_protocols_fallback.get(fallback_key)
+            protocol_id = db_protocols_by_slug.get(slug.lower()) or db_protocols_by_pair.get(pair_key) or db_protocols_fallback.get(fallback_key)
             if protocol_id:
                 try:
                     snapshots_to_insert.append({
@@ -282,6 +281,26 @@ class SolanaFetcher:
                     logger.warning(f"Parse error for snapshot {protocol_name} - {asset}: {e}")
 
         if snapshots_to_insert:
+            # 1. Update is_active status for protocols based on current live data set
+            active_pids = list({s["protocol_id"] for s in snapshots_to_insert if s.get("protocol_id")})
+            if active_pids:
+                try:
+                    # Mark active protocols
+                    batch_pids = 200
+                    for i in range(0, len(active_pids), batch_pids):
+                        chunk = active_pids[i:i + batch_pids]
+                        supabase.table("protocols").update({"is_active": True}).in_("id", chunk).execute()
+                except Exception as e:
+                    logger.warning(f"Error marking active protocols: {e}")
+
+            # 2. Clear old yield snapshots to keep DB 100% fresh and matching live data source count
+            logger.info("Clearing previous yield snapshots to maintain exact 1:1 fresh snapshot state...")
+            try:
+                supabase.table("yield_snapshots").delete().neq("id", "00000000-0000-0000-0000-000000000000").execute()
+            except Exception as e:
+                logger.warning(f"Note on clearing previous yield_snapshots: {e}")
+
+            # 3. Batch insert fresh snapshots
             batch_size = 100
             success_count = 0
             for i in range(0, len(snapshots_to_insert), batch_size):
@@ -293,7 +312,7 @@ class SolanaFetcher:
                     err_msg = f"Batch snapshot insert failed (items {i} to {i+len(batch)}): {e}"
                     logger.error(err_msg)
                     await self.log_error("fetch", err_msg)
-            logger.info(f"Successfully inserted {success_count}/{len(snapshots_to_insert)} Solana yield snapshots.")
+            logger.info(f"Successfully inserted {success_count}/{len(snapshots_to_insert)} fresh Solana yield snapshots into database.")
         else:
             logger.info("No yield snapshots to insert.")
 
