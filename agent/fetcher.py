@@ -29,6 +29,26 @@ try:
 except ImportError:
     from solana_pools_live import build_enriched_view
 
+def _fetch_all_protocols(columns: str = "id, slug, name, pool_name, pool_address, image_url, app_link") -> list:
+    """Fetches ALL protocols from Supabase using range pagination to bypass the 1,000-row PostgREST cap."""
+    all_rows = []
+    step = 1000
+    start = 0
+    while True:
+        try:
+            page = supabase.table("protocols").select(columns).range(start, start + step - 1).execute()
+        except Exception as e:
+            logger.error(f"Error fetching protocols page {start}-{start+step-1}: {e}")
+            break
+        rows = page.data or []
+        all_rows.extend(rows)
+        if len(rows) < step:
+            break
+        start += step
+    logger.info(f"Fetched {len(all_rows)} total protocols from Supabase (paginated).")
+    return all_rows
+
+
 class SolanaFetcher:
     def __init__(self, max_retries: int = 3, retry_delay: float = 5.0):
         self.max_retries = max_retries
@@ -78,20 +98,20 @@ class SolanaFetcher:
         logger.info("Parsing enriched dataframe and ingesting into Supabase...")
 
         try:
-            # 1. Fetch existing protocols from Supabase safely
-            try:
-                resp = supabase.table("protocols").select("id, name, pool_name, pool_address, image_url, app_link").execute()
-            except Exception:
-                resp = supabase.table("protocols").select("id, name, pool_name, pool_address, image_url, app_link").execute()
-
-
-
-
+            # 1. Fetch ALL existing protocols from Supabase with pagination (bypass 1,000-row cap)
+            existing_protocols = _fetch_all_protocols("id, slug, name, pool_name, pool_address, image_url, app_link")
+            if not existing_protocols and supabase:
+                # Defensive: if empty, try once more
+                existing_protocols = _fetch_all_protocols("id, slug, name, pool_name, pool_address, image_url, app_link")
         except Exception as e:
             err_msg = f"Failed to query existing protocols from Supabase: {e}"
             logger.error(err_msg)
             await self.log_error("fetch", err_msg)
             raise e
+        # Alias for compatibility with code below
+        class _Resp:
+            data = existing_protocols
+        resp = _Resp()
 
 
 
@@ -206,20 +226,20 @@ class SolanaFetcher:
                 logger.error(f"Error registering new protocols: {e}")
                 await self.log_error("fetch", f"Error inserting protocols: {e}")
 
-            # Re-fetch database state
+            # Re-fetch ALL protocols with pagination after insert (bypass 1,000-row cap)
             try:
-                resp = supabase.table("protocols").select("id, slug, name, pool_name, pool_address, image_url, app_link").execute()
+                all_protocols = _fetch_all_protocols("id, slug, name, pool_name, pool_address, image_url, app_link")
                 db_protocols_by_slug = {
                     p["slug"].lower(): p["id"]
-                    for p in resp.data if p.get("slug")
+                    for p in all_protocols if p.get("slug")
                 }
                 db_protocols_by_pair = {
                     (p["name"].lower(), p["pool_name"].lower(), (p.get("pool_address") or "").lower()): p["id"]
-                    for p in resp.data
+                    for p in all_protocols
                 }
                 db_protocols_fallback = {
                     (p["name"].lower(), p["pool_name"].lower()): p["id"]
-                    for p in resp.data
+                    for p in all_protocols
                 }
             except Exception as e:
                 logger.error(f"Error re-fetching protocols: {e}")
