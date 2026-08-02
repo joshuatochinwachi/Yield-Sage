@@ -301,15 +301,30 @@ class SolanaFetcher:
                     logger.warning(f"Parse error for snapshot {protocol_name} - {asset}: {e}")
 
         if snapshots_to_insert:
-            # 1. Update is_active status for protocols based on current live data set
             active_pids = list({s["protocol_id"] for s in snapshots_to_insert if s.get("protocol_id")})
+
+            # 1. Reset ALL protocols to inactive first, then mark only this cycle's pools as active.
+            #    This guarantees that pools which disappear from the data source are automatically hidden.
+            try:
+                logger.info("Resetting all protocols to is_active=False before marking current cycle active...")
+                # Batch reset in chunks of 1000 to stay within PostgREST limits
+                all_proto_ids_res = _fetch_all_protocols("id")
+                all_proto_ids = [p["id"] for p in all_proto_ids_res]
+                batch_size_reset = 200
+                for i in range(0, len(all_proto_ids), batch_size_reset):
+                    chunk = all_proto_ids[i:i + batch_size_reset]
+                    supabase.table("protocols").update({"is_active": False}).in_("id", chunk).execute()
+            except Exception as e:
+                logger.warning(f"Error resetting is_active flags: {e}")
+
             if active_pids:
                 try:
-                    # Mark active protocols
+                    # Mark only current cycle's protocols as active
                     batch_pids = 200
                     for i in range(0, len(active_pids), batch_pids):
                         chunk = active_pids[i:i + batch_pids]
                         supabase.table("protocols").update({"is_active": True}).in_("id", chunk).execute()
+                    logger.info(f"Marked {len(active_pids)} protocols as is_active=True for this cycle.")
                 except Exception as e:
                     logger.warning(f"Error marking active protocols: {e}")
 
