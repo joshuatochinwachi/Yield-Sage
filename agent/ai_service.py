@@ -426,19 +426,29 @@ class AIService:
     # ── DB helpers ────────────────────────────────────────────────────────────
 
     async def get_recent_yields(self):
-        """Fetch the latest snapshot for each active protocol using joined query."""
+        """Fetch the latest snapshot for each active protocol using range pagination past PostgREST 1000 limit."""
         if not supabase:
             return []
         try:
-            snap_res = supabase.table("yield_snapshots").select(
-                "*, protocols!inner(id, name, pool_name, pool_address, risk_tag, is_active)"
-            ).eq("protocols.is_active", True).order(
-                "fetched_at", desc=True
-            ).limit(100000).execute()
+            all_snapshots = []
+            step = 1000
+            start = 0
+            while True:
+                snap_res = supabase.table("yield_snapshots").select(
+                    "*, protocols!inner(id, name, pool_name, pool_address, risk_tag, is_active)"
+                ).eq("protocols.is_active", True).order(
+                    "fetched_at", desc=True
+                ).range(start, start + step - 1).execute()
+
+                batch = snap_res.data or []
+                all_snapshots.extend(batch)
+                if len(batch) < step:
+                    break
+                start += step
 
             seen = set()
             latest_yields = []
-            for row in (snap_res.data or []):
+            for row in all_snapshots:
                 proto = row.get("protocols") or {}
                 pid = row.get("protocol_id") or proto.get("id")
                 if pid and pid not in seen:

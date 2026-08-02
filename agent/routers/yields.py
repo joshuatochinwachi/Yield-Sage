@@ -31,6 +31,28 @@ def _db_or_503():
     return _db
 
 
+def _fetch_all_snapshots(db, select_fields: str):
+    """Paginate past PostgREST default 1000-row limit to retrieve all active snapshots."""
+    all_data = []
+    step = 1000
+    start = 0
+    while True:
+        res = (
+            db.table("yield_snapshots")
+            .select(select_fields)
+            .eq("protocols.is_active", True)
+            .order("fetched_at", desc=True)
+            .range(start, start + step - 1)
+            .execute()
+        )
+        batch = res.data or []
+        all_data.extend(batch)
+        if len(batch) < step:
+            break
+        start += step
+    return all_data
+
+
 # ── GET /api/yields/latest ────────────────────────────────────────────────────
 @router.get("/latest")
 async def get_latest_yields(
@@ -43,19 +65,14 @@ async def get_latest_yields(
     """
     db = _db_or_503()
     try:
-        # Query yield_snapshots directly with joined protocol info (avoids URL parameter overflow)
-        snap_res = (
-            db.table("yield_snapshots")
-            .select("*, protocols!inner(id, slug, name, pool_name, pool_address, risk_tag, chain, image_url, app_link, is_active)")
-            .eq("protocols.is_active", True)
-            .order("fetched_at", desc=True)
-            .limit(100000)
-            .execute()
+        raw_snapshots = _fetch_all_snapshots(
+            db,
+            "*, protocols!inner(id, slug, name, pool_name, pool_address, risk_tag, chain, image_url, app_link, is_active)"
         )
 
         seen = set()
         latest = []
-        for row in (snap_res.data or []):
+        for row in raw_snapshots:
             proto = row.get("protocols") or {}
             pid = row.get("protocol_id") or proto.get("id")
             
@@ -103,19 +120,14 @@ async def get_leaderboard(
     """
     db = _db_or_503()
     try:
-        # Single joined query on yield_snapshots + protocols (no URL query param bloat)
-        snap_res = (
-            db.table("yield_snapshots")
-            .select("protocol_id, apy, base_apy, reward_apy, reward_tokens, apy_1d, apy_7d, apy_30d, tvl_usd, asset, fetched_at, protocols!inner(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link, is_active)")
-            .eq("protocols.is_active", True)
-            .order("fetched_at", desc=True)
-            .limit(100000)
-            .execute()
+        raw_snapshots = _fetch_all_snapshots(
+            db,
+            "protocol_id, apy, base_apy, reward_apy, reward_tokens, apy_1d, apy_7d, apy_30d, tvl_usd, asset, fetched_at, protocols!inner(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link, is_active)"
         )
 
         seen = set()
         rows = []
-        for row in (snap_res.data or []):
+        for row in raw_snapshots:
             proto = row.get("protocols") or {}
             pid = row.get("protocol_id") or proto.get("id")
 

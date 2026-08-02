@@ -784,6 +784,7 @@ def build_enriched_view() -> pd.DataFrame:
         "APY Reward": "Reward APY",
         "TVL USD": "TVL ($)",
         "Reward Tokens": "Reward Tokens",
+        "Pool ID": "Pool ID",
         "APY % 1D": "APY (1D)",
         "APY % 7D": "APY (7D)",
         "APY % 30D": "APY (30D)",
