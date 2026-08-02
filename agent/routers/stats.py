@@ -40,9 +40,6 @@ async def get_overview_stats():
     """
     db = _db_or_503()
     try:
-        # 1. Fetch active protocols and construct a lookup mapping
-        all_protos = db.table("protocols").select("id, name").eq("is_active", True).execute().data
-        
         # 2. Total snapshots in database
         snap_count_res = db.table("yield_snapshots").select("id", count="exact").execute()
         snapshot_count = snap_count_res.count or len(snap_count_res.data or [])
@@ -55,19 +52,28 @@ async def get_overview_stats():
         protocol_count = 0
         last_fetched = None
 
-        # Fetch latest snapshots for active protocols using joined query (no URL param bloat)
-        snap_res = (
-            db.table("yield_snapshots")
-            .select("protocol_id, apy, tvl_usd, fetched_at, protocols!inner(id, name, is_active)")
-            .eq("protocols.is_active", True)
-            .order("fetched_at", desc=True)
-            .limit(5000)
-            .execute()
-        )
+        # Fetch ALL latest snapshots for active protocols using paginated range queries (bypass 1,000-row PostgREST cap)
+        all_snap_data = []
+        _step = 1000
+        _start = 0
+        while True:
+            _page = (
+                db.table("yield_snapshots")
+                .select("protocol_id, apy, tvl_usd, fetched_at, protocols!inner(id, name, is_active)")
+                .eq("protocols.is_active", True)
+                .order("fetched_at", desc=True)
+                .range(_start, _start + _step - 1)
+                .execute()
+            )
+            _batch = _page.data or []
+            all_snap_data.extend(_batch)
+            if len(_batch) < _step:
+                break
+            _start += _step
 
         seen_pids = set()
         seen_proto_names = set()
-        for row in (snap_res.data or []):
+        for row in all_snap_data:
             proto = row.get("protocols") or {}
             pid = row.get("protocol_id") or proto.get("id")
             if pid and pid not in seen_pids:
