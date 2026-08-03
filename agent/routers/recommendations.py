@@ -266,43 +266,49 @@ async def verify_recommendation_by_tx(tx_hash: str):
         scored_at_dt = datetime.fromisoformat(created_at_str)
 
         # --- TVL resolution ---
-        # For new records: tvl_usd is stored directly in recommendations table.
-        # This is the EXACT value used at hash time → deterministic, no guessing needed.
-        # For old records (before this migration): tvl_usd is NULL → fall back to snapshots.
+        # For new records: tvl_usd is stored directly in recommendations table (exact value used at hash time).
+        # For old records (before this migration): tvl_usd is NULL → fall back to snapshots & reasoning.
         stored_tvl = rec.get("tvl_usd")
         if stored_tvl is not None:
             try:
                 tvl_candidates = [float(stored_tvl)]
             except (ValueError, TypeError):
                 tvl_candidates = [0.0]
-            snap_lte_data = []
-            snap_gte_data = []
         else:
-            snap_res_lte = (
-                db.table("yield_snapshots")
-                .select("tvl_usd, apy")
-                .eq("protocol_id", rec["protocols"]["id"])
-                .lte("fetched_at", rec["created_at"])
-                .order("fetched_at", desc=True)
-                .limit(3)
-                .execute()
-            )
-            snap_res_gte = (
-                db.table("yield_snapshots")
-                .select("tvl_usd, apy")
-                .eq("protocol_id", rec["protocols"]["id"])
-                .gte("fetched_at", rec["created_at"])
-                .order("fetched_at", desc=False)
-                .limit(3)
-                .execute()
-            )
-            snap_lte_data = snap_res_lte.data or []
-            snap_gte_data = snap_res_gte.data or []
-            tvl_candidates = list(set([0.0, *[
-                float(s["tvl_usd"])
-                for s in snap_lte_data + snap_gte_data
-                if s.get("tvl_usd") is not None
-            ]])) or [0.0]
+            tvls = [0.0]
+            # 1. Query snapshots for this protocol (no timestamp restriction, in case snapshots were refreshed)
+            try:
+                snap_res = (
+                    db.table("yield_snapshots")
+                    .select("tvl_usd, apy")
+                    .eq("protocol_id", rec["protocols"]["id"])
+                    .order("fetched_at", desc=True)
+                    .limit(10)
+                    .execute()
+                )
+                for s in (snap_res.data or []):
+                    if s.get("tvl_usd") is not None:
+                        try: tvls.append(float(s["tvl_usd"]))
+                        except (ValueError, TypeError): pass
+            except Exception:
+                pass
+
+            # 2. Extract numbers/amounts from ai_reasoning text (e.g. $88M, 88.4M, $88,438,097)
+            import re
+            reasoning_text = rec.get("ai_reasoning") or ""
+            for match in re.finditer(r'\$?([0-9,]+(?:\.[0-9]+)?)\s*([kKmMbB])?', reasoning_text):
+                num_str = match.group(1).replace(",", "").strip()
+                suffix = (match.group(2) or "").upper()
+                if num_str:
+                    try:
+                        val = float(num_str)
+                        if suffix == 'K': val *= 1_000
+                        elif suffix == 'M': val *= 1_000_000
+                        elif suffix == 'B': val *= 1_000_000_000
+                        tvls.append(val)
+                    except (ValueError, TypeError): pass
+
+            tvl_candidates = list(set(tvls))
 
         target_hash = rec["recommendation_hash"]
         matched_payload = None
@@ -312,34 +318,58 @@ async def verify_recommendation_by_tx(tx_hash: str):
         raw_addr = rec["protocols"]["pool_address"] or ""
         addr_candidates = list(set([raw_addr, raw_addr.lower() if raw_addr else "", ""]))
 
+        proto_raw = rec["protocols"].get("name") or "Unknown"
+        slug_raw = rec["protocols"].get("slug") or ""
+        proto_candidates = [p for p in set([
+            proto_raw,
+            slug_raw,
+            proto_raw.replace(" ", "-"),
+            proto_raw.replace("-", " "),
+            proto_raw.lower(),
+            slug_raw.lower(),
+        ]) if p]
+
+        pool_raw = rec["protocols"].get("pool_name") or "Unknown"
+        pool_candidates = [p for p in set([
+            pool_raw,
+            pool_raw.replace(" ", "-"),
+            pool_raw.replace("-", " "),
+            pool_raw.replace("/", "-"),
+            pool_raw.replace("-", "/"),
+        ]) if p]
+
         # --- Primary attempt: exact same builder used at write time (v2.0 format) ---
         # Uses "program_address" key + "version":"2.0" + "source":"solana_live_pipeline".
         # apy_at_time is stored exactly in DB — no permutation needed.
-        for addr_candidate in addr_candidates:
-            for tvl_candidate in tvl_candidates:
-                for source_candidate in ["solana_live_pipeline", "dune_query_7595582"]:
-                    try:
-                        payload = build_recommendation_payload(
-                            protocol_name=rec["protocols"]["name"],
-                            pool_name=rec["protocols"]["pool_name"],
-                            pool_address=addr_candidate,
-                            risk_tag=rec["risk_tag"],
-                            rank=rec["rank"],
-                            apy_at_time=rec["apy_at_time"],
-                            tvl_usd=tvl_candidate,
-                            ai_reasoning=rec["ai_reasoning"],
-                            ai_model=rec["ai_model"],
-                            scored_at=scored_at_dt,
-                            data_source_id=source_candidate,
-                        )
-                        canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-                        computed_hash = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
-                        if computed_hash == target_hash:
-                            matched_payload = canonical_json
-                            found_match = True
-                            break
-                    except (ValueError, TypeError):
-                        pass
+        for proto_candidate in proto_candidates:
+            for pool_candidate in pool_candidates:
+                for addr_candidate in addr_candidates:
+                    for tvl_candidate in tvl_candidates:
+                        for source_candidate in ["solana_live_pipeline", "dune_query_7595582"]:
+                            try:
+                                payload = build_recommendation_payload(
+                                    protocol_name=proto_candidate,
+                                    pool_name=pool_candidate,
+                                    pool_address=addr_candidate,
+                                    risk_tag=rec["risk_tag"],
+                                    rank=rec["rank"],
+                                    apy_at_time=rec["apy_at_time"],
+                                    tvl_usd=tvl_candidate,
+                                    ai_reasoning=rec["ai_reasoning"],
+                                    ai_model=rec["ai_model"],
+                                    scored_at=scored_at_dt,
+                                    data_source_id=source_candidate,
+                                )
+                                canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                                computed_hash = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
+                                if computed_hash == target_hash:
+                                    matched_payload = canonical_json
+                                    found_match = True
+                                    break
+                            except (ValueError, TypeError):
+                                pass
+                        if found_match: break
+                    if found_match: break
                 if found_match: break
             if found_match: break
 
