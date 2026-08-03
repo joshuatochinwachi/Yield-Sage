@@ -119,6 +119,7 @@ export function LeaderboardTable() {
   const pageSize = 20;
 
   const [simModalOpen, setSimModalOpen] = useState(false);
+  const [simPoolId, setSimPoolId] = useState("");
   const [simPoolAddr, setSimPoolAddr] = useState("");
   const [simPoolName, setSimPoolName] = useState("");
   const [simAmount, setSimAmount] = useState("1000");
@@ -611,6 +612,7 @@ export function LeaderboardTable() {
                           )}
                           <button
                             onClick={() => {
+                              setSimPoolId(protocol.id || row.protocol_id || row.id || "");
                               setSimPoolAddr(_isValidAddr ? rawPoolAddr : "");
                               setSimPoolName(`${protocol.name || "Unknown"} (${row.asset || "Pool"})`);
                               setSimAmount("1000");
@@ -740,7 +742,7 @@ export function LeaderboardTable() {
             <button
               onClick={() => {
                 setSimModalOpen(false);
-                const telegramUrl = `https://t.me/YieldSageBot?text=${encodeURIComponent(`/trade address=${simPoolAddr} amount=${simAmount} token=${simPoolName}`)}`;
+                const telegramUrl = `https://t.me/YieldSageBot?text=${encodeURIComponent(`/trade id=${simPoolId} address=${simPoolAddr} amount=${simAmount} token=${simPoolName}`)}`;
                 window.open(telegramUrl, "_blank", "noopener,noreferrer");
               }}
               className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"

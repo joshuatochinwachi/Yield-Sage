@@ -143,6 +143,7 @@ function VerifyContent() {
   const [computedHash, setComputedHash] = useState("");
   const [step, setStep] = useState(0); // 0=fetching, 1=building, 2=hashing, 3=comparing
   const [simModalOpen, setSimModalOpen] = useState(false);
+  const [simPoolId, setSimPoolId] = useState("");
   const [simPoolAddr, setSimPoolAddr] = useState("");
   const [simPoolName, setSimPoolName] = useState("");
   const [simAmount, setSimAmount] = useState("1000");
@@ -617,6 +618,7 @@ function VerifyContent() {
                         )}
                         <button
                           onClick={() => {
+                            setSimPoolId(data.data.protocol_id || data.data.protocols?.id || "");
                             setSimPoolAddr(data.data.protocols.pool_address || "");
                             setSimPoolName(`${data.data.protocols.name || "Protocol"} (${data.data.protocols.pool_name || "Pool"})`);
                             setSimAmount("1000");
@@ -728,7 +730,7 @@ function VerifyContent() {
                 onClick={() => {
                   setSimModalOpen(false);
                   const cleanAddr = simPoolAddr.match(/0x[a-fA-F0-9]{40}/)?.[0] || simPoolAddr;
-                  const telegramUrl = `https://t.me/YieldSageBot?text=${encodeURIComponent(`/trade address=${cleanAddr} amount=${simAmount} token=${simPoolName}`)}`;
+                  const telegramUrl = `https://t.me/YieldSageBot?text=${encodeURIComponent(`/trade id=${simPoolId} address=${cleanAddr} amount=${simAmount} token=${simPoolName}`)}`;
                   window.open(telegramUrl, "_blank", "noopener,noreferrer");
                 }}
                 className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"

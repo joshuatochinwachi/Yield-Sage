@@ -809,53 +809,67 @@ async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if len(text.split()) > 1:
                 import re
                 
-                # 1. Try parsing the structured key-value format first
-                address_match = re.search(r'address=(.*?)(?=\s+(?:amount|token)=|$)', text)
-                amount_match = re.search(r'amount=(.*?)(?=\s+(?:address|token)=|$)', text)
-                token_match = re.search(r'token=(.*?)(?=\s+(?:address|amount)=|$)', text)
+                # 1. Try parsing the structured key-value format first (id=, address=, amount=, token=)
+                id_match = re.search(r'id=(.*?)(?=\s+(?:address|amount|token)=|$)', text)
+                address_match = re.search(r'address=(.*?)(?=\s+(?:amount|token|id)=|$)', text)
+                amount_match = re.search(r'amount=(.*?)(?=\s+(?:address|token|id)=|$)', text)
+                token_match = re.search(r'token=(.*?)(?=\s+(?:address|amount|id)=|$)', text)
                 
+                pool_id = id_match.group(1).strip() if id_match else None
                 address = address_match.group(1).strip() if address_match else None
                 amount_str = amount_match.group(1).strip() if amount_match else None
                 token = token_match.group(1).strip() if token_match else None
                 
-                # 2. Fallback: If we don't have address or amount from structured format, try parsing space-separated arguments
+                # 2. Fallback: If we don't have id, address or amount from structured format, try parsing space-separated arguments
                 # e.g., "/trade 0x3812a... 5000" or "/trade 0x3812a... 5000 token-name"
-                if not address and not token:
+                if not pool_id and not address and not token:
                     parts = text.split()
                     if len(parts) >= 3:
                         first_arg = parts[1].strip()
                         second_arg = parts[2].strip()
                         
-                        # Check if first_arg is a hex address
-                        hex_match = re.search(r'0x[a-fA-F0-9]{40}', first_arg)
-                        if hex_match:
-                            address = hex_match.group(0)
+                        # Check if first_arg looks like a UUID or hex address
+                        if len(first_arg) == 36 and "-" in first_arg:
+                            pool_id = first_arg
                             amount_str = second_arg
-                            if len(parts) >= 4:
-                                token = " ".join(parts[3:]).strip()
                         else:
-                            # Maybe first_arg is token name and second_arg is amount
-                            try:
-                                float("".join(c for c in second_arg if c.isdigit() or c == "."))
-                                token = first_arg
+                            hex_match = re.search(r'0x[a-fA-F0-9]{40}', first_arg)
+                            if hex_match:
+                                address = hex_match.group(0)
                                 amount_str = second_arg
-                            except ValueError:
-                                # Or first_arg is amount and second_arg is token
+                                if len(parts) >= 4:
+                                    token = " ".join(parts[3:]).strip()
+                            else:
                                 try:
-                                    float("".join(c for c in first_arg if c.isdigit() or c == "."))
-                                    amount_str = first_arg
-                                    token = second_arg
+                                    float("".join(c for c in second_arg if c.isdigit() or c == "."))
+                                    token = first_arg
+                                    amount_str = second_arg
                                 except ValueError:
-                                    pass
+                                    try:
+                                        float("".join(c for c in first_arg if c.isdigit() or c == "."))
+                                        amount_str = first_arg
+                                        token = second_arg
+                                    except ValueError:
+                                        pass
                 
                 if address:
                     hex_match = re.search(r'0x[a-fA-F0-9]{40}', address)
                     if hex_match:
                         address = hex_match.group(0)
                 
-                if address or token:
+                if pool_id or address or token:
                     protocol = None
-                    if address:
+                    # Primary lookup by DB protocol unique ID
+                    if pool_id:
+                        try:
+                            proto_res = supabase.table("protocols").select("id, name, pool_name, pool_address").eq("id", pool_id).execute()
+                            if proto_res.data:
+                                protocol = proto_res.data[0]
+                        except Exception as e:
+                            logger.error(f"Error querying protocols by unique ID {pool_id}: {e}")
+
+                    # Fallback lookup by pool_address
+                    if not protocol and address:
                         try:
                             proto_res = supabase.table("protocols").select("id, name, pool_name, pool_address").ilike("pool_address", f"%{address}%").execute()
                             if proto_res.data:
@@ -863,6 +877,7 @@ async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         except Exception as e:
                             logger.error(f"Error querying protocols by address: {e}")
                     
+                    # Fallback lookup by pool_name / token
                     if not protocol and token:
                         try:
                             proto_res = supabase.table("protocols").select("id, name, pool_name, pool_address").ilike("pool_name", f"%{token}%").execute()
@@ -920,8 +935,9 @@ async def start_trade_flow(update: Update, context: ContextTypes.DEFAULT_TYPE):
                             await update.message.reply_text("❌ Failed to register paper trade. Please try again.")
                             return
                     else:
+                        target_str = token or address or pool_id or ""
                         await update.message.reply_text(
-                            f"🔍 Could not find a pool with address `{address or ''}` or token `{token or ''}` in our database.\n\n"
+                            f"🔍 Could not find pool `{target_str}` in our database.\n\n"
                             "Listing active yield opportunities instead:"
                         )
 
@@ -1289,6 +1305,16 @@ async def _send_chunk_with_retry(send_func, kwargs, label="chunk", max_retries=3
             return True
         except Exception as err:
             err_str = str(err).lower()
+
+            # Check for permanent 403 Forbidden / bot blocked errors — break immediately, no retries
+            is_blocked_error = any(
+                term in err_str
+                for term in ["forbidden", "bot was blocked by the user", "user is deactivated", "chat not found"]
+            )
+            if is_blocked_error:
+                logger.warning(f"[{label}] Permanent delivery failure (user blocked bot): {err}")
+                return "BLOCKED"
+
             is_markdown_error = "can't parse" in err_str or "bad request" in err_str or "markdown" in err_str
             
             # If it's a Markdown parsing error, immediately retry as plain text on this attempt
@@ -1301,6 +1327,8 @@ async def _send_chunk_with_retry(send_func, kwargs, label="chunk", max_retries=3
                 except Exception as plain_err:
                     err = plain_err
                     err_str = str(plain_err).lower()
+                    if any(t in err_str for t in ["forbidden", "bot was blocked by the user", "user is deactivated", "chat not found"]):
+                        return "BLOCKED"
             
             # Handle rate limit (429) specifically by sleeping longer
             sleep_time = 1.0 * (attempt + 1)
@@ -1449,8 +1477,19 @@ async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
                     label=f"alert {msg_id} chunk {i+1}/{total}"
                 )
 
-                if success:
+                if success is True:
                     chunks_sent += 1
+                elif success == "BLOCKED":
+                    logger.warning(f"Bot blocked by chat_id {chat_id} (msg {msg_id}). Deactivating user alerts.")
+                    user_uuid = msg.get("user_id")
+                    if user_uuid:
+                        try:
+                            supabase.table("alert_preferences").update({"is_active": False}).eq("user_id", user_uuid).execute()
+                            logger.info(f"Deactivated alert_preferences for blocked user {user_uuid}")
+                        except Exception as de_err:
+                            logger.error(f"Failed to deactivate alert_preferences for user {user_uuid}: {de_err}")
+                    failed_chunks.append(i + 1)
+                    break  # Stop attempting remaining chunks for blocked user
                 else:
                     failed_chunks.append(i + 1)
 
@@ -1477,13 +1516,13 @@ async def broadcast_alerts_job(context: ContextTypes.DEFAULT_TYPE):
                         + (f" ({total} parts)" if total > 1 else "")
                     )
             else:
-                # Every single chunk failed — keep status=failed so it is retried next cycle
+                # Every single chunk failed — mark status=failed
                 supabase.table("telegram_messages").update({
                     "status": "failed",
-                    "error_message": f"All {total} chunks failed to send."
+                    "error_message": f"All {total} chunks failed to send (user blocked or delivery error)."
                 }).eq("id", msg_id).execute()
                 logger.error(
-                    f"[alert {msg_id}] ALL {total} chunks failed for chat {chat_id}. Marked for retry."
+                    f"[alert {msg_id}] ALL {total} chunks failed for chat {chat_id}. Marked as failed."
                 )
 
     except Exception as e:

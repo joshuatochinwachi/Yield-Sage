@@ -26,13 +26,6 @@ _PROVIDER_CONFIGS = [
         "fallback": "zai-glm-4.7",
     },
     {
-        "name":     "SambaNova",
-        "env_key":  "SAMBANOVA_API_KEY",
-        "base_url": "https://api.sambanova.ai/v1",
-        "primary":  "Meta-Llama-3.3-70B-Instruct",
-        "fallback": "gemma-3-12b-it",
-    },
-    {
         "name":     "Groq",
         "env_key":  "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
@@ -685,10 +678,10 @@ class AIService:
 
 If the user asks questions like "How can I simulate a trade?", "I want to paper trade", "Simulate a trade for me using $1000 (or any amount) in <any pool>", or similar, you MUST reply with these exact three options/formats:
 1. Use the /trade command and simulate trade from the list of pools/yield opportunities. Follow the instructions from there.
-2. Use this format that the bot uses: /trade address=<pool_address> amount=<amount> token=<protocol and token_or_pool_name>
+2. Use this format that the bot uses: /trade id=<pool_id> address=<pool_address> amount=<amount> token=<protocol and token_or_pool_name>
    Example:
-   /trade address=0x87ea83f40fccdb5e4a10fcc66a7a73b3f12bbf35 amount=1000 token=fluxion-network (ELSA-WMNT)
-   Note: The pool address, token/pool name, and protocol name must match the live data exactly for this to work.
+   /trade id=b1a2c3d4-e5f6-7890-abcd-1234567890ab address=ByYiZxp8QrdN9qbdtaAiePN8AAr3qvTPppNJDpf5DVJ5 amount=1000 token=kamino-finance (USDC)
+   Note: Using the pool's unique ID guarantees 100% accurate simulation matching even if multiple pools share an address.
 3. Simulate a trade directly from the preferred pool/yield opportunity on the web dashboard at [yieldsageai.xyz/dashboard](https://yieldsageai.xyz/dashboard).
 {_DATA_INTEGRITY_BLOCK}
 ════════════════════════════════════════
@@ -1047,11 +1040,36 @@ REQUIRED JSON SCHEMA
         if not _PROVIDERS:
             return "⚠️ YieldSage background services are temporarily offline. Please check back later."
 
+        # Parse user's risk preferences
+        pref_tiers = [t.strip().lower() for t in risk_preference.split(",") if t.strip()]
+        if not pref_tiers:
+            pref_tiers = ["stable", "moderate", "aggressive"]
+
+        # Filter yields per risk tier: Hard TVL > 10,000 filter, APY sort, max 15 per tier
+        filtered_yields = []
+        tier_counts = {}
+        for tier in pref_tiers:
+            tier_pools = [
+                y for y in yields
+                if (y.get("protocol") or {}).get("risk_tag", "").lower() == tier
+            ]
+            # Hard TVL exclusion: ignore dust/rug pools under $10k TVL
+            tier_pools = [y for y in tier_pools if float(y.get("tvl_usd") or 0) > 10000]
+            # Sort remainder by APY descending
+            tier_pools.sort(key=lambda y: float(y.get("apy") or 0), reverse=True)
+            
+            top_tier = tier_pools[:15]
+            filtered_yields.extend(top_tier)
+            tier_counts[tier] = len(top_tier)
+
+        tier_log_str = ", ".join(f"{t}={cnt}" for t, cnt in tier_counts.items())
+        logger.info(f"[Yield Filter] User {user_id}: {tier_log_str}")
+
         # Build the authoritative URL map for this user's hourly update.
         # Only real pool_address values (cleaned) end up here.
         allowed_pool_url_map: dict = {}
         yield_context = ""
-        for y in yields:
+        for y in filtered_yields:
             p         = y.get("protocol", {})
             apy_val   = y.get("apy")
             tvl_val   = y.get("tvl_usd")
@@ -1078,7 +1096,6 @@ REQUIRED JSON SCHEMA
         recs_context = ""
         if supabase:
             try:
-                pref_tiers = [t.strip().lower() for t in risk_preference.split(",") if t.strip()]
                 recs_data = []
                 if pref_tiers:
                     for tier in pref_tiers:
@@ -1298,23 +1315,31 @@ MANDATORY SELF-CHECK BEFORE RESPONDING
 Fix any failure before responding.
 """
 
+        # ── TOKEN GUARD CHECK ────────────────────────────────────────────────
+        user_prompt_content = (
+            f"{recs_context}\n\n"
+            f"Live yield data:\n{yield_context}\n\n"
+            f"User trades:\n{trade_context}\n\n"
+            "Generate the hourly Telegram update now. "
+            "Start IMMEDIATELY with 📊 **Solana Yield Snapshots & Recommendations** — "
+            "no introduction, no preamble. "
+            "Use the Selected On-chain Yield Recommendations list above for Section 1, including their Proof links exactly. "
+            "Use ONLY APY and TVL values from the live data above. "
+            "All pool links as [Name](url). Bold = **double asterisks**. No # headers. "
+            "CRITICAL: Be concise but complete. Analyze every active position."
+        )
+        full_payload_str = system_prompt + user_prompt_content
+        estimated_tokens = len(full_payload_str) // 4
+
+        logger.info(f"[Token Guard] User {user_id} prompt size: ~{estimated_tokens} tokens ({len(full_payload_str)} chars)")
+        if estimated_tokens > 6000:
+            err_msg = f"[Token Guard] 🚨 PROMPT OVERFLOW: Prompt token estimate ({estimated_tokens}) exceeds 6,000 limit!"
+            logger.error(err_msg)
+            raise ValueError(err_msg)
+
         try:
             response = await _llm_call(
-                messages=[{
-                    "role": "user",
-                    "content": (
-                        f"{recs_context}\n\n"
-                        f"Live yield data:\n{yield_context}\n\n"
-                        f"User trades:\n{trade_context}\n\n"
-                        "Generate the hourly Telegram update now. "
-                        "Start IMMEDIATELY with 📊 **Solana Yield Snapshots & Recommendations** — "
-                        "no introduction, no preamble. "
-                        "Use the Selected On-chain Yield Recommendations list above for Section 1, including their Proof links exactly. "
-                        "Use ONLY APY and TVL values from the live data above. "
-                        "All pool links as [Name](url). Bold = **double asterisks**. No # headers. "
-                        "CRITICAL: Be concise but complete. Analyze every active position."
-                    ),
-                }],
+                messages=[{"role": "user", "content": user_prompt_content}],
                 system_prompt=system_prompt,
                 temperature=0.2,
                 max_tokens=6000,
@@ -1327,11 +1352,9 @@ Fix any failure before responding.
             result = (response.choices[0].message.content or "").strip()
 
             # ── Strip any hallucinated or unmapped pool links from LLM output ──
-            # allowed_pool_url_map was built above from live DB data (yields + recs + trades).
-            # Any link whose URL is not in that map is silently converted to plain text.
             result = enforce_authentic_pool_links(result, allowed_pool_url_map)
 
-            # ── Append UTC timestamp and CTA (will land on the last split chunk) ──
+            # ── Append UTC timestamp and CTA ──
             utc_now = datetime.utcnow()
             timestamp_line = (
                 f"\n\n\U0001f550 Data snapshot: "
@@ -1340,15 +1363,52 @@ Fix any failure before responding.
             cta_line = "\n\n\U0001f4cb View all live yield opportunities on Solana \u2192 /yields or [yieldsageai.xyz/dashboard](https://yieldsageai.xyz/dashboard)"
             result = result + timestamp_line + cta_line
 
-            # Cache per-user — never leak User A's private data to User B
+            # Cache in RAM per user
             if user_id:
                 _response_cache["hourly_updates"][user_id] = result
             return result
 
         except Exception as e:
-            logger.error(f"[LLM] All providers failed for hourly update: {e}")
-            # Serve THIS user's own cached message only — never another user's
+            logger.error(f"[LLM] All providers failed for hourly update (user {user_id}): {e}")
+            
+            # 1. Check in-memory RAM cache first
             cached = _response_cache["hourly_updates"].get(user_id) if user_id else None
+            
+            # 2. If RAM cache is missing (e.g. after container restart), query Supabase DB persistent fallback
+            if not cached and user_id and supabase:
+                try:
+                    db_cache = supabase.table("telegram_messages")\
+                        .select("content, created_at, sent_at")\
+                        .eq("user_id", user_id)\
+                        .eq("status", "sent")\
+                        .order("created_at", desc=True)\
+                        .limit(1)\
+                        .execute()
+                    if db_cache.data and db_cache.data[0].get("content"):
+                        row = db_cache.data[0]
+                        msg_time_str = row.get("sent_at") or row.get("created_at")
+                        is_fresh = False
+                        if msg_time_str:
+                            try:
+                                msg_dt = datetime.fromisoformat(msg_time_str.replace("Z", "+00:00"))
+                                age_seconds = (datetime.now(timezone.utc) - msg_dt).total_seconds()
+                                if age_seconds < 3 * 3600:  # Less than 3 hours old
+                                    is_fresh = True
+                                else:
+                                    logger.info(f"[LLM Cache] Persistent DB fallback for user {user_id} is stale ({age_seconds/3600:.1f}h old > 3h max). Ignoring.")
+                            except Exception as parse_err:
+                                logger.warning(f"[LLM Cache] Could not parse message timestamp '{msg_time_str}': {parse_err}")
+
+                        if is_fresh:
+                            cached = row["content"]
+                            # Strip any previous cached note before re-appending
+                            if "\n\n_⚠️ Cached — AI busy." in cached:
+                                cached = cached.split("\n\n_⚠️ Cached — AI busy.")[0]
+                            _response_cache["hourly_updates"][user_id] = cached
+                            logger.info(f"[LLM Cache] Restored fresh (<3h old) DB fallback for user {user_id}")
+                except Exception as db_err:
+                    logger.warning(f"[LLM Cache] DB persistent fallback lookup error: {db_err}")
+
             if cached:
                 return (
                     cached

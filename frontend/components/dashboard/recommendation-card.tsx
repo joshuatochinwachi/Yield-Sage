@@ -29,6 +29,7 @@ function formatTimeAgo(dateString?: string): string {
 export function RecommendationCard() {
   const [selectedRisk, setSelectedRisk] = useState<"stable" | "moderate" | "aggressive">("stable");
   const [simModalOpen, setSimModalOpen] = useState(false);
+  const [simPoolId, setSimPoolId] = useState("");
   const [simPoolAddr, setSimPoolAddr] = useState("");
   const [simPoolName, setSimPoolName] = useState("");
   const [simAmount, setSimAmount] = useState("1000");
@@ -247,6 +248,7 @@ export function RecommendationCard() {
                 
                 <button 
                   onClick={() => {
+                    setSimPoolId(activePick?.protocols?.id || activePick?.protocol_id || activePick?.id || "");
                     setSimPoolAddr(activePick.protocols?.pool_address || "");
                     setSimPoolName(activePick.protocols?.pool_name || "");
                     setSimAmount("1000");
@@ -295,7 +297,7 @@ export function RecommendationCard() {
                 onClick={() => {
                   setSimModalOpen(false);
                   const cleanAddr = simPoolAddr.match(/0x[a-fA-F0-9]{40}/)?.[0] || simPoolAddr;
-                  const telegramUrl = `https://t.me/YieldSageBot?text=${encodeURIComponent(`/trade address=${cleanAddr} amount=${simAmount} token=${simPoolName}`)}`;
+                  const telegramUrl = `https://t.me/YieldSageBot?text=${encodeURIComponent(`/trade id=${simPoolId} address=${cleanAddr} amount=${simAmount} token=${simPoolName}`)}`;
                   window.open(telegramUrl, "_blank", "noopener,noreferrer");
                 }}
                 className="px-4 py-2 text-xs font-semibold rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
