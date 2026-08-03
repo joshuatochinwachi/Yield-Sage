@@ -1545,6 +1545,7 @@ Ensure that the indices you select correspond EXACTLY to the index in the candid
                         "risk_tag":            tier,
                         "rank":                rank,
                         "apy_at_time":         apy_at_time,
+                        "tvl_usd":             tvl_usd,
                         "ai_reasoning":        reasoning,
                         "ai_model":            model_used,
                         "recommendation_hash": rec_hash,

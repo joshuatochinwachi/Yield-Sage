@@ -63,7 +63,7 @@ async def get_latest_recommendations(
                 db.table("recommendations")
                 .select(
                     "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
-                    "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
+                    "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, tvl_usd, "
                     "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
                 )
                 .eq("risk_tag", tier)
@@ -112,7 +112,7 @@ async def get_recommendation_history(
         # Fetch verified recommendations to filter and paginate
         q = db.table("recommendations").select(
             "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
-            "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
+            "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, tvl_usd, "
             "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
         ).not_.is_("on_chain_tx_hash", "null").order("created_at", desc=True)
 
@@ -179,7 +179,7 @@ async def get_recommendation_by_id(rec_id: str):
             db.table("recommendations")
             .select(
                 "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
-                "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
+                "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, tvl_usd, "
                 "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
             )
             .eq("id", rec_id)
@@ -217,7 +217,7 @@ async def verify_recommendation_by_tx(tx_hash: str):
         rec_res = (
             db.table("recommendations")
             .select(
-                "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
+                "id, risk_tag, rank, apy_at_time, tvl_usd, ai_reasoning, ai_model, "
                 "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
                 "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
             )
@@ -225,16 +225,16 @@ async def verify_recommendation_by_tx(tx_hash: str):
             .execute()
         )
 
-        # 2. Fallback to case-insensitive substring match
+        # 2. Fallback to case-insensitive substring match (for Solana Base58 copy-paste quirks)
         if not rec_res.data:
             rec_res = (
                 db.table("recommendations")
                 .select(
-                    "id, risk_tag, rank, apy_at_time, ai_reasoning, ai_model, "
+                    "id, risk_tag, rank, apy_at_time, tvl_usd, ai_reasoning, ai_model, "
                     "on_chain_tx_hash, on_chain_logged_at, recommendation_hash, created_at, "
                     "protocols(id, slug, name, pool_name, pool_address, risk_tag, image_url, app_link)"
                 )
-                .ilike("on_chain_tx_hash", f"%{clean_tx.replace('0x', '')}%")
+                .ilike("on_chain_tx_hash", f"%{clean_tx}%")
                 .execute()
             )
 
@@ -251,9 +251,8 @@ async def verify_recommendation_by_tx(tx_hash: str):
             }
         rec["explorer_url"] = _build_explorer_link(rec.get("on_chain_tx_hash"))
 
-        # 2. Reconstruct the canonical JSON payload
-        # Try permutations to find the exact configuration matching the stored recommendation_hash
-        # (resolving issues from historic renames, TVL placeholders, or legacy formats)
+
+        # 2. Reconstruct the canonical JSON payload to verify the hash
         try:
             from agent.logger import build_recommendation_payload
         except ImportError:
@@ -262,194 +261,142 @@ async def verify_recommendation_by_tx(tx_hash: str):
         import json
         import hashlib
         from datetime import datetime
-        
+
         created_at_str = rec["created_at"].replace("Z", "+00:00")
         scored_at_dt = datetime.fromisoformat(created_at_str)
 
-        # Get TVL and APY candidates from snapshots immediately before or after created_at
-        # (resolves rounding, precision discrepancies, and race conditions where snapshot fetched_at is slightly after rec created_at)
-        snap_res_lte = (
-            db.table("yield_snapshots")
-            .select("tvl_usd, apy")
-            .eq("protocol_id", rec["protocols"]["id"])
-            .lte("fetched_at", rec["created_at"])
-            .order("fetched_at", desc=True)
-            .limit(2)
-            .execute()
-        )
-        snap_res_gte = (
-            db.table("yield_snapshots")
-            .select("tvl_usd, apy")
-            .eq("protocol_id", rec["protocols"]["id"])
-            .gte("fetched_at", rec["created_at"])
-            .order("fetched_at", desc=False)
-            .limit(2)
-            .execute()
-        )
-        
-        real_tvl_val = 0.0
-        if snap_res_lte.data and snap_res_lte.data[0]["tvl_usd"] is not None:
+        # --- TVL resolution ---
+        # For new records: tvl_usd is stored directly in recommendations table.
+        # This is the EXACT value used at hash time → deterministic, no guessing needed.
+        # For old records (before this migration): tvl_usd is NULL → fall back to snapshots.
+        stored_tvl = rec.get("tvl_usd")
+        if stored_tvl is not None:
             try:
-                real_tvl_val = float(snap_res_lte.data[0]["tvl_usd"])
+                tvl_candidates = [float(stored_tvl)]
             except (ValueError, TypeError):
-                pass
-        elif snap_res_gte.data and snap_res_gte.data[0]["tvl_usd"] is not None:
-            try:
-                real_tvl_val = float(snap_res_gte.data[0]["tvl_usd"])
-            except (ValueError, TypeError):
-                pass
-        real_tvl = real_tvl_val
-        
-        tvls = [0.0]
-        apys = []
-        try:
-            apys.append(f"{float(rec['apy_at_time']):.4f}")
-            apys.append(f"{float(rec['apy_at_time']):.2f}")
-        except (ValueError, TypeError):
-            pass
-        apys.append(str(rec['apy_at_time']))
-        
-        # Pull candidate values from nearby snapshots
-        for s in (snap_res_lte.data or []) + (snap_res_gte.data or []):
-            if s.get("tvl_usd") is not None:
-                try:
-                    tvls.append(float(s["tvl_usd"]))
-                except (ValueError, TypeError):
-                    pass
-            if s.get("apy") is not None:
-                try:
-                    apys.append(f"{float(s['apy']):.4f}")
-                    apys.append(f"{float(s['apy']):.2f}")
-                except (ValueError, TypeError):
-                    pass
-                apys.append(str(s['apy']))
-        
-        # Look for percentages or numbers in reasoning
-        import re
-        pct_matches = re.findall(r'([0-9.]+)\s*%', rec["ai_reasoning"])
-        for pm in pct_matches:
-            apys.append(pm)
-            try:
-                apys.append(f"{float(pm):.4f}")
-            except (ValueError, TypeError):
-                pass
-            
-        num_matches = re.findall(r'\$?([0-9,]+)(?:\.[0-9]+)?', rec["ai_reasoning"])
-        for nm in num_matches:
-            clean_nm = nm.replace(",", "").strip()
-            if clean_nm:  # Ensure it's not an empty string (e.g. from standalone commas in reasoning)
-                try:
-                    val = float(clean_nm)
-                    tvls.append(val)
-                except (ValueError, TypeError):
-                    pass
-            
-        tvls = list(set(tvls))
-        apys = list(set(apys))
-        
+                tvl_candidates = [0.0]
+            snap_lte_data = []
+            snap_gte_data = []
+        else:
+            snap_res_lte = (
+                db.table("yield_snapshots")
+                .select("tvl_usd, apy")
+                .eq("protocol_id", rec["protocols"]["id"])
+                .lte("fetched_at", rec["created_at"])
+                .order("fetched_at", desc=True)
+                .limit(3)
+                .execute()
+            )
+            snap_res_gte = (
+                db.table("yield_snapshots")
+                .select("tvl_usd, apy")
+                .eq("protocol_id", rec["protocols"]["id"])
+                .gte("fetched_at", rec["created_at"])
+                .order("fetched_at", desc=False)
+                .limit(3)
+                .execute()
+            )
+            snap_lte_data = snap_res_lte.data or []
+            snap_gte_data = snap_res_gte.data or []
+            tvl_candidates = list(set([0.0, *[
+                float(s["tvl_usd"])
+                for s in snap_lte_data + snap_gte_data
+                if s.get("tvl_usd") is not None
+            ]])) or [0.0]
+
         target_hash = rec["recommendation_hash"]
         matched_payload = None
         found_match = False
+        computed_hash = None
 
-        # Generate candidates for renames or formatting differences
-        proto_names = list(set([
-            rec["protocols"]["name"],
-            rec["protocols"]["name"].replace(" ", "-"),
-            rec["protocols"]["name"].replace("-", " "),
-            rec["protocols"]["name"].lower(),
-            "kamino-finance", "kamino", "marginfi", "jito", "orca", "raydium", "drift", "marinade"
-        ]))
-        
-        pool_names = list(set([
-            rec["protocols"]["pool_name"],
-            rec["protocols"]["pool_name"].replace("/", "-"),
-            rec["protocols"]["pool_name"].replace("-", "/"),
-        ]))
-        
         raw_addr = rec["protocols"]["pool_address"] or ""
-        pool_addresses = list(set([
-            raw_addr,
-            raw_addr.lower() if raw_addr else "",
-            "",
-        ]))
-        
-        models = list(set([
-            rec["ai_model"],
-            "meta/llama-3.3-70b-instruct",
-            "llama-3.3-70b-versatile",
-            "openai/gpt-oss-120b",
-            "qwen/qwen3.6-27b",
-        ]))
+        addr_candidates = list(set([raw_addr, raw_addr.lower() if raw_addr else "", ""]))
 
-        # Try permutations to find the exact configuration matching the stored recommendation_hash
-        for proto_n in proto_names:
-            for pool_n in pool_names:
-                for addr in pool_addresses:
-                    for tvl_v in tvls:
-                        for apy_v in apys:
-                            for model_v in models:
-                                for source in ["dune_query_7595582", None]:
-                                    for version in ["1.0", None]:
-                                        for chain_info in [True, False]:
-                                            # Try build_recommendation_payload style payload
-                                            payload = {
-                                                "scored_at": scored_at_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                                                "risk_tag": rec["risk_tag"],
-                                                "rank": rec["rank"],
-                                                "protocol_name": proto_n,
-                                                "pool_name": pool_n,
-                                                "pool_address": addr.lower() if (addr and isinstance(addr, str)) else (addr or ""),
-                                                "apy_at_time": apy_v,
-                                                "tvl_usd": f"{float(tvl_v):.2f}",
-                                                "ai_reasoning": rec["ai_reasoning"].strip(),
-                                                "ai_model": model_v,
-                                            }
-                                            if version:
-                                                payload["version"] = version
-                                            if source:
-                                                payload["source"] = source
-                                            if chain_info:
-                                                payload["chain"] = "solana"
-                                                payload["chain_id"] = 101
+        # --- Primary attempt: exact same builder used at write time (v2.0 format) ---
+        # Uses "program_address" key + "version":"2.0" + "source":"solana_live_pipeline".
+        # apy_at_time is stored exactly in DB — no permutation needed.
+        for addr_candidate in addr_candidates:
+            for tvl_candidate in tvl_candidates:
+                for source_candidate in ["solana_live_pipeline", "dune_query_7595582"]:
+                    try:
+                        payload = build_recommendation_payload(
+                            protocol_name=rec["protocols"]["name"],
+                            pool_name=rec["protocols"]["pool_name"],
+                            pool_address=addr_candidate,
+                            risk_tag=rec["risk_tag"],
+                            rank=rec["rank"],
+                            apy_at_time=rec["apy_at_time"],
+                            tvl_usd=tvl_candidate,
+                            ai_reasoning=rec["ai_reasoning"],
+                            ai_model=rec["ai_model"],
+                            scored_at=scored_at_dt,
+                            data_source_id=source_candidate,
+                        )
+                        canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                        computed_hash = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
+                        if computed_hash == target_hash:
+                            matched_payload = canonical_json
+                            found_match = True
+                            break
+                    except (ValueError, TypeError):
+                        pass
+                if found_match: break
+            if found_match: break
 
-                                                
-                                            canonical_json = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-                                            computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
-                                            if computed_hash == target_hash:
-                                                matched_payload = canonical_json
-                                                found_match = True
-                                                break
-                                            
-                                            # Try legacy payload style
-                                            if not version and not source and not chain_info:
-                                                legacy_payload = {
-                                                    "scored_at": scored_at_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
-                                                    "risk_tag": rec["risk_tag"],
-                                                    "rank": rec["rank"],
-                                                    "protocol_name": proto_n,
-                                                    "pool_name": pool_n,
-                                                    "pool_address": (addr or "").lower(),
-                                                    "apy_at_time": apy_v,
-                                                    "tvl_usd": f"{float(tvl_v):.2f}",
-                                                    "ai_reasoning": rec["ai_reasoning"].strip(),
-                                                    "ai_model": model_v
-                                                }
-                                                canonical_json = json.dumps(legacy_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-                                                computed_hash = hashlib.sha256(canonical_json.encode('utf-8')).hexdigest()
-                                                if computed_hash == target_hash:
-                                                    matched_payload = canonical_json
-                                                    found_match = True
-                                                    break
-                                        if found_match: break
-                                    if found_match: break
-                                if found_match: break
+        # --- Legacy fallback: older records used "pool_address" key instead of "program_address" ---
+        if not found_match:
+            models_to_try = list(set([
+                rec["ai_model"],
+                "meta/llama-3.3-70b-instruct",
+                "llama-3.3-70b-versatile",
+                "openai/gpt-oss-120b",
+                "qwen/qwen3.6-27b",
+            ]))
+            apys_to_try = []
+            try:
+                apys_to_try.append(f"{float(rec['apy_at_time']):.4f}")
+                apys_to_try.append(f"{float(rec['apy_at_time']):.2f}")
+            except (ValueError, TypeError):
+                pass
+            apys_to_try.append(str(rec["apy_at_time"]))
+            apys_to_try = list(set(apys_to_try))
+
+            for model_v in models_to_try:
+                for addr in addr_candidates:
+                    for tvl_v in tvl_candidates:
+                        for apy_v in apys_to_try:
+                            legacy_payload = {
+                                "scored_at": scored_at_dt.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                                "risk_tag": rec["risk_tag"],
+                                "rank": rec["rank"],
+                                "protocol_name": rec["protocols"]["name"],
+                                "pool_name": rec["protocols"]["pool_name"],
+                                "pool_address": (addr or "").lower(),
+                                "apy_at_time": apy_v,
+                                "tvl_usd": f"{float(tvl_v):.2f}",
+                                "ai_reasoning": rec["ai_reasoning"].strip(),
+                                "ai_model": model_v,
+                            }
+                            for extra in [
+                                {},
+                                {"chain": "solana", "chain_id": 101},
+                                {"version": "1.0"},
+                                {"source": "dune_query_7595582"},
+                                {"chain": "solana", "chain_id": 101, "version": "1.0"},
+                            ]:
+                                candidate = {**legacy_payload, **extra}
+                                canonical_json = json.dumps(candidate, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                                computed_hash = hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
+                                if computed_hash == target_hash:
+                                    matched_payload = canonical_json
+                                    found_match = True
+                                    break
                             if found_match: break
                         if found_match: break
                     if found_match: break
                 if found_match: break
-            if found_match: break
 
-        # Fallback to standard payload if no permutation matches (prevents NameError and API crash)
+        # Final fallback: compute fresh payload for display even if hash doesn't match
         if not found_match:
             payload = build_recommendation_payload(
                 protocol_name=rec["protocols"]["name"],
@@ -458,7 +405,7 @@ async def verify_recommendation_by_tx(tx_hash: str):
                 risk_tag=rec["risk_tag"],
                 rank=rec["rank"],
                 apy_at_time=rec["apy_at_time"],
-                tvl_usd=real_tvl,
+                tvl_usd=tvl_candidates[0],
                 ai_reasoning=rec["ai_reasoning"],
                 ai_model=rec["ai_model"],
                 scored_at=scored_at_dt,
@@ -475,3 +422,4 @@ async def verify_recommendation_by_tx(tx_hash: str):
     except Exception as e:
         logger.error(f"[recommendations/verify] {e}")
         raise HTTPException(status_code=500, detail="Failed to verify recommendation details.")
+
