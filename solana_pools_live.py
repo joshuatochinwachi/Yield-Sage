@@ -8,26 +8,80 @@ Nothing is written to disk... except see the TEMP / DEV-ONLY block below.
 Note: "Pool Address" column is present (matches the target output
 shape) but is NULL for any protocol without a verified resolver below.
 Wire a new resolver into `fetch_pool_addresses()` for anything else -
-that function (plus its per-protocol `_fetch_*_index()` helpers) is the
-only place that needs to change.
+that function (plus its per-protocol `_fetch_*_index()` / `_resolve_*()`
+helpers) is the only place that needs to change.
 
 Protocols with real Pool Address resolution right now:
-  - raydium        (per-pool mint-pair lookup, Raydium's own API)
-  - orca-dex        (bulk mint-pair index, Orca's own API)
-  - jupiter-lend    (bulk mint index, Fluid's API - Jupiter Lend runs on Fluid)
-  - kamino-lend     (bulk (mint, market) + mint-fallback index, Kamino's own API)
-  - kamino-liquidity(bulk mint-pair index, Kamino's own API - different product from kamino-lend)
-  - save            (bulk (mint, market) + mint-fallback index, Save/Solend's own API)
-  - project-0       (bulk mint index, project-0's own API)
-  - gmtrade         (bulk mint/mint-pair index, gmtrade's own DefiLlama-facing feed)
-  - loopscale       (bulk mint index, loopscale's own API - first 100 vaults only, see caveat below)
 
-Ambiguity note (applies across all of the above): where a mint or mint
-pair backs more than one on-chain pool, these resolvers take the
-highest-TVL match rather than guaranteeing a unique correct one. Where
-a protocol runs isolated markets (Kamino Lend, Save), a (mint, market
-name) index is tried first and is a real match, not a heuristic - the
-mint-only path is the fallback used only when that doesn't hit.
+  Index-built (bulk fetch from the protocol's own API, matched by mint
+  or mint-pair, highest-TVL match wins on ambiguity):
+    - raydium         (per-pool mint-pair lookup, Raydium's own API)
+    - orca-dex        (bulk mint-pair index, Orca's own API)
+    - jupiter-lend    (bulk mint index, Fluid's API - Jupiter Lend runs on Fluid)
+    - kamino-lend     (bulk (mint, market) + mint-fallback index, Kamino's own API)
+    - kamino-liquidity(bulk mint-pair index, Kamino's own API - different product from kamino-lend)
+    - save            (bulk (mint, market) + mint-fallback index, Save/Solend's own API)
+    - project-0       (bulk mint index, project-0's own API)
+    - gmtrade         (bulk mint/mint-pair index, gmtrade's own DefiLlama-facing feed)
+    - loopscale       (bulk mint index, loopscale's own API - first 100 vaults only, see caveat below)
+
+  Direct Pool ID, suffix-stripped (Pool ID = "{address}-solana" ->
+  strip the suffix to get the real on-chain address):
+    - omnipair          pairAddress
+    - onre              ONYC_MINT (mint - ONYC has no separate pool
+                        contract, same situation as the LSTs below)
+    - ondo-yield-assets USDY mint and OUSG mint (two pools, same
+                        stripping logic handles both)
+
+  Direct Pool ID, verbatim (Pool ID = the real on-chain address with no
+  suffix at all - pass straight through):
+    - allbridge-classic poolAddress
+    - cube              pair address (confirmed live against cubee.ee's
+                        own /pool/{address} URLs in its API response,
+                        not just inferred from source)
+    - kyros             LST mint - no separate pool contract exists,
+                        the mint IS the yield-bearing asset
+    - blackrock-buidl   BUIDL Solana mint (this adaptor is multi-chain
+                        and its EVM rows DO append a "-{chain}" suffix,
+                        but its Solana row specifically does not - a
+                        genuine inconsistency in the adaptor itself, not
+                        a mistake in this resolver)
+    - Every plain liquid-staking-token adaptor below: the mint IS the
+      asset, there is no separate AMM pool - binance-staked-sol,
+      jito-liquid-staking, jupiter-staked-sol, drift-staked-sol,
+      marinade-liquid-staking, sanctum-infinity, phantom-sol,
+      doublezero-staked-sol, jpool, the-vault-liquid-staking,
+      bybit-staked-sol, blazestake, helius-staked-sol, dfdv-staked-sol
+
+  Direct Pool ID, verbatim, but with a real alternative to weigh
+  (DefiLlama's own adaptor uses the LST mint as Pool ID even though a
+  separate on-chain stake-pool program account also exists - this
+  resolver follows DefiLlama's own choice for consistency, but the
+  program address is noted in case deposit-contract granularity is
+  ever wanted instead):
+    - jagpool-staked-sol        mint used; stake pool program is
+                                jagEdDepWUgexiu4jxojcRWcVKKwFqgZBBuAoGu2BxM
+    - stkesol-by-sol-strategies mint used; stake pool program is
+                                StKeDUdSu7jMSnPJ1MPqDnk3RdEwD2QbJaisHMebGhw
+
+  Hardcoded mapping (no bulk endpoint exists because the pool set is a
+  small fixed constant in the adaptor's own source, not something an
+  API lists):
+    - hastra            wYLDS has no pool contract -> Pool Address = its
+                        own mint. PRIME has no pool contract either, but
+                        PRIME_VAULT is the account depositors actually
+                        interact with, so that's used instead of the
+                        PRIME mint.
+
+Ambiguity note (applies to every index-built resolver above): where a
+mint or mint pair backs more than one on-chain pool, these resolvers
+take the highest-TVL match rather than guaranteeing a unique correct
+one. Where a protocol runs isolated markets (Kamino Lend, Save), a
+(mint, market name) index is tried first and is a real match, not a
+heuristic - the mint-only path is the fallback used only when that
+doesn't hit. Direct Pool ID and hardcoded-mapping resolvers above have
+no such ambiguity - the address either falls straight out of DefiLlama's
+own Pool ID or is a hand-verified constant, nothing is inferred.
 
 ---
 TEMP / DEV-ONLY: writes the result to solana_pools_output.csv so you
@@ -61,6 +115,14 @@ SAVE_CONFIGS_URL = "https://api.solend.fi/v1/markets/configs"
 PROJECT_ZERO_METRICS_URL = "https://api.0.xyz/v0/bankMetrics"
 GMTRADE_POOLS_URL = "https://market-info-mainnet-prod.gmtrade.xyz/defillama/pools"
 LOOPSCALE_VAULTS_URL = "https://tars.loopscale.com/v1/markets/lending_vaults/stats"
+
+# Hastra has no bulk pool-listing endpoint - its own adaptor hardcodes
+# exactly these three constants because the pool set is fixed at two
+# entries (wYLDS, PRIME). Mirrored here verbatim rather than derived,
+# same as the adaptor does it.
+HASTRA_WYLDS_MINT = "8fr7WGTVFszfyNWRMXj6fRjZZAnDwmXwEpCrtzmUkdih"
+HASTRA_PRIME_MINT = "3b8X44fLF9ooXaUm3hhSgjpmVs6rZZ3pPoGnGahc3Uu7"
+HASTRA_PRIME_VAULT = "FvkbfMm98jefJWrqkvXvsSZ9RFaRBae8k6c1jaYA5vY3"
 
 # --- TEMP / DEV-ONLY ---
 OUTPUT_CSV = "solana_pools_output.csv"
@@ -581,13 +643,103 @@ def _fetch_raydium_pool_address(mint_a: str, mint_b: str) -> str | None:
     return rows[0].get("id")
 
 
+# Direct Pool ID = "{address}-solana" -> strip the suffix to recover the
+# real on-chain address. See module docstring for per-protocol notes.
+_SUFFIX_STRIP_PROJECTS = frozenset({
+    "omnipair",
+    "onre",
+    "ondo-yield-assets",
+})
+
+# Direct Pool ID, no suffix at all - the Pool ID already IS the real
+# on-chain address (mint, for LSTs and single-asset RWA tokens with no
+# separate pool contract; pair/vault address, for the AMM-style ones).
+# See module docstring for per-protocol notes and the two cases
+# (jagpool-staked-sol, stkesol-by-sol-strategies) where a real
+# alternative program address exists but DefiLlama's own adaptor - and
+# therefore this resolver, for consistency - uses the mint instead.
+_VERBATIM_PROJECTS = frozenset({
+    "allbridge-classic",
+    "cube",
+    "kyros",
+    "blackrock-buidl",
+    "binance-staked-sol",
+    "jito-liquid-staking",
+    "jupiter-staked-sol",
+    "drift-staked-sol",
+    "marinade-liquid-staking",
+    "sanctum-infinity",
+    "phantom-sol",
+    "doublezero-staked-sol",
+    "jpool",
+    "the-vault-liquid-staking",
+    "bybit-staked-sol",
+    "blazestake",
+    "helius-staked-sol",
+    "dfdv-staked-sol",
+    "jagpool-staked-sol",
+    "stkesol-by-sol-strategies",
+})
+
+DIRECT_POOL_ID_PROJECTS = _SUFFIX_STRIP_PROJECTS | _VERBATIM_PROJECTS
+
+
+def _resolve_direct_pool_id(project: str, pool_id: str) -> str | None:
+    """
+    Direct Pool ID protocols - no index build, no per-pool API call
+    needed at all. DefiLlama's own Pool ID already IS (or trivially
+    contains) the real on-chain pool/pair/mint address for these
+    adaptors, confirmed by reading each adaptor's own source (cube also
+    confirmed live - see module docstring).
+
+    No ambiguity note applies here, unlike the index-built resolvers
+    above - there's no TVL tiebreak because there's nothing to choose
+    between, the address falls straight out of the Pool ID.
+    """
+    if project in _SUFFIX_STRIP_PROJECTS:
+        if pool_id.endswith("-solana"):
+            return pool_id[: -len("-solana")]
+        return None
+    if project in _VERBATIM_PROJECTS:
+        return pool_id or None
+    return None
+
+
+def _resolve_hastra_pool_address(pool_id: str) -> str | None:
+    """
+    Hastra has no AMM pool contract - "pool" in its own adaptor is just
+    the yield-bearing mint itself, and its Pool ID format is
+    "{mint}-solana", same suffix convention as omnipair.
+
+      - wYLDS: no separate contract exists at all - Pool Address is the
+        wYLDS mint itself.
+      - PRIME: also has no separate pool contract, but PRIME_VAULT (the
+        account actually holding the wYLDS backing every PRIME token) is
+        the closer analogue to a "pool" a depositor interacts with, so
+        that vault address is used instead of the PRIME mint.
+
+    Hardcoded rather than fetched because hastra's own adaptor hardcodes
+    these same three constants - there's no bulk endpoint to index
+    against since the pool set is fixed at exactly two entries.
+    """
+    if not pool_id.endswith("-solana"):
+        return None
+    mint = pool_id[: -len("-solana")]
+    if mint == HASTRA_WYLDS_MINT:
+        return HASTRA_WYLDS_MINT
+    if mint == HASTRA_PRIME_MINT:
+        return HASTRA_PRIME_VAULT
+    return None
+
+
 def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
     """
     Resolve "Pool Address" across every protocol with a verified free
     source (see the module docstring for the current list). Everything
     else gets None - there is no verified free source for them yet.
 
-    Ambiguity note: applies globally - see module docstring.
+    Ambiguity note: applies globally to the index-built resolvers only -
+    see module docstring.
     """
     log("Step 4/4: resolving Pool Address across all supported protocols ...")
     results = []
@@ -614,6 +766,13 @@ def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
     project_zero_hits = 0
     gmtrade_hits = 0
     loopscale_hits = 0
+    hastra_hits = 0
+    # One counter per "direct" protocol (suffix-strip + verbatim) rather
+    # than a named variable each - there are 21 of them now and that many
+    # flat counters stops being readable. Populated on demand as hits
+    # come in, so protocols that never appear in a given run just don't
+    # show up in the summary log instead of printing a wall of zeros.
+    direct_hits: dict[str, int] = {}
 
     raydium_total = int(pools_df["Project"].str.lower().str.contains("raydium").sum())
     log(f"Step 4/4: {raydium_total} Raydium pool(s) to check individually (this is the slow part) ...")
@@ -626,7 +785,21 @@ def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
         pool_meta = str(row.get("Pool Meta") or "").strip().lower()
 
         address = None
-        if len(mints) in (1, 2):
+
+        # Direct Pool ID + hardcoded-mapping protocols first - these
+        # don't depend on the mints list at all, so they're resolved
+        # before (and independently of) the mint-count gate below.
+        if project in DIRECT_POOL_ID_PROJECTS:
+            address = _resolve_direct_pool_id(project, pool_id)
+            if address:
+                direct_hits[project] = direct_hits.get(project, 0) + 1
+
+        elif project == "hastra":
+            address = _resolve_hastra_pool_address(pool_id)
+            if address:
+                hastra_hits += 1
+
+        elif len(mints) in (1, 2):
             if "raydium" in project and len(mints) == 2:
                 raydium_calls += 1
                 try:
@@ -750,6 +923,9 @@ def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
 
         results.append({"Pool ID": pool_id, "Pool Address": address})
 
+    direct_summary = " | ".join(
+        f"{project} {count} matched" for project, count in sorted(direct_hits.items())
+    )
     log(
         f"Step 4/4: done - Raydium {raydium_hits}/{raydium_calls} matched "
         f"({raydium_failures} request failures) | Orca {orca_hits} matched | "
@@ -759,7 +935,9 @@ def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
         f"Save {save_hits} matched ({save_market_hits} via exact market match) | "
         f"project-0 {project_zero_hits} matched | "
         f"gmtrade {gmtrade_hits} matched | "
-        f"loopscale {loopscale_hits} matched."
+        f"loopscale {loopscale_hits} matched | "
+        f"hastra {hastra_hits} matched"
+        + (f" | {direct_summary}" if direct_summary else "")
     )
     return pd.DataFrame(results)
 
