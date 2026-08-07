@@ -325,10 +325,17 @@ async def _llm_call(
     provider_order = _PROVIDERS
 
     for provider in provider_order:
+        # Groq on-demand tier has a strict 8,000 TPM limit (Input + Output).
+        # If input prompt size exceeds 6,000 tokens, skip Groq and move to NVIDIA/Gemini
+        # to avoid 413 Payload Too Large HTTP errors.
+        if provider["name"] == "Groq":
+            prompt_tokens_est = (len(system_prompt) + sum(len(m.get("content", "")) for m in messages)) // 4
+            if prompt_tokens_est > 6000:
+                logger.info(f"[LLM] Skipping Groq (prompt ~{prompt_tokens_est} tokens exceeds Groq 8,000 TPM limit)...")
+                continue
+
         for model in [provider["primary"], provider["fallback"]]:
             try:
-                # Groq has a strict 8,000 TPM limit (Prompt + max_tokens).
-                # Cap max_tokens to 2,000 for Groq to guarantee it never exceeds 8,000 TPM.
                 effective_max_tokens = min(max_tokens, 2000) if provider["name"] == "Groq" else max_tokens
 
                 kwargs = dict(

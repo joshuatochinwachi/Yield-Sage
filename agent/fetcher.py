@@ -136,6 +136,7 @@ class SolanaFetcher:
         protocols_to_update = []
         seen_keys = set()
         seen_pairs = set(db_protocols_by_pair.keys())
+        seen_slugs = set(db_protocols_by_slug.keys())
 
         records = df.to_dict(orient="records")
 
@@ -172,20 +173,22 @@ class SolanaFetcher:
                 id_slug_part = f"-{unique_pool_ref[:8]}" if unique_pool_ref else ""
                 slug = f"{protocol_name}-{asset}{id_slug_part}".lower().replace(" ", "-").replace("/", "-")
 
-                new_protocol_record = {
-                    "slug": slug,
-                    "name": protocol_name,
-                    "pool_name": asset,
-                    "risk_tag": risk,
-                    "chain": "solana",
-                    "image_url": image_val,
-                    "app_link": app_link_val,
-                    "pool_address": pool_address
-                }
+                if slug not in db_protocols_by_slug and slug not in seen_slugs:
+                    new_protocol_record = {
+                        "slug": slug,
+                        "name": protocol_name,
+                        "pool_name": asset,
+                        "risk_tag": risk,
+                        "chain": "solana",
+                        "image_url": image_val,
+                        "app_link": app_link_val,
+                        "pool_address": pool_address
+                    }
 
-                new_protocols.append(new_protocol_record)
-                seen_keys.add(composite_key)
-                seen_pairs.add(pair_key)
+                    new_protocols.append(new_protocol_record)
+                    seen_keys.add(composite_key)
+                    seen_pairs.add(pair_key)
+                    seen_slugs.add(slug)
             else:
                 existing_id = db_protocols_by_pair.get(pair_key) or db_protocols_fallback.get(fallback_key)
                 if existing_id:
