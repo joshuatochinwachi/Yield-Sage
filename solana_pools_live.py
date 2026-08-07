@@ -56,6 +56,13 @@ Protocols with real Pool Address resolution right now:
                        returns is a real on-chain address, via that
                        feed's own accompanying /pool/{address} url per
                        entry)
+    - sentora         (bulk (mint, vault name) + mint-fallback index,
+                       Sentora's own vaults API - Solana side of this
+                       adaptor is Kamino-managed vaults only, see
+                       caveat below)
+    - yo-protocol     (bulk (mint, vault name) + mint-fallback index,
+                       yo.xyz's own Solana vault-stats API, see caveat
+                       below)
 
   Hardcoded (no bulk endpoint needed - the pool set is a small fixed
   constant taken from each adaptor's own source, matched by Project,
@@ -67,14 +74,17 @@ Protocols with real Pool Address resolution right now:
       drift-staked-sol, marinade-liquid-staking, sanctum-infinity,
       phantom-sol, doublezero-staked-sol, jpool, the-vault-liquid-staking,
       bybit-staked-sol, blazestake, helius-staked-sol, dfdv-staked-sol,
-      onre, blackrock-buidl.
-    - jagpool-staked-sol / stkesol-by-sol-strategies: same situation,
-      matched on Project alone, but each has a real, separate on-chain
-      stake-pool program account that DefiLlama's own adaptor chooses
-      NOT to use as `pool` (it uses the mint instead). This resolver
-      follows DefiLlama's own choice for consistency - the program
-      addresses are noted next to the constants below in case
-      deposit-contract granularity is ever wanted instead.
+      onre, blackrock-buidl, stronghold-staked-sol, save-sol,
+      lantern-staked-sol, pico-staked-sol, laine-sol, starke-staked-sol,
+      openeden-usdo, openeden-tbill, invesco-ustb.
+    - jagpool-staked-sol / stkesol-by-sol-strategies / save-sol /
+      laine-sol: same situation, matched on Project alone, but each has
+      a real, separate on-chain stake-pool program account that
+      DefiLlama's own adaptor chooses NOT to use as `pool` (it uses the
+      mint instead). This resolver follows DefiLlama's own choice for
+      consistency - the program addresses are noted next to the
+      constants below in case deposit-contract granularity is ever
+      wanted instead.
     - Single-pool RWA/stablecoin tokens, same "mint is the asset, no
       separate pool contract" situation as above - matched on Project
       alone: apollo-diversified-credit-securitize-fund, vaneck-treasury-
@@ -87,6 +97,11 @@ Protocols with real Pool Address resolution right now:
       source, not derived from underlyingTokens (which is just the USDC
       mint here, shared across many unrelated pools, so unusable as a
       key on its own).
+    - tramplin.io: matched on Project alone, same "not a mint" situation
+      as credix - this protocol has no LST token at all. The pool value
+      is the Solana validator vote-account address depositors delegate
+      stake to (rewards are redistributed via an off-chain lottery, not
+      an on-chain LST), baked directly into the adaptor's own source.
     - hastra: matched on (Project, Symbol) - two pools. wYLDS has no
       pool contract -> Pool Address = its own mint. PRIME has no pool
       contract either, but PRIME_VAULT is the account depositors
@@ -140,6 +155,8 @@ LOOPSCALE_VAULTS_URL = "https://tars.loopscale.com/v1/markets/lending_vaults/sta
 OMNIPAIR_POOLS_URL = "https://api.indexer.omnipair.fi/api/v1/pools"
 ALLBRIDGE_TOKEN_INFO_URL = "https://core.api.allbridgecoreapi.net/token-info"
 CUBE_POOLS_URL = "https://api.cubee.ee/api/defillama/yields"
+SENTORA_VAULTS_URL = "https://services.vaults.sentora.com/vaults"
+YO_PROTOCOL_SOLANA_URL = "https://api.yo.xyz/api/v1/solana/vault/stats"
 
 # --- TEMP / DEV-ONLY ---
 OUTPUT_CSV = "solana_pools_output.csv"
@@ -837,6 +854,115 @@ def _fetch_cube_index() -> dict:
     return index
 
 
+def _fetch_sentora_index() -> tuple[dict, dict]:
+    """
+    Pull Sentora's own vaults API and index Solana-side vaults by
+    (deposit mint, vault name lowercased) -> vault address, plus a
+    mint-only fallback keeping the highest-TVL vault per mint.
+
+    Solana scope: read against the adaptor's own source, its Solana
+    coverage is Kamino-managed vaults only (v.protocol === 'kamino') -
+    every other protocol Sentora tracks on this feed is either
+    Ethereum-side or explicitly skipped by the adaptor itself (Morpho
+    and Euler v2 vaults are dropped since those are already tracked by
+    their own DefiLlama adaptors). This resolver mirrors that same
+    filter rather than trying to resolve pools the live DefiLlama data
+    will never actually contain for this project.
+
+    `vault.address` here is a real on-chain Kamino vault address, not a
+    derived one - same status as the vault addresses gmtrade/cube hand
+    back directly. The (mint, name) index exists because a single
+    deposit mint can back more than one Sentora/Kamino vault (different
+    strategies over the same asset), matching the same isolated-market
+    ambiguity Kamino Lend and Save already handle above - DefiLlama's
+    own `poolMeta` for this project is set to `vault.name`, so it lines
+    up directly with the "Pool Meta" column already captured in
+    fetch_solana_pools().
+    """
+    log("Step 4/4: building sentora pool index ...")
+    by_name: dict = {}
+    by_mint: dict = {}
+    try:
+        resp = _SESSION.get(SENTORA_VAULTS_URL, timeout=30)
+        resp.raise_for_status()
+        payload = resp.json()
+        vaults = payload if isinstance(payload, list) else (payload.get("vaults") or [])
+    except requests.RequestException as e:
+        log(f"  sentora vaults fetch failed: {e}")
+        return by_name, by_mint
+
+    for v in vaults:
+        if v.get("status") != "ACTIVE" or v.get("protocol") != "kamino":
+            continue
+        mint = (v.get("depositToken") or {}).get("address")
+        address = v.get("address")
+        name = (v.get("name") or "").strip().lower()
+        tvl = float((v.get("analytics") or {}).get("tvlUsd") or 0)
+        if not (mint and address):
+            continue
+
+        if name:
+            by_name[(mint, name)] = address
+
+        existing = by_mint.get(mint)
+        if existing is None or tvl > existing[1]:
+            by_mint[mint] = (address, tvl)
+
+    log(
+        f"Step 4/4: sentora index built - {len(by_name)} (mint, vault name) pair(s), "
+        f"{len(by_mint)} mint(s) fallback."
+    )
+    return by_name, by_mint
+
+
+def _fetch_yo_protocol_index() -> tuple[dict, dict]:
+    """
+    Pull yo.xyz's own Solana vault-stats API and index by (asset mint,
+    vault name lowercased) -> vault address, plus a mint-only fallback.
+
+    `vault.contracts.vaultAddress` is the real on-chain vault address -
+    this is exactly the value the adaptor's own source uses as its
+    `pool:` field for Solana rows, just re-derived here from
+    underlyingTokens instead of trusted from Pool ID (see the module
+    warning at the top of this file for why that distinction matters).
+
+    Fallback caveat: this endpoint doesn't expose a USD TVL figure
+    directly (only raw token units in `tvl.raw`, which isn't comparable
+    across vaults without a price lookup this resolver doesn't do) - so
+    unlike most other index-built resolvers here, the mint-only fallback
+    just keeps the first vault seen for a given mint rather than picking
+    a highest-TVL one. Same situation, and same tradeoff, as Save's
+    mint-only fallback above.
+    """
+    log("Step 4/4: building yo-protocol pool index ...")
+    by_name: dict = {}
+    by_mint: dict = {}
+    try:
+        resp = _SESSION.get(YO_PROTOCOL_SOLANA_URL, timeout=30)
+        resp.raise_for_status()
+        vaults = (resp.json().get("data")) or []
+    except requests.RequestException as e:
+        log(f"  yo-protocol vaults fetch failed: {e}")
+        return by_name, by_mint
+
+    for v in vaults:
+        mint = (v.get("asset") or {}).get("address")
+        address = (v.get("contracts") or {}).get("vaultAddress")
+        name = (v.get("name") or "").strip().lower()
+        if not (mint and address):
+            continue
+
+        if name:
+            by_name[(mint, name)] = address
+        by_mint.setdefault(mint, address)
+
+    log(
+        f"Step 4/4: yo-protocol index built - {len(by_name)} (mint, vault name) pair(s), "
+        f"{len(by_mint)} mint(s) fallback."
+    )
+    return by_name, by_mint
+
+
 # --- Hardcoded pool addresses ---------------------------------------
 #
 # Only for protocols where the pool set is a small fixed constant taken
@@ -882,6 +1008,33 @@ _HARDCODED_SINGLE_POOL: dict[str, str] = {
     # the adaptor's own source (see module docstring). Stored here
     # without the adaptor's own "-solana" suffix.
     "credix": "66v9TQq1P7JKMiKjUZ4xxZRoZh7zyqVdEwuaEAHuE1Bx",
+    # Also not a mint - no LST token exists for this protocol at all.
+    # The pool value is the Solana vote-account address depositors
+    # delegate stake to; rewards flow back via an off-chain lottery
+    # rather than through any on-chain receipt token.
+    "tramplin.io": "TRAMp1Z9EXyWQQNwNjjoNvVksMUHKioVU7ky61yNsEq",
+    # LSTs added from the second adaptor batch. save-sol and laine-sol
+    # each have a real, separate stake-pool program account that the
+    # adaptor doesn't use as `pool` (it uses the mint) - same
+    # DefiLlama-consistency choice as jagpool/stkesol above. Program
+    # accounts noted here in case deposit-contract granularity is ever
+    # wanted instead:
+    #   save-sol:  SAVEY1fVMBeRVo9V9rgEz8ENTvHreftd3QgpAKBDFV4
+    #   laine-sol: 2qyEeSAWKfU18AFthrF7JA8z8ZCi1yt76Tqs917vwQTV
+    "stronghold-staked-sol": "strng7mqqc1MBJJV6vMzYbEqnwVGvKKGKedeCvtktWA",
+    "save-sol": "SAVEDpx3nFNdzG3ymJfShYnrBuYy7LtQEABZQ3qtTFt",
+    "lantern-staked-sol": "LnTRntk2kTfWEY6cVB8K9649pgJbt6dJLS1Ns1GZCWg",
+    "pico-staked-sol": "picobAEvs6w7QEknPce34wAE4gknZA9v5tTonnmHYdX",
+    "laine-sol": "LAinEtNLgpmCP9Rvsf5Hn8W6EhNiKLZQti1xfWMLy6X",
+    "starke-staked-sol": "EPCz5LK372vmvCkZH3HgSuGNKACJJwwxsofW6fypCPZL",
+    # RWA / stablecoin single-pool tokens, same "mint is the asset, no
+    # separate pool contract" situation. Solana's invesco-ustb and
+    # openeden-tbill pools are each a single mint per the adaptor's own
+    # source. openeden-usdo's Solana leg is cUSDO only (USDO itself has
+    # no Solana deployment) - also a single mint, no wrapper needed.
+    "invesco-ustb": "CCz3SGVziFeLYk2xfEstkiqJfYkjaSWb2GCABYsVcjo2",
+    "openeden-tbill": "4MmJVdwYN8LwvbGeCowYjSx7KoEi6BJWg8XXnW4fDDp6",
+    "openeden-usdo": "BnANu5CtUogLqcvBNByJuwaRvRxNtVuDcAytwjsUUtqs",
 }
 
 # Multiple Solana pools per project, matched on (Project, Symbol).
@@ -938,6 +1091,8 @@ def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
     omnipair_index = None
     allbridge_index = None
     cube_index = None
+    sentora_index = None
+    yo_protocol_index = None
 
     raydium_calls = 0
     raydium_hits = 0
@@ -955,6 +1110,10 @@ def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
     omnipair_hits = 0
     allbridge_hits = 0
     cube_hits = 0
+    sentora_hits = 0
+    sentora_name_hits = 0
+    yo_protocol_hits = 0
+    yo_protocol_name_hits = 0
     hardcoded_hits: dict[str, int] = {}
 
     raydium_total = int(pools_df["Project"].str.lower().str.contains("raydium").sum())
@@ -1011,6 +1170,41 @@ def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
             address = match[0] if match else None
             if address:
                 cube_hits += 1
+
+        elif project == "sentora" and len(mints) == 1:
+            if sentora_index is None:
+                try:
+                    sentora_index = _fetch_sentora_index()
+                except requests.RequestException as e:
+                    log(f"  sentora index build failed: {e}")
+                    sentora_index = ({}, {})
+            by_name, by_mint = sentora_index
+            if pool_meta:
+                address = by_name.get((mints[0], pool_meta))
+                if address:
+                    sentora_name_hits += 1
+            if not address:
+                match = by_mint.get(mints[0])
+                address = match[0] if match else None
+            if address:
+                sentora_hits += 1
+
+        elif project == "yo-protocol" and len(mints) == 1:
+            if yo_protocol_index is None:
+                try:
+                    yo_protocol_index = _fetch_yo_protocol_index()
+                except requests.RequestException as e:
+                    log(f"  yo-protocol index build failed: {e}")
+                    yo_protocol_index = ({}, {})
+            by_name, by_mint = yo_protocol_index
+            if pool_meta:
+                address = by_name.get((mints[0], pool_meta))
+                if address:
+                    yo_protocol_name_hits += 1
+            if not address:
+                address = by_mint.get(mints[0])
+            if address:
+                yo_protocol_hits += 1
 
         elif len(mints) in (1, 2):
             if "raydium" in project and len(mints) == 2:
@@ -1151,7 +1345,9 @@ def fetch_pool_addresses(pools_df: pd.DataFrame) -> pd.DataFrame:
         f"loopscale {loopscale_hits} matched | "
         f"omnipair {omnipair_hits} matched | "
         f"allbridge-classic {allbridge_hits} matched | "
-        f"cube {cube_hits} matched"
+        f"cube {cube_hits} matched | "
+        f"sentora {sentora_hits} matched ({sentora_name_hits} via exact vault-name match) | "
+        f"yo-protocol {yo_protocol_hits} matched ({yo_protocol_name_hits} via exact vault-name match)"
         + (f" | {hardcoded_summary}" if hardcoded_summary else "")
     )
     return pd.DataFrame(results)
