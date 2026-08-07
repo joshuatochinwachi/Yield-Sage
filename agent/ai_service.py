@@ -1269,7 +1269,7 @@ MANDATORY OUTPUT STRUCTURE — FOLLOW EXACTLY
 
 💼 **Personalized Portfolio Analysis**
 [You MUST analyze and list EVERY SINGLE trade in the User's Active Paper Trades context. Do not omit, group, or skip any of them. For EACH trade, output exactly one bullet point formatted as follows:
-• [Protocol Name (Pool Name)](exact_url_from_context_if_available): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Detailed personalized analysis of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
+• [Protocol Name (Pool Name)](exact_url_from_context_if_available): Entry X.XX% APY → Current Y.YY% APY [Status symbol/text] — [Concise actionable analysis (1-2 sentences) of this position, specifically checking for performance changes, yield sustainability, pool risk, TVL shifts, and whether it is underperforming by 2%+ or outperforming, with actionable advice].
   CRITICAL: Only use the URL that appears in the context data. If no URL is in the context for this pool, write the name as plain text — no link.
 
 For status symbols/text:
@@ -1343,8 +1343,8 @@ Fix any failure before responding.
         estimated_tokens = len(full_payload_str) // 4
 
         logger.info(f"[Token Guard] User {user_id} prompt size: ~{estimated_tokens} tokens ({len(full_payload_str)} chars)")
-        if estimated_tokens > 6000:
-            err_msg = f"[Token Guard] 🚨 PROMPT OVERFLOW: Prompt token estimate ({estimated_tokens}) exceeds 6,000 limit!"
+        if estimated_tokens > 16000:
+            err_msg = f"[Token Guard] 🚨 PROMPT OVERFLOW: Prompt token estimate ({estimated_tokens}) exceeds 16,000 limit!"
             logger.error(err_msg)
             raise ValueError(err_msg)
 
@@ -1353,7 +1353,7 @@ Fix any failure before responding.
                 messages=[{"role": "user", "content": user_prompt_content}],
                 system_prompt=system_prompt,
                 temperature=0.2,
-                max_tokens=2000,
+                max_tokens=4000,
                 priority="background",
             )
 
