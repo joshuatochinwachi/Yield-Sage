@@ -2,6 +2,7 @@ import type React from "react"
 import type { Metadata, Viewport } from "next"
 import { Inter, Cormorant_Garamond } from "next/font/google"
 import { LenisProvider } from "@/components/lenis-provider"
+import { HollowScanPromo } from "@/components/hollowscan-promo"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" })
@@ -52,6 +53,7 @@ export default function RootLayout({
         <QueryProvider>
           <LenisProvider>
             {children}
+            <HollowScanPromo />
           </LenisProvider>
         </QueryProvider>
       </body>
