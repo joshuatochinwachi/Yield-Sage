@@ -327,10 +327,14 @@ async def _llm_call(
     for provider in provider_order:
         for model in [provider["primary"], provider["fallback"]]:
             try:
+                # Groq has a strict 8,000 TPM limit (Prompt + max_tokens).
+                # Cap max_tokens to 2,000 for Groq to guarantee it never exceeds 8,000 TPM.
+                effective_max_tokens = min(max_tokens, 2000) if provider["name"] == "Groq" else max_tokens
+
                 kwargs = dict(
                     model=model,
                     messages=full_messages,
-                    max_tokens=max_tokens,
+                    max_tokens=effective_max_tokens,
                     temperature=temperature,
                 )
                 if tools:
@@ -1342,7 +1346,7 @@ Fix any failure before responding.
                 messages=[{"role": "user", "content": user_prompt_content}],
                 system_prompt=system_prompt,
                 temperature=0.2,
-                max_tokens=6000,
+                max_tokens=2000,
                 priority="background",
             )
 
