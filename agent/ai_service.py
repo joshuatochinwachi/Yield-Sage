@@ -1160,16 +1160,28 @@ REQUIRED JSON SCHEMA
                     recs_context = "Selected On-chain Yield Recommendations (Ranked by priority):\n"
                     for r in recs_data:
                         p = r.get("protocols") or {}
+                        pid = r.get("protocol_id") or p.get("id")
+
+                        # 1. Resolve APY (First from recommendations.apy_at_time, fallback to yields snapshot)
                         apy_val = r.get("apy_at_time")
-                        # Try to find corresponding TVL from yields list
-                        tvl_val = None
-                        if yields:
+                        if (apy_val is None) and yields:
                             for y in yields:
-                                if y.get("protocol_id") == r.get("protocol_id"):
+                                y_pid = y.get("protocol_id") or (y.get("protocol") or {}).get("id")
+                                if y_pid == pid and y.get("apy") is not None:
+                                    apy_val = y.get("apy")
+                                    break
+
+                        # 2. Resolve TVL (First from recommendations.tvl_usd, fallback to yields snapshot)
+                        tvl_val = r.get("tvl_usd")
+                        if (tvl_val is None) and yields:
+                            for y in yields:
+                                y_pid = y.get("protocol_id") or (y.get("protocol") or {}).get("id")
+                                if y_pid == pid and y.get("tvl_usd") is not None:
                                     tvl_val = y.get("tvl_usd")
                                     break
-                        apy_str = f"{apy_val:.2f}%" if apy_val is not None else "N/A"
-                        tvl_str = f"${tvl_val:,.0f}" if tvl_val else "N/A"
+
+                        apy_str = f"{float(apy_val):.2f}%" if apy_val is not None else "N/A"
+                        tvl_str = f"${float(tvl_val):,.0f}" if tvl_val is not None else "N/A"
                         url = clean_pool_url(p.get("pool_address"))
                         rec_name_key = f"{p.get('name', '')} {p.get('pool_name', '')}".strip().lower()
                         if url:
