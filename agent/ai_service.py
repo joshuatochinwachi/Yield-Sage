@@ -57,7 +57,7 @@ def _init_providers() -> list:
     for cfg in _PROVIDER_CONFIGS:
         key = os.getenv(cfg["env_key"])
         if key:
-            client = AsyncOpenAI(base_url=cfg["base_url"], api_key=key)
+            client = AsyncOpenAI(base_url=cfg["base_url"], api_key=key, max_retries=0)
             active.append({**cfg, "client": client})
             logger.info(f"[LLM] ✅ Provider ready: {cfg['name']} ({cfg['primary']})")
         else:
@@ -636,10 +636,44 @@ class AIService:
             self.get_user_paper_trades(user_id, telegram_chat_id),
         )
 
-        # 3. Build yield context — TVL included to prevent hallucination
+        # 3. Build yield context — Combine top TVL pools across risk tiers AND top APY pools (~65 pools max)
+        # to perfectly answer all query types (safest pools, highest APY pools, portfolio advice, etc.)
+        # while keeping context under ~3,000 tokens to prevent overflow.
+        by_risk = {"stable": [], "moderate": [], "aggressive": [], "unknown": []}
+        for y in yields:
+            risk = (y.get("protocol", {}).get("risk_tag") or "unknown").lower()
+            if risk in by_risk:
+                by_risk[risk].append(y)
+            else:
+                by_risk["unknown"].append(y)
+
+        for rk in by_risk:
+            by_risk[rk].sort(key=lambda x: x.get("tvl_usd") or 0, reverse=True)
+
+        top_tvl = (
+            by_risk["stable"][:20] +
+            by_risk["moderate"][:15] +
+            by_risk["aggressive"][:15] +
+            by_risk["unknown"][:10]
+        )
+        # Top APY pools across all protocols
+        top_apy = sorted(yields, key=lambda x: x.get("apy") or 0, reverse=True)[:15]
+
+        # Combine and deduplicate preserving order
+        seen_ids = set()
+        top_yields = []
+        for y in top_tvl + top_apy:
+            y_id = y.get("id") or y.get("protocol_id") or (y.get("protocol", {}).get("id"))
+            if y_id and y_id not in seen_ids:
+                seen_ids.add(y_id)
+                top_yields.append(y)
+
+        if not top_yields:
+            top_yields = sorted(yields, key=lambda x: x.get("tvl_usd") or 0, reverse=True)[:60]
+
         allowed_pool_url_map = {}
         yield_context = "Current Live Yields (Solana Network):\n"
-        for y in yields:
+        for y in top_yields:
             p         = y["protocol"]
             apy_val   = y.get("apy")
             tvl_val   = y.get("tvl_usd")
