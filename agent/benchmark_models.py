@@ -42,6 +42,35 @@ MODELS = [
         "env_key":  "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
     },
+    # ── ExLabs ───────────────────────────────────────────────────────────────
+    {
+        "label":    "ExLabs — claude-fable-5.1",
+        "provider": "ExLabs",
+        "model":    "claude-fable-5.1",
+        "env_key":  "EXPLABS_API_KEY",
+        "base_url": "https://api.experientiallabs.ai/v1",
+    },
+    {
+        "label":    "ExLabs — qwen3.8-27b",
+        "provider": "ExLabs",
+        "model":    "qwen3.8-27b",
+        "env_key":  "EXPLABS_API_KEY",
+        "base_url": "https://api.experientiallabs.ai/v1",
+    },
+    {
+        "label":    "ExLabs — gpt-5.6-luna",
+        "provider": "ExLabs",
+        "model":    "gpt-5.6-luna",
+        "env_key":  "EXPLABS_API_KEY",
+        "base_url": "https://api.experientiallabs.ai/v1",
+    },
+    {
+        "label":    "ExLabs — deepseek-v4-flash",
+        "provider": "ExLabs",
+        "model":    "deepseek-v4-flash",
+        "env_key":  "EXPLABS_API_KEY",
+        "base_url": "https://api.experientiallabs.ai/v1",
+    },
     # ── NVIDIA ────────────────────────────────────────────────────────────────
     {
         # Proven workhorse — 100% reliability across both benchmark runs
@@ -84,18 +113,18 @@ MODELS = [
     {
         # 120B parameter model — production tier on Cerebras
         # WSE chips designed for high-throughput inference
-        "label":    "Cerebras — gpt-oss-120b",
+        "label":    "Cerebras — zai-org/GLM-5.1",
         "provider": "Cerebras",
-        "model":    "gpt-oss-120b",
+        "model":    "zai-org/GLM-5.1",
         "env_key":  "CEREBRAS_API_KEY",
         "base_url": "https://api.cerebras.ai/v1",
     },
     {
         # GLM 4.7 — preview tier on Cerebras, same WSE hardware
         # Preview = may have lower stability, worth testing
-        "label":    "Cerebras — zai-glm-4.7",
+        "label":    "Cerebras — openai/gpt-oss-120b",
         "provider": "Cerebras",
-        "model":    "zai-glm-4.7",
+        "model":    "openai/gpt-oss-120b",
         "env_key":  "CEREBRAS_API_KEY",
         "base_url": "https://api.cerebras.ai/v1",
     },
