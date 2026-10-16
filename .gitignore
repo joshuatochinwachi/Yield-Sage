@@ -18,6 +18,6 @@ agent/fetcher_state.json
 
 agent/ai_service_backup.py
 
-# Logs
+
 logs.txt
-*.log
+*.log
