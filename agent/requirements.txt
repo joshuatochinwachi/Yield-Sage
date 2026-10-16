@@ -1,15 +1,18 @@
-fastapi
-uvicorn
-apscheduler
-httpx
-openai>=1.0.0
-solders>=0.21.0
-solana>=0.35.0
-base58>=2.1.0
-python-telegram-bot
-pydantic
-supabase
-python-dotenv
-PyJWT
-requests
-pandas
+# Pinned to exact versions resolved in Railway build on 2026-10-16.
+# Eliminates ~18 min pip backtracking on every deploy.
+# To upgrade: run `pip install -U <pkg>` locally, test, then update pins here.
+fastapi==0.143.2
+uvicorn==0.54.0
+apscheduler==3.11.3
+httpx==0.28.1
+openai==2.54.0
+solders==0.28.0
+solana==0.40.1
+base58==2.1.1
+python-telegram-bot==22.8
+pydantic==2.14.1
+supabase==2.33.0
+python-dotenv==1.2.4
+PyJWT==2.15.1
+requests==2.34.2
+pandas==3.0.6

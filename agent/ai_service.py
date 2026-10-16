@@ -24,20 +24,32 @@ _PROVIDER_CONFIGS = [
         "base_url": "https://api.groq.com/openai/v1",
         "primary":  "openai/gpt-oss-120b",
         "fallback": "openai/gpt-oss-20b",
+        "models":   ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
     },
     {
         "name":     "OpenRouter",
         "env_key":  "OPENROUTER_API_KEY",
         "base_url": "https://openrouter.ai/api/v1",
         "primary":  "nvidia/nemotron-3-super-120b-a12b:free",
-        "fallback": "liquid/lfm-2.5-2.6b:free",
+        "fallback": "openrouter/free",
+        "models":   [
+            "nvidia/nemotron-3-super-120b-a12b:free",
+            "openrouter/free",
+            "liquid/lfm-2.5-2.6b:free",
+        ],
     },
     {
         "name":     "Gemini",
         "env_key":  "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "primary":  "gemini-3.5-flash-lite",
-        "fallback": "gemini-3.5-flash",
+        "primary":  "gemini-2.5-flash",
+        "fallback": "gemini-1.5-flash",
+        "models":   [
+            "gemini-2.5-flash",
+            "gemini-1.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.5-flash",
+        ],
     },
 ]
 
@@ -287,18 +299,19 @@ async def _llm_call(
     """
     Cascades through all configured providers until one succeeds.
 
-    Attempt order (per provider):
-      1. Primary model
-      2. Fallback model
-    Then moves to the next provider on any 429 or error.
+    Each provider tries all models in its 'models' list in order.
+    Then moves to the next provider on any 429, 503, empty response, or error.
 
-    Full cascade sequence (both realtime and background):
-      Groq/openai/gpt-oss-120b → Groq/openai/gpt-oss-20b →
-      OpenRouter/nemotron-3-super-120b:free → OpenRouter/lfm-2.5-2.6b:free →
-      Gemini/gemini-3.5-flash-lite → Gemini/gemini-3.5-flash
+    Full cascade sequence:
+      Background jobs (priority="background"):
+        Groq is SKIPPED entirely (preserves 8k TPM for interactive Telegram chat).
+        OpenRouter: nemotron-3-super-120b:free → openrouter/free → lfm-2.5-2.6b:free
+        Gemini: gemini-2.5-flash → gemini-1.5-flash → gemini-3.5-flash-lite → gemini-3.5-flash
 
-    Background jobs use the same full cascade starting from Groq (for smaller prompts)
-    or OpenRouter/Gemini (for prompts >6,000 tokens to honor Groq TPM limit).
+      Realtime / interactive (priority="realtime", default):
+        Groq: gpt-oss-120b → gpt-oss-20b  (skipped if prompt > 3,500 tokens)
+        OpenRouter: nemotron-3-super-120b:free → openrouter/free → lfm-2.5-2.6b:free
+        Gemini: gemini-2.5-flash → gemini-1.5-flash → gemini-3.5-flash-lite → gemini-3.5-flash
 
     Raises RuntimeError only after all slots are exhausted.
     """
@@ -312,16 +325,22 @@ async def _llm_call(
     provider_order = _PROVIDERS
 
     for provider in provider_order:
-        # Groq on-demand tier has a strict 8,000 TPM limit (Input + Output).
-        # If input prompt size exceeds 6,000 tokens, skip Groq and move to OpenRouter/Gemini
-        # to avoid 413 Payload Too Large HTTP errors.
+        # Groq on-demand free tier has an 8,000 TPM limit (Prompt + Completion).
+        # Background jobs (hourly updates) run multi-user loops with large (~4.5k+) prompts
+        # which easily trip 413/429 and exhaust TPM needed for Telegram user chat.
+        # Skip Groq for background jobs or prompts >3,500 tokens.
         if provider["name"] == "Groq":
+            if priority == "background":
+                logger.info("[LLM] Skipping Groq for background job to preserve 8k TPM for interactive Telegram chat.")
+                continue
             prompt_tokens_est = (len(system_prompt) + sum(len(m.get("content", "")) for m in messages)) // 4
-            if prompt_tokens_est > 6000:
-                logger.info(f"[LLM] Skipping Groq (prompt ~{prompt_tokens_est} tokens exceeds Groq 8,000 TPM limit)...")
+            if prompt_tokens_est > 3500:
+                logger.info(f"[LLM] Skipping Groq (prompt ~{prompt_tokens_est} tokens exceeds safe Groq limit)...")
                 continue
 
-        for model in [provider["primary"], provider["fallback"]]:
+        models_to_try = provider.get("models") or [provider["primary"], provider["fallback"]]
+
+        for model in models_to_try:
             try:
                 effective_max_tokens = min(max_tokens, 2000) if provider["name"] == "Groq" else max_tokens
 
@@ -338,18 +357,32 @@ async def _llm_call(
                 response = await provider["client"].chat.completions.create(**kwargs)
                 logger.info(f"[LLM] ✅ Success — {provider['name']} / {model}")
 
-                # Tool call response: content is legitimately None — valid, return immediately
-                finish = response.choices[0].finish_reason
-                content = response.choices[0].message.content
-                tool_calls = response.choices[0].message.tool_calls
+                choice = response.choices[0]
+                finish = choice.finish_reason
+                content = choice.message.content
+                tool_calls = choice.message.tool_calls
 
-                if finish == "tool_calls" and tool_calls:
+                # Tool call response: return immediately regardless of finish_reason text
+                if tool_calls:
                     return response
 
-                # Text response: empty content is a real failure — try next slot
+                # Check if text response has content
                 if not content or not content.strip():
-                    logger.warning(f"[LLM] Empty response from {provider['name']} / {model} — trying next slot...")
-                    last_exc = ValueError(f"Empty response from {model}")
+                    # Some reasoning models put final thoughts/output in reasoning / reasoning_content
+                    reasoning = (
+                        getattr(choice.message, "reasoning", None)
+                        or getattr(choice.message, "reasoning_content", None)
+                    )
+                    if reasoning and reasoning.strip() and not tools:
+                        logger.info(f"[LLM] Content was empty but recovered output from reasoning ({provider['name']} / {model})")
+                        choice.message.content = reasoning.strip()
+                        return response
+
+                    logger.warning(
+                        f"[LLM] Empty response from {provider['name']} / {model} "
+                        f"(finish={finish}, tool_calls={bool(tool_calls)}) — trying next slot..."
+                    )
+                    last_exc = ValueError(f"Empty response from {model} (finish={finish})")
                     await asyncio.sleep(0.3)
                     continue
 
@@ -362,12 +395,23 @@ async def _llm_call(
 
             except Exception as e:
                 last_exc = e
+                err_str = str(e)
                 is_429 = (
                     hasattr(e, "status_code") and e.status_code == 429
-                ) or "429" in str(e)
-                level = "429 (raw)" if is_429 else "error"
+                ) or "429" in err_str
+                is_503 = (
+                    hasattr(e, "status_code") and e.status_code == 503
+                ) or "503" in err_str
+
+                if is_429:
+                    level = "429 (raw)"
+                elif is_503:
+                    level = "503 (high demand)"
+                else:
+                    level = "error"
+
                 logger.warning(f"[LLM] {level} — {provider['name']} / {model}: {e}. Trying next slot...")
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.5 if is_503 else 0.3)
 
     logger.error("[LLM] ❌ All providers and models exhausted.")
     raise last_exc or RuntimeError("All LLM providers exhausted.")
@@ -1421,16 +1465,19 @@ Fix any failure before responding.
             # 2. If RAM cache is missing (e.g. after container restart), query Supabase DB persistent fallback
             if not cached and user_id and supabase:
                 try:
+                    # telegram_messages schema: columns are id, user_id, chat_id, message_type,
+                    # content, sent_at, status, error_message — there is NO created_at column.
+                    # Order by id DESC (UUID v4 won't give chronological order, but sent_at is the right field).
                     db_cache = supabase.table("telegram_messages")\
-                        .select("content, created_at, sent_at")\
+                        .select("content, sent_at")\
                         .eq("user_id", user_id)\
                         .eq("status", "sent")\
-                        .order("created_at", desc=True)\
+                        .order("sent_at", desc=True)\
                         .limit(1)\
                         .execute()
                     if db_cache.data and db_cache.data[0].get("content"):
                         row = db_cache.data[0]
-                        msg_time_str = row.get("sent_at") or row.get("created_at")
+                        msg_time_str = row.get("sent_at")
                         is_fresh = False
                         if msg_time_str:
                             try:
@@ -1442,6 +1489,9 @@ Fix any failure before responding.
                                     logger.info(f"[LLM Cache] Persistent DB fallback for user {user_id} is stale ({age_seconds/3600:.1f}h old > 3h max). Ignoring.")
                             except Exception as parse_err:
                                 logger.warning(f"[LLM Cache] Could not parse message timestamp '{msg_time_str}': {parse_err}")
+                        else:
+                            # No timestamp — treat as fresh enough to serve as fallback
+                            is_fresh = True
 
                         if is_fresh:
                             cached = row["content"]
