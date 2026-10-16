@@ -18,16 +18,7 @@ load_dotenv()
 
 # ── Model roster ──────────────────────────────────────────────────────────────
 MODELS = [
-    # ── Groq ──────────────────────────────────────────────────────────────────
-    {
-        # Fastest provider when it lands — 394 t/s on LPU hardware
-        # Rate limited after 1st call per hour on free tier
-        "label":    "Groq — llama-3.3-70b-versatile",
-        "provider": "Groq",
-        "model":    "llama-3.3-70b-versatile",
-        "env_key":  "GROQ_API_KEY",
-        "base_url": "https://api.groq.com/openai/v1",
-    },
+    # ── Groq (Ultra-fast, 131k ctx, 8k TPM free tier) ─────────────────────────
     {
         "label":    "Groq — openai/gpt-oss-120b",
         "provider": "Groq",
@@ -36,174 +27,78 @@ MODELS = [
         "base_url": "https://api.groq.com/openai/v1",
     },
     {
-        "label":    "Groq — qwen/qwen3.6-27b",
+        "label":    "Groq — openai/gpt-oss-20b",
         "provider": "Groq",
-        "model":    "qwen/qwen3.6-27b",
+        "model":    "openai/gpt-oss-20b",
         "env_key":  "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
     },
-    # ── ExLabs ───────────────────────────────────────────────────────────────
     {
-        "label":    "ExLabs — claude-fable-5.1",
-        "provider": "ExLabs",
-        "model":    "claude-fable-5.1",
-        "env_key":  "EXPLABS_API_KEY",
-        "base_url": "https://api.experientiallabs.ai/v1",
+        "label":    "Groq — qwen/qwen3.8-27b",
+        "provider": "Groq",
+        "model":    "qwen/qwen3.8-27b",
+        "env_key":  "GROQ_API_KEY",
+        "base_url": "https://api.groq.com/openai/v1",
+    },
+
+    # ── Gemini (Google, large context, reliable) ──────────────────────────────
+    {
+        "label":    "Gemini — gemini-3.5-flash",
+        "provider": "Gemini",
+        "model":    "gemini-3.5-flash",
+        "env_key":  "GEMINI_API_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
     },
     {
-        "label":    "ExLabs — qwen3.8-27b",
-        "provider": "ExLabs",
-        "model":    "qwen3.8-27b",
-        "env_key":  "EXPLABS_API_KEY",
-        "base_url": "https://api.experientiallabs.ai/v1",
+        "label":    "Gemini — gemini-3.5-flash-lite",
+        "provider": "Gemini",
+        "model":    "gemini-3.5-flash-lite",
+        "env_key":  "GEMINI_API_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
     },
     {
-        "label":    "ExLabs — gpt-5.6-luna",
-        "provider": "ExLabs",
-        "model":    "gpt-5.6-luna",
-        "env_key":  "EXPLABS_API_KEY",
-        "base_url": "https://api.experientiallabs.ai/v1",
+        "label":    "Gemini — gemini-3.1-flash-lite",
+        "provider": "Gemini",
+        "model":    "gemini-3.1-flash-lite",
+        "env_key":  "GEMINI_API_KEY",
+        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
     },
     {
-        "label":    "ExLabs — deepseek-v4-flash",
-        "provider": "ExLabs",
-        "model":    "deepseek-v4-flash",
-        "env_key":  "EXPLABS_API_KEY",
-        "base_url": "https://api.experientiallabs.ai/v1",
-    },
-    # ── NVIDIA ────────────────────────────────────────────────────────────────
-    {
-        # Proven workhorse — 100% reliability across both benchmark runs
-        "label":    "NVIDIA — llama-3.1-70b-instruct",
-        "provider": "NVIDIA",
-        "model":    "meta/llama-3.1-70b-instruct",
-        "env_key":  "NVIDIA_API_KEY",
-        "base_url": "https://integrate.api.nvidia.com/v1",
-    },
-    {
-        # NVIDIA secondary — also 100% reliable, slightly slower TTFT
-        "label":    "NVIDIA — llama-3.3-70b-instruct",
-        "provider": "NVIDIA",
-        "model":    "meta/llama-3.3-70b-instruct",
-        "env_key":  "NVIDIA_API_KEY",
-        "base_url": "https://integrate.api.nvidia.com/v1",
-    },
-    # ── Gemini ────────────────────────────────────────────────────────────────
-    {
-        # Best instruction following — timing-dependent but real
-        # Railway logs prove it works across hours when not hammered back-to-back
         "label":    "Gemini — gemini-2.5-flash",
         "provider": "Gemini",
         "model":    "gemini-2.5-flash",
         "env_key":  "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
     },
+
+    # ── OpenRouter (Free tier models >= 16k context) ──────────────────────────
     {
-        # Gemini fallback
-        "label":    "Gemini — gemini-2.5-flash-lite",
-        "provider": "Gemini",
-        "model":    "gemini-2.5-flash-lite",
-        "env_key":  "GEMINI_API_KEY",
-        "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-    },
-    # ── Cerebras (NEW) ────────────────────────────────────────────────────────
-    # Runs on Cerebras Wafer-Scale Engine (WSE) chips — not GPUs.
-    # Fully OpenAI-compatible. Free tier: 1M tokens/day, 30 RPM, 60K TPM.
-    # Both models have 128K context — comfortably above your 8-9K prompt size.
-    {
-        # 120B parameter model — production tier on Cerebras
-        # WSE chips designed for high-throughput inference
-        "label":    "Cerebras — zai-org/GLM-5.1",
-        "provider": "Cerebras",
-        "model":    "zai-org/GLM-5.1",
-        "env_key":  "CEREBRAS_API_KEY",
-        "base_url": "https://api.cerebras.ai/v1",
-    },
-    {
-        # GLM 4.7 — preview tier on Cerebras, same WSE hardware
-        # Preview = may have lower stability, worth testing
-        "label":    "Cerebras — openai/gpt-oss-120b",
-        "provider": "Cerebras",
-        "model":    "openai/gpt-oss-120b",
-        "env_key":  "CEREBRAS_API_KEY",
-        "base_url": "https://api.cerebras.ai/v1",
-    },
-    # ── OpenRouter (free tier) ────────────────────────────────────────────────
-    {
-        # Llama 3.3 70B via OpenRouter free pool
-        # Previously 429'd — congested but not dead, worth retesting
-        "label":    "OpenRouter — llama-3.3-70b-instruct:free",
+        "label":    "OpenRouter — lfm-2.5-2.6b:free",
         "provider": "OpenRouter",
-        "model":    "meta-llama/llama-3.3-70b-instruct:free",
+        "model":    "liquid/lfm-2.5-2.6b:free",
         "env_key":  "OPENROUTER_API_KEY",
         "base_url": "https://openrouter.ai/api/v1",
     },
     {
-        # DeepSeek R1 — free on OpenRouter, from friend's setup
-        # WARNING: reasoning model — thinks before responding, adds latency
-        # Good quality but expect slower TTFT than non-reasoning models
-        "label":    "OpenRouter — deepseek-r1:free",
+        "label":    "OpenRouter — nemotron-3-super-120b:free",
         "provider": "OpenRouter",
-        "model":    "deepseek/deepseek-r1:free",
+        "model":    "nvidia/nemotron-3-super-120b-a12b:free",
         "env_key":  "OPENROUTER_API_KEY",
         "base_url": "https://openrouter.ai/api/v1",
     },
-# ── SambaNova ─────────────────────────────────────────────────────────────
     {
-        "label":    "SambaNova — DeepSeek-V3.1",
-        "provider": "SambaNova",
-        "model":    "DeepSeek-V3.1",
-        "env_key":  "SAMBANOVA_API_KEY",
-        "base_url": "https://api.sambanova.ai/v1",
+        "label":    "OpenRouter — gemma-4-31b-it:free",
+        "provider": "OpenRouter",
+        "model":    "google/gemma-4-31b-it:free",
+        "env_key":  "OPENROUTER_API_KEY",
+        "base_url": "https://openrouter.ai/api/v1",
     },
     {
-        "label":    "SambaNova — DeepSeek-V3.2",
-        "provider": "SambaNova",
-        "model":    "DeepSeek-V3.2",
-        "env_key":  "SAMBANOVA_API_KEY",
-        "base_url": "https://api.sambanova.ai/v1",
-    },
-    {
-        "label":    "SambaNova — Llama-4-Maverick-17B",
-        "provider": "SambaNova",
-        "model":    "Llama-4-Maverick-17B-128E-Instruct",
-        "env_key":  "SAMBANOVA_API_KEY",
-        "base_url": "https://api.sambanova.ai/v1",
-    },
-    {
-        "label":    "SambaNova — Meta-Llama-3.3-70B",
-        "provider": "SambaNova",
-        "model":    "Meta-Llama-3.3-70B-Instruct",
-        "env_key":  "SAMBANOVA_API_KEY",
-        "base_url": "https://api.sambanova.ai/v1",
-    },
-    {
-        "label":    "SambaNova — gemma-3-12b",
-        "provider": "SambaNova",
-        "model":    "gemma-3-12b-it",
-        "env_key":  "SAMBANOVA_API_KEY",
-        "base_url": "https://api.sambanova.ai/v1",
-    },
-    {
-        "label":    "SambaNova — gemma-4-31B",
-        "provider": "SambaNova",
-        "model":    "gemma-4-31B-it",
-        "env_key":  "SAMBANOVA_API_KEY",
-        "base_url": "https://api.sambanova.ai/v1",
-    },
-    {
-        "label":    "SambaNova — MiniMax-M2.7",
-        "provider": "SambaNova",
-        "model":    "MiniMax-M2.7",
-        "env_key":  "SAMBANOVA_API_KEY",
-        "base_url": "https://api.sambanova.ai/v1",
-    },
-    {
-        "label":    "SambaNova — gpt-oss-120b",
-        "provider": "SambaNova",
-        "model":    "gpt-oss-120b",
-        "env_key":  "SAMBANOVA_API_KEY",
-        "base_url": "https://api.sambanova.ai/v1",
+        "label":    "OpenRouter — openrouter/free",
+        "provider": "OpenRouter",
+        "model":    "openrouter/free",
+        "env_key":  "OPENROUTER_API_KEY",
+        "base_url": "https://openrouter.ai/api/v1",
     },
 ]
 

@@ -19,32 +19,25 @@ else:
 
 _PROVIDER_CONFIGS = [
     {
-        "name":     "Cerebras",
-        "env_key":  "CEREBRAS_API_KEY",
-        "base_url": "https://api.cerebras.ai/v1",
-        "primary":  "gpt-oss-120b",
-        "fallback": "zai-glm-4.7",
-    },
-    {
         "name":     "Groq",
         "env_key":  "GROQ_API_KEY",
         "base_url": "https://api.groq.com/openai/v1",
         "primary":  "openai/gpt-oss-120b",
-        "fallback": "qwen/qwen3.6-27b",
+        "fallback": "openai/gpt-oss-20b",
     },
     {
-        "name":     "NVIDIA",
-        "env_key":  "NVIDIA_API_KEY",
-        "base_url": "https://integrate.api.nvidia.com/v1",
-        "primary":  "meta/llama-3.3-70b-instruct",
-        "fallback": "meta/llama-3.1-70b-instruct",
+        "name":     "OpenRouter",
+        "env_key":  "OPENROUTER_API_KEY",
+        "base_url": "https://openrouter.ai/api/v1",
+        "primary":  "nvidia/nemotron-3-super-120b-a12b:free",
+        "fallback": "liquid/lfm-2.5-2.6b:free",
     },
     {
         "name":     "Gemini",
         "env_key":  "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "primary":  "gemini-2.5-flash-lite",
-        "fallback": "gemini-2.5-flash",
+        "primary":  "gemini-3.5-flash-lite",
+        "fallback": "gemini-3.5-flash",
     },
 ]
 
@@ -300,15 +293,12 @@ async def _llm_call(
     Then moves to the next provider on any 429 or error.
 
     Full cascade sequence (both realtime and background):
-      Cerebras/gpt-oss-120b → Cerebras/zai-glm-4.7 →
-      SambaNova/Meta-Llama-3.3-70B → SambaNova/gemma-3-12b →
-      Groq/openai/gpt-oss-120b → Groq/qwen/qwen3.6-27b →
-      NVIDIA/llama-3.3-70b → NVIDIA/llama-3.1-70b →
-      Gemini/gemini-2.5-flash-lite → Gemini/gemini-2.5-flash
+      Groq/openai/gpt-oss-120b → Groq/openai/gpt-oss-20b →
+      OpenRouter/nemotron-3-super-120b:free → OpenRouter/lfm-2.5-2.6b:free →
+      Gemini/gemini-3.5-flash-lite → Gemini/gemini-3.5-flash
 
-    Background jobs use the same full cascade starting from Cerebras —
-    fastest and most reliable. Falls through to NVIDIA/Gemini only if
-    Cerebras/SambaNova/Groq are rate-limited or unavailable.
+    Background jobs use the same full cascade starting from Groq (for smaller prompts)
+    or OpenRouter/Gemini (for prompts >6,000 tokens to honor Groq TPM limit).
 
     Raises RuntimeError only after all slots are exhausted.
     """
@@ -319,14 +309,11 @@ async def _llm_call(
     last_exc = None
 
     # Both realtime and background use the same full provider cascade.
-    # Cerebras is always first — it is the fastest and most reliable.
-    # NVIDIA is slower and prone to 504s; it is tried only after faster
-    # providers (Cerebras, SambaNova, Groq) have been exhausted.
     provider_order = _PROVIDERS
 
     for provider in provider_order:
         # Groq on-demand tier has a strict 8,000 TPM limit (Input + Output).
-        # If input prompt size exceeds 6,000 tokens, skip Groq and move to NVIDIA/Gemini
+        # If input prompt size exceeds 6,000 tokens, skip Groq and move to OpenRouter/Gemini
         # to avoid 413 Payload Too Large HTTP errors.
         if provider["name"] == "Groq":
             prompt_tokens_est = (len(system_prompt) + sum(len(m.get("content", "")) for m in messages)) // 4
