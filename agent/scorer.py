@@ -43,7 +43,7 @@ class HourlyScorer:
                     apy_at_time = float(pick.get("apy") or pick.get("APY") or 0.0)
                     tvl_usd = float(pick.get("tvl_usd") or pick.get("TVL ($)") or 0.0)
                     reasoning = pick.get("reasoning") or pick.get("ai_reasoning") or "Strong risk-adjusted yield."
-                    model_used = pick.get("model_used") or "nvidia/nemotron-3-super-120b-a12b"
+                    model_used = pick.get("model_used") or "gemini-2.5-flash"
 
                     # 1. Insert recommendation row into Supabase
                     rec_payload = {

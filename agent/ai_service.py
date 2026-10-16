@@ -27,18 +27,6 @@ _PROVIDER_CONFIGS = [
         "models":   ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
     },
     {
-        "name":     "OpenRouter",
-        "env_key":  "OPENROUTER_API_KEY",
-        "base_url": "https://openrouter.ai/api/v1",
-        "primary":  "nvidia/nemotron-3-super-120b-a12b:free",
-        "fallback": "openrouter/free",
-        "models":   [
-            "nvidia/nemotron-3-super-120b-a12b:free",
-            "openrouter/free",
-            "liquid/lfm-2.5-2.6b:free",
-        ],
-    },
-    {
         "name":     "Gemini",
         "env_key":  "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -49,6 +37,17 @@ _PROVIDER_CONFIGS = [
             "gemini-1.5-flash",
             "gemini-3.5-flash-lite",
             "gemini-3.5-flash",
+        ],
+    },
+    {
+        "name":     "OpenRouter",
+        "env_key":  "OPENROUTER_API_KEY",
+        "base_url": "https://openrouter.ai/api/v1",
+        "primary":  "liquid/lfm-2.5-2.6b:free",
+        "fallback": "openrouter/free",
+        "models":   [
+            "liquid/lfm-2.5-2.6b:free",
+            "openrouter/free",
         ],
     },
 ]
@@ -305,13 +304,13 @@ async def _llm_call(
     Full cascade sequence:
       Background jobs (priority="background"):
         Groq is SKIPPED entirely (preserves 8k TPM for interactive Telegram chat).
-        OpenRouter: nemotron-3-super-120b:free → openrouter/free → lfm-2.5-2.6b:free
         Gemini: gemini-2.5-flash → gemini-1.5-flash → gemini-3.5-flash-lite → gemini-3.5-flash
+        OpenRouter: lfm-2.5-2.6b:free → openrouter/free
 
       Realtime / interactive (priority="realtime", default):
         Groq: gpt-oss-120b → gpt-oss-20b  (skipped if prompt > 3,500 tokens)
-        OpenRouter: nemotron-3-super-120b:free → openrouter/free → lfm-2.5-2.6b:free
         Gemini: gemini-2.5-flash → gemini-1.5-flash → gemini-3.5-flash-lite → gemini-3.5-flash
+        OpenRouter: lfm-2.5-2.6b:free → openrouter/free
 
     Raises RuntimeError only after all slots are exhausted.
     """
@@ -366,23 +365,18 @@ async def _llm_call(
                 if tool_calls:
                     return response
 
+                # Strip <think> tags if model produced reasoning inside content
+                if content and "<think>" in content:
+                    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+                    choice.message.content = content
+
                 # Check if text response has content
                 if not content or not content.strip():
-                    # Some reasoning models put final thoughts/output in reasoning / reasoning_content
-                    reasoning = (
-                        getattr(choice.message, "reasoning", None)
-                        or getattr(choice.message, "reasoning_content", None)
-                    )
-                    if reasoning and reasoning.strip() and not tools:
-                        logger.info(f"[LLM] Content was empty but recovered output from reasoning ({provider['name']} / {model})")
-                        choice.message.content = reasoning.strip()
-                        return response
-
                     logger.warning(
-                        f"[LLM] Empty response from {provider['name']} / {model} "
+                        f"[LLM] Empty content from {provider['name']} / {model} "
                         f"(finish={finish}, tool_calls={bool(tool_calls)}) — trying next slot..."
                     )
-                    last_exc = ValueError(f"Empty response from {model} (finish={finish})")
+                    last_exc = ValueError(f"Empty content from {model} (finish={finish})")
                     await asyncio.sleep(0.3)
                     continue
 
