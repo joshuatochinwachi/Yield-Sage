@@ -31,10 +31,10 @@ _PROVIDER_CONFIGS = [
         "env_key":  "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "primary":  "gemini-2.5-flash",
-        "fallback": "gemini-1.5-flash",
+        "fallback": "gemini-2.0-flash",
         "models":   [
             "gemini-2.5-flash",
-            "gemini-1.5-flash",
+            "gemini-2.0-flash",
             "gemini-3.5-flash-lite",
             "gemini-3.5-flash",
         ],
@@ -304,12 +304,12 @@ async def _llm_call(
     Full cascade sequence:
       Background jobs (priority="background"):
         Groq is SKIPPED entirely (preserves 8k TPM for interactive Telegram chat).
-        Gemini: gemini-2.5-flash → gemini-1.5-flash → gemini-3.5-flash-lite → gemini-3.5-flash
+        Gemini: gemini-2.5-flash → gemini-2.0-flash → gemini-3.5-flash-lite → gemini-3.5-flash
         OpenRouter: lfm-2.5-2.6b:free → openrouter/free
 
       Realtime / interactive (priority="realtime", default):
         Groq: gpt-oss-120b → gpt-oss-20b  (skipped if prompt > 3,500 tokens)
-        Gemini: gemini-2.5-flash → gemini-1.5-flash → gemini-3.5-flash-lite → gemini-3.5-flash
+        Gemini: gemini-2.5-flash → gemini-2.0-flash → gemini-3.5-flash-lite → gemini-3.5-flash
         OpenRouter: lfm-2.5-2.6b:free → openrouter/free
 
     Raises RuntimeError only after all slots are exhausted.
@@ -385,7 +385,7 @@ async def _llm_call(
             except RateLimitError as e:
                 last_exc = e
                 logger.warning(f"[LLM] 429 — {provider['name']} / {model}. Trying next slot...")
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(1.5)
 
             except Exception as e:
                 last_exc = e
@@ -405,7 +405,7 @@ async def _llm_call(
                     level = "error"
 
                 logger.warning(f"[LLM] {level} — {provider['name']} / {model}: {e}. Trying next slot...")
-                await asyncio.sleep(0.5 if is_503 else 0.3)
+                await asyncio.sleep(1.5 if (is_503 or is_429) else 0.4)
 
     logger.error("[LLM] ❌ All providers and models exhausted.")
     raise last_exc or RuntimeError("All LLM providers exhausted.")

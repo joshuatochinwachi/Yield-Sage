@@ -199,7 +199,8 @@ class HourlyScorer:
         for i, user in enumerate(users):
             await process_user(user)
             if i < len(users) - 1:
-                await asyncio.sleep(3)
+                # 6s spacing ensures max 10 requests/min, keeping well within Gemini free tier 15 RPM
+                await asyncio.sleep(6)
 
 if __name__ == "__main__":
     scorer = HourlyScorer()
