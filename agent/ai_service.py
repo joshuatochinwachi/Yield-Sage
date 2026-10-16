@@ -24,19 +24,20 @@ _PROVIDER_CONFIGS = [
         "base_url": "https://api.groq.com/openai/v1",
         "primary":  "openai/gpt-oss-120b",
         "fallback": "openai/gpt-oss-20b",
-        "models":   ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
+        "models":   ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "qwen/qwen3.8-27b"],
     },
     {
         "name":     "Gemini",
         "env_key":  "GEMINI_API_KEY",
         "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "primary":  "gemini-2.5-flash",
-        "fallback": "gemini-2.0-flash",
+        "primary":  "gemini-3.8-flash",
+        "fallback": "gemini-3.5-flash",
         "models":   [
-            "gemini-2.5-flash",
-            "gemini-2.0-flash",
-            "gemini-3.5-flash-lite",
+            "gemini-3.8-flash",
             "gemini-3.5-flash",
+            "gemini-3.5-flash-lite",
+            "gemini-3.1-flash-lite",
+            "gemini-2.5-flash",
         ],
     },
     {
@@ -303,13 +304,13 @@ async def _llm_call(
 
     Full cascade sequence:
       Background jobs (priority="background"):
-        Groq is SKIPPED entirely (preserves 8k TPM for interactive Telegram chat).
-        Gemini: gemini-2.5-flash → gemini-2.0-flash → gemini-3.5-flash-lite → gemini-3.5-flash
+        Gemini: gemini-3.8-flash → gemini-3.5-flash → gemini-3.5-flash-lite → gemini-3.1-flash-lite → gemini-2.5-flash
+        Groq: gpt-oss-120b → gpt-oss-20b → qwen3.8-27b (fallback safety net)
         OpenRouter: lfm-2.5-2.6b:free → openrouter/free
 
       Realtime / interactive (priority="realtime", default):
-        Groq: gpt-oss-120b → gpt-oss-20b  (skipped if prompt > 3,500 tokens)
-        Gemini: gemini-2.5-flash → gemini-2.0-flash → gemini-3.5-flash-lite → gemini-3.5-flash
+        Groq: gpt-oss-120b → gpt-oss-20b → qwen3.8-27b (ultra-low latency)
+        Gemini: gemini-3.8-flash → gemini-3.5-flash → gemini-3.5-flash-lite → gemini-3.1-flash-lite → gemini-2.5-flash
         OpenRouter: lfm-2.5-2.6b:free → openrouter/free
 
     Raises RuntimeError only after all slots are exhausted.
@@ -320,20 +321,23 @@ async def _llm_call(
     full_messages = [{"role": "system", "content": system_prompt}] + messages
     last_exc = None
 
-    # Both realtime and background use the same full provider cascade.
-    provider_order = _PROVIDERS
+    # Dynamic provider ordering:
+    # - "realtime": Groq -> Gemini -> OpenRouter (Groq is ultrafast for Telegram user chat)
+    # - "background": Gemini -> Groq -> OpenRouter (Gemini has 1M TPM for background batches; Groq is robust fallback)
+    if priority == "background":
+        gemini = [p for p in _PROVIDERS if p["name"] == "Gemini"]
+        groq = [p for p in _PROVIDERS if p["name"] == "Groq"]
+        openrouter = [p for p in _PROVIDERS if p["name"] == "OpenRouter"]
+        others = [p for p in _PROVIDERS if p["name"] not in ("Gemini", "Groq", "OpenRouter")]
+        provider_order = gemini + groq + openrouter + others
+    else:
+        provider_order = _PROVIDERS
 
     for provider in provider_order:
-        # Groq on-demand free tier has an 8,000 TPM limit (Prompt + Completion).
-        # Background jobs (hourly updates) run multi-user loops with large (~4.5k+) prompts
-        # which easily trip 413/429 and exhaust TPM needed for Telegram user chat.
-        # Skip Groq for background jobs or prompts >3,500 tokens.
+        # On Groq free tier (8k TPM limit), avoid prompts that would exceed safe token limit
         if provider["name"] == "Groq":
-            if priority == "background":
-                logger.info("[LLM] Skipping Groq for background job to preserve 8k TPM for interactive Telegram chat.")
-                continue
             prompt_tokens_est = (len(system_prompt) + sum(len(m.get("content", "")) for m in messages)) // 4
-            if prompt_tokens_est > 3500:
+            if prompt_tokens_est > 6000:
                 logger.info(f"[LLM] Skipping Groq (prompt ~{prompt_tokens_est} tokens exceeds safe Groq limit)...")
                 continue
 
@@ -1128,7 +1132,7 @@ REQUIRED JSON SCHEMA
             # Sort remainder by APY descending
             tier_pools.sort(key=lambda y: float(y.get("apy") or 0), reverse=True)
             
-            top_tier = tier_pools[:15]
+            top_tier = tier_pools[:8]
             filtered_yields.extend(top_tier)
             tier_counts[tier] = len(top_tier)
 
